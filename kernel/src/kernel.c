@@ -13,6 +13,8 @@
 #define UARTFR_TXFF      (1U << 5)
 
 extern char __kernel_start[];
+extern char __text_start[];
+extern char __rodata_start[];
 extern char __kernel_end[];
 extern char __heap_start[];
 extern char __heap_end[];
@@ -306,6 +308,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("MMU unmapped guard test passed.\n");
         } else {
             uart_write("ERROR: MMU unmapped guard address unexpectedly translated.\n");
+        }
+        if (nova_mmu_verify_executable((uintptr_t)&kernel_main) &&
+            nova_mmu_verify_write_protected((uintptr_t)&kernel_main) &&
+            nova_mmu_verify_write_protected((uintptr_t)__rodata_start) &&
+            nova_mmu_verify_execute_never((uintptr_t)__rodata_start) &&
+            nova_mmu_verify_writable((uintptr_t)&bss_probe) &&
+            nova_mmu_verify_execute_never((uintptr_t)&bss_probe)) {
+            uart_write("MMU kernel text/rodata/data permission tests passed.\n");
+        } else {
+            uart_write("ERROR: MMU kernel permission test failed.\n");
         }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
