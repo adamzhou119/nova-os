@@ -73,7 +73,7 @@ $(MMU_OBJECT): src/mmu.c include/mmu.h | $(BUILD)
 $(VM_OBJECT): src/vm.c include/vm.h include/mmu.h include/memory.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(TASK_OBJECT): src/task.c include/task.h include/context.h include/vm.h | $(BUILD)
+$(TASK_OBJECT): src/task.c include/task.h include/context.h include/interrupt.h include/vm.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(SCHEDULER_OBJECT): src/scheduler.c include/scheduler.h include/task.h include/context.h | $(BUILD)
