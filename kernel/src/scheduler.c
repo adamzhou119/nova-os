@@ -259,6 +259,14 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
                            struct nova_irq_frame **next_frame) {
     uintptr_t saved_daif = irq_save_disable();
     uint32_t current_id = current_task_id;
+    uint32_t candidate_id = 0U;
+    uint32_t target_space_id = 0U;
+    struct nova_task_info current_info, candidate_info;
+    struct nova_address_space_info target_space;
+    uintptr_t target_root = 0U;
+    uint16_t target_asid = 0U;
+    int switched_space = 0;
+    int target_activated = 0;
     int switched;
 
     if (execution_phase != NOVA_SCHED_TASK || current_id == 0U ||
@@ -267,34 +275,92 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
         return 0;
     }
 
-    {
-        struct nova_task_info current_info, candidate_info;
-        uint32_t candidate_id = 0U;
-        /*
-         * IRQ-frame handoff is safe without a TTBR change only when both
-         * tasks share the same address space. Cross-address-space handoff
-         * remains deferred until frame and TTBR selection are atomic.
-         */
-        if (!nova_task_get(current_id, &current_info) ||
-            (nova_task_next_irq_ready(current_id, &candidate_id) &&
-             candidate_id != current_id &&
-             (!nova_task_get(candidate_id, &candidate_info) ||
-              candidate_info.address_space_id !=
-                  current_info.address_space_id))) {
+    /*
+     * The current task's address space must match the root currently active
+     * on this CPU. IRQs are masked, so the selected peer cannot change between
+     * this preview and nova_task_irq_handoff().
+     */
+    if (!nova_task_get(current_id, &current_info) ||
+        current_info.address_space_id != active_address_space_id) {
+        current_quantum_ticks = 0U;
+        preemption_pending = 0;
+        irq_restore(saved_daif);
+        return 0;
+    }
+
+    if (nova_task_next_irq_ready(current_id, &candidate_id) &&
+        candidate_id != current_id) {
+        if (!nova_task_get(candidate_id, &candidate_info)) {
             current_quantum_ticks = 0U;
             preemption_pending = 0;
             irq_restore(saved_daif);
             return 0;
         }
+        target_space_id = candidate_info.address_space_id;
+
+        if (target_space_id != active_address_space_id) {
+            if (target_space_id == 0U) {
+                target_root = nova_mmu_kernel_root();
+                target_asid = 0U;
+            } else {
+                if (!nova_address_space_get(target_space_id, &target_space) ||
+                    !nova_address_space_activate(target_space_id)) {
+                    current_quantum_ticks = 0U;
+                    preemption_pending = 0;
+                    irq_restore(saved_daif);
+                    return 0;
+                }
+                target_activated = 1;
+                target_root = target_space.root_physical;
+                target_asid = target_space.asid;
+            }
+
+            /*
+             * Activate the destination before changing TTBR0. The current
+             * kernel stack and IRQ frame remain reachable through the shared
+             * privileged mappings during this short handoff window.
+             */
+            if (!nova_mmu_switch_address_space(target_root, target_asid)) {
+                if (target_activated)
+                    (void)nova_address_space_deactivate(target_space_id);
+                current_quantum_ticks = 0U;
+                preemption_pending = 0;
+                irq_restore(saved_daif);
+                return 0;
+            }
+            switched_space = 1;
+        }
     }
+
     switched = nova_task_irq_handoff(current_id, frame, next_id, next_frame);
-    /* A no-peer result still consumes the expired quantum, per the ADR. */
     current_quantum_ticks = 0U;
     preemption_pending = 0;
+
     if (switched) {
+        if (switched_space) {
+            if (active_address_space_id != 0U)
+                (void)nova_address_space_deactivate(active_address_space_id);
+            active_address_space_id = target_space_id;
+        }
         current_task_id = *next_id;
         next_after_id = *next_id;
+    } else if (switched_space) {
+        uintptr_t old_root = nova_mmu_kernel_root();
+        uint16_t old_asid = 0U;
+        if (current_info.address_space_id != 0U) {
+            struct nova_address_space_info old_space;
+            if (!nova_address_space_get(current_info.address_space_id,
+                                        &old_space))
+                for (;;) __asm__ volatile("wfe");
+            old_root = old_space.root_physical;
+            old_asid = old_space.asid;
+        }
+        if (!nova_mmu_switch_address_space(old_root, old_asid))
+            for (;;) __asm__ volatile("wfe");
+        if (target_activated)
+            (void)nova_address_space_deactivate(target_space_id);
     }
+
     irq_restore(saved_daif);
     return switched;
 }
