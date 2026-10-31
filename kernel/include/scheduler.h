@@ -5,8 +5,8 @@
 #include "interrupt.h"
 
 /* Single-core scheduler: cooperative switches plus timer-driven IRQ frame handoff.
- * IRQ handoff may switch tasks within one address space; cross-space IRQ
- * preemption is deferred until frame/TTBR handoff is atomic. */
+ * Cross-space IRQ handoff activates the destination, switches TTBR0, then
+ * commits the saved-frame/task selection while local IRQ delivery is masked. */
 enum nova_sched_phase {
     NOVA_SCHED_INACTIVE = 0,
     NOVA_SCHED_SCHEDULER,
