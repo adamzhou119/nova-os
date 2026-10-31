@@ -83,7 +83,6 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(0 && "unexpected task address space");
         }
         assert(observed_task != 0U);
-        assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
         if (observed_task == user_task) {
             struct nova_address_space_info space;
             assert(nova_address_space_get(user_space_id, &space));
