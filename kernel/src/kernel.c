@@ -11,6 +11,8 @@
 #include "context.h"
 #include "scheduler.h"
 #include "timer.h"
+#include "gic.h"
+#include "interrupt.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -522,6 +524,21 @@ static int test_generic_timer(void) {
     return 1;
 }
 
+static int test_timer_irq(void) {
+    uint64_t frequency;
+    uint64_t limit;
+    if (!nova_timer_init() || !nova_gic_init()) return 0;
+    frequency = nova_timer_frequency();
+    if (frequency < 100U || !nova_timer_start_irq(frequency / 100U)) return 0;
+    __asm__ volatile("msr daifclr, #2\n\tisb" ::: "memory");
+    limit = nova_timer_now() + frequency;
+    while (nova_irq_tick_count() < 3U && nova_timer_now() < limit)
+        __asm__ volatile("wfe");
+    __asm__ volatile("msr daifset, #2\n\tisb" ::: "memory");
+    nova_timer_stop();
+    return nova_irq_tick_count() >= 3U;
+}
+
 static int test_task_lifecycle(void) {
     uint32_t first, second;
     struct nova_task_info info;
@@ -652,6 +669,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("EL1 generic physical timer tests passed.\n");
         } else {
             uart_write("ERROR: EL1 generic physical timer test failed.\n");
+        }
+        if (test_timer_irq()) {
+            uart_write("GICv2 physical timer IRQ tests passed.\n");
+        } else {
+            uart_write("ERROR: GICv2 physical timer IRQ test failed.\n");
         }
         if (test_cooperative_scheduler()) {
             uart_write("Kernel cooperative scheduler tests passed.\n");
