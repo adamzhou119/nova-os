@@ -12,6 +12,8 @@
 
 extern char __heap_start[];
 extern char __heap_end[];
+extern char __page_pool_start[];
+extern char __page_pool_end[];
 static volatile uint64_t bss_probe;
 
 static void uart_putc(char c) {
@@ -87,34 +89,53 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
     for (;;) __asm__ volatile("wfe");
 }
 
-static void test_heap(void) {
+static int test_heap(void) {
     void *small;
     void *page;
     void *too_large;
 
-    if (!nova_heap_init((uintptr_t)__heap_start, (uintptr_t)__heap_end)) {
-        uart_write("ERROR: heap initialization failed.\n");
-        return;
-    }
+    if (!nova_heap_init((uintptr_t)__heap_start, (uintptr_t)__heap_end))
+        return 0;
 
     small = nova_alloc(37, 16);
     page = nova_alloc(4096, 4096);
     too_large = nova_alloc(0x100000, 16);
 
-    if (small != NULL && page != NULL &&
-        (((uintptr_t)small & 15U) == 0) &&
-        (((uintptr_t)page & 4095U) == 0) &&
-        too_large == NULL &&
-        nova_heap_used() <= 0x100000U) {
-        uart_write("Heap allocator tests passed.\n");
-    } else {
-        uart_write("ERROR: heap allocator test failed.\n");
-    }
+    return small != NULL && page != NULL &&
+           (((uintptr_t)small & 15U) == 0) &&
+           (((uintptr_t)page & 4095U) == 0) &&
+           too_large == NULL && nova_heap_used() <= 0x100000U;
+}
 
-    uart_write("Heap bytes used: ");
-    uart_write_hex64(nova_heap_used());
-    uart_write("Heap bytes available: ");
-    uart_write_hex64(nova_heap_available());
+static int test_pages(void) {
+    void *first;
+    void *second;
+    void *reused;
+    size_t initial = nova_page_total();
+
+    if (!nova_page_init((uintptr_t)__page_pool_start,
+                        (uintptr_t)__page_pool_end))
+        return 0;
+
+    first = nova_page_alloc();
+    second = nova_page_alloc();
+    if (first == NULL || second == NULL || first == second ||
+        (((uintptr_t)first & (NOVA_PAGE_SIZE - 1U)) != 0) ||
+        (((uintptr_t)second & (NOVA_PAGE_SIZE - 1U)) != 0))
+        return 0;
+
+    if (!nova_page_free(first) || nova_page_free(first) ||
+        nova_page_free((void *)((uintptr_t)second + 1U)))
+        return 0;
+
+    reused = nova_page_alloc();
+    if (reused != first || nova_page_available() != initial - 2U)
+        return 0;
+
+    if (!nova_page_free(second) || !nova_page_free(reused))
+        return 0;
+
+    return nova_page_available() == initial;
 }
 
 void kernel_main(uint64_t current_el) {
@@ -125,7 +146,16 @@ void kernel_main(uint64_t current_el) {
     if (bss_probe == 0) uart_write("BSS zero initialization verified.\n");
     else uart_write("ERROR: BSS zero initialization failed.\n");
 
-    test_heap();
+    if (test_heap()) uart_write("Heap allocator tests passed.\n");
+    else uart_write("ERROR: heap allocator test failed.\n");
+
+    if (test_pages()) uart_write("Physical page allocator tests passed.\n");
+    else uart_write("ERROR: physical page allocator test failed.\n");
+
+    uart_write("Page pool total: ");
+    uart_write_hex64(nova_page_total());
+    uart_write("Page pool available: ");
+    uart_write_hex64(nova_page_available());
 
 #ifdef NOVA_TEST_EXCEPTION
     if (current_el == 1) {
