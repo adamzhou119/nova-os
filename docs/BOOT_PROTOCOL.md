@@ -46,9 +46,13 @@ boot specification.
 
 ## Important constraints
 
-- The supported boot path currently enters at EL1. The entry code reports
-  other exception levels but does not yet implement an EL2-to-EL1 or
-  EL3-to-EL2 transition policy, nor EL2/EL3 vector tables.
+- The normal kernel boot image is still tested through the QEMU path that
+  starts at EL1. A separate secure QEMU test image now verifies the narrow
+  EL3-to-EL2-to-EL1 transition sequence. This is not yet a general firmware
+  handoff contract for arbitrary boards or bootloaders.
+- EL2/EL3 vector tables, trap handling, and recovery policy are not
+  implemented. The transition test validates the controlled entry sequence,
+  not a complete hypervisor or secure-monitor environment.
 - The bootstrap stack is reserved inside `.bss`. The assembly entry does not
   push data or call another function until the clearing loop has completed.
 - Only the primary CPU clears the shared `.bss` range. Secondary CPUs park
@@ -64,8 +68,8 @@ boot specification.
 
 ## Next boot milestones
 
-- Define and test an explicit EL2-to-EL1 policy for boot firmware that enters
-  at EL2, including physical timer access controls.
+- Extend the tested EL2-to-EL1 entry policy to documented firmware handoffs,
+  and add EL2/EL3 vector tables plus trap handling.
 - Add typed synchronous, FIQ, and SError handlers with explicit recovery or
   terminal-fault policies.
 - Pin and document a supported QEMU/toolchain version matrix.

@@ -48,7 +48,10 @@ Implemented and runtime-verified on QEMU virt:
 
 Remaining:
 - [ ] Distinguish synchronous exceptions, IRQ, FIQ, and SError with typed handlers and documented recovery policy.
-- [ ] Define an explicit EL2 boot/transition policy and EL2 vector handling.
+- [x] Implement and QEMU-test a controlled EL3-to-EL2-to-EL1 transition,
+      including EL1 physical timer access controls.
+- [ ] Add EL2/EL3 vector tables, trap handling, and a general firmware
+      handoff contract.
 - [ ] Pin and document the supported QEMU/toolchain matrix.
 - [ ] Generalize device-memory mappings and page-table construction from FDT data.
 - [ ] Define per-task address-space and user-mode context requirements before introducing unprivileged tasks.

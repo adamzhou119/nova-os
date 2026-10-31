@@ -94,3 +94,24 @@ System halted for diagnosis.
 
 This is a controlled synchronous-exception test, not proof that IRQ, FIQ,
 SError, lower-EL exceptions, or exception return are implemented.
+
+
+## Secure EL3 → EL2 → EL1 transition test
+
+CI also builds a dedicated transition image and runs it with QEMU's
+TrustZone and virtualization extensions enabled:
+
+```sh
+timeout 8s qemu-system-aarch64 \\
+  -machine virt,secure=on,virtualization=on,gic-version=2 \\
+  -cpu cortex-a57 -nographic \\
+  -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 \\
+  -device loader,file=kernel/build/nova-el2-test.elf
+```
+
+The `virt` machine's `secure` and `virtualization` options enable separate
+Arm CPU extensions; both are required for this test. The guest is expected
+to remain in its idle loop, so CI requires the expected timeout exit (124)
+as well as the serial markers `Welcome to Nova OS`, `CurrentEL: EL1`, and
+`EL2-to-EL1 transition passed.`. This validates the controlled QEMU path,
+not EL2/EL3 vector handling or arbitrary firmware compatibility.
