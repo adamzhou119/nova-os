@@ -81,7 +81,7 @@ _start:
 8:
     mov     x0, #1
 
-    /* The current prototype installs vectors only when running at EL1. */
+    /* Direct EL1 firmware entry installs its vector table here. */
 6:
     cmp     x0, #1
     b.ne    9f
