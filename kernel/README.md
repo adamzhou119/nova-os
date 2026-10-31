@@ -22,6 +22,12 @@ The QEMU smoke test currently uses a 128 MiB `virt` RAM configuration and explic
 
 The firmware-backed map is the active page map after the legacy fixed-pool regression test. Its address index and bitmap are statically bounded to 32,768 pages (128 MiB at 4 KiB per page).
 
+## Early EL1 MMU bring-up
+
+The QEMU `virt` target now has an initial AArch64 stage-1 translation setup using a 4 KiB translation-table granule and a 39-bit TTBR0 virtual-address space. The prototype identity-maps the 1 GiB window beginning at `0x40000000` as Normal write-back memory and maps the 2 MiB PL011 UART window at `0x09000000` as Device-nGnRnE. It installs MAIR_EL1, TCR_EL1, and TTBR0_EL1, invalidates EL1 stage-1 TLB entries, then enables the EL1 MMU and data/instruction caches.
+
+The QEMU smoke test verifies stage-1 identity translations for a kernel code address and the UART address after enabling translation. This mapping is intentionally board-specific and minimal: it is not yet a general FDT-driven page-table builder, does not provide per-page permissions or user address spaces, and does not implement TTBR1 high-half mappings or dynamic map/unmap operations.
+
 ## Important limitations
 
 This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, MMU integration, virtual-memory mappings, reclaim, or hotplug support. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
