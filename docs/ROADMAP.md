@@ -65,7 +65,7 @@ Remaining:
 - [x] Switch TTBR0 and maintain address-space active references during cooperative task dispatch/return.
 - [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path.
 - [x] Implement atomic cross-address-space IRQ-frame/TTBR handoff with destination activation, TTBR0 switch, active-reference transfer, and rollback; host scheduler tests cover the handoff.
-- [ ] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU.
+- [x] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU virt; the serial test confirms both tasks make progress across repeated TTBR0 handoffs.
 - [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
