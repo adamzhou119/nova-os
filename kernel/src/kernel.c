@@ -9,6 +9,7 @@
 #include "vm.h"
 #include "task.h"
 #include "context.h"
+#include "scheduler.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -456,6 +457,42 @@ static int test_arch_context_switch(void) {
     return passed;
 }
 
+static volatile uint32_t scheduler_order[4];
+static volatile uint32_t scheduler_order_count;
+
+static void scheduler_task_a(void *argument) {
+    (void)argument;
+    scheduler_order[scheduler_order_count++] = 1U;
+    (void)nova_sched_yield();
+    scheduler_order[scheduler_order_count++] = 3U;
+}
+
+static void scheduler_task_b(void *argument) {
+    (void)argument;
+    scheduler_order[scheduler_order_count++] = 2U;
+    (void)nova_sched_yield();
+    scheduler_order[scheduler_order_count++] = 4U;
+}
+
+static int test_cooperative_scheduler(void) {
+    uint32_t first, second;
+    struct nova_task_info info;
+    scheduler_order_count = 0U;
+    scheduler_order[0] = scheduler_order[1] = 0U;
+    scheduler_order[2] = scheduler_order[3] = 0U;
+    if (!nova_task_create(scheduler_task_a, 0, &first) ||
+        !nova_task_create(scheduler_task_b, 0, &second)) return 0;
+    if (!nova_sched_start() || scheduler_order_count != 4U ||
+        scheduler_order[0] != 1U || scheduler_order[1] != 2U ||
+        scheduler_order[2] != 3U || scheduler_order[3] != 4U ||
+        nova_sched_current() != 0U ||
+        !nova_task_get(first, &info) || info.state != NOVA_TASK_ZOMBIE ||
+        !nova_task_destroy(first) ||
+        !nova_task_get(second, &info) || info.state != NOVA_TASK_ZOMBIE ||
+        !nova_task_destroy(second)) return 0;
+    return 1;
+}
+
 static int test_task_lifecycle(void) {
     uint32_t first, second;
     struct nova_task_info info;
@@ -581,6 +618,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("Kernel task lifecycle tests passed.\n");
         } else {
             uart_write("ERROR: kernel task lifecycle test failed.\n");
+        }
+        if (test_cooperative_scheduler()) {
+            uart_write("Kernel cooperative scheduler tests passed.\\n");
+        } else {
+            uart_write("ERROR: kernel cooperative scheduler test failed.\\n");
         }
         if (test_arch_context_switch()) {
             uart_write("AArch64 cooperative context switch test passed.\\n");
