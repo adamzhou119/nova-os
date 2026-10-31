@@ -26,7 +26,7 @@ jobs:
         run: |
           make -C kernel clean all test
 
-      - name: Run host-side allocator, task lifecycle, and IRQ dispatcher tests
+      - name: Run host-side allocator, task lifecycle, IRQ, and exception decoder tests
         run: |
           make -C kernel host-test
 
@@ -96,7 +96,9 @@ jobs:
           cat exception.log
           grep -q "Triggering controlled SVC exception test." exception.log
           grep -q "EXCEPTION: EL1 vector captured." exception.log
+          grep -q "Exception kind: Synchronous" exception.log
           grep -q "Vector: Current EL SPx synchronous" exception.log
+          grep -q "ESR exception description: AArch64 SVC" exception.log
           grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log
           grep -Eq "ESR exception class: 0x[0-9A-F]{16}" exception.log
           grep -Eq "ESR instruction-specific syndrome: 0x[0-9A-F]{16}" exception.log
@@ -119,7 +121,9 @@ jobs:
           cat mmu-fault.log
           grep -q "Triggering controlled MMU translation fault test." mmu-fault.log
           grep -q "EXCEPTION: EL1 vector captured." mmu-fault.log
+          grep -q "Exception kind: Synchronous" mmu-fault.log
           grep -q "Vector: Current EL SPx synchronous" mmu-fault.log
+          grep -q "ESR exception description: Data abort from same EL" mmu-fault.log
           grep -q "ESR exception class: 0x0000000000000025" mmu-fault.log
           grep -q "FAR_EL1: 0x0000000000001000" mmu-fault.log
           echo "Nova OS unmapped-address data-abort handling passed."
@@ -156,7 +160,9 @@ jobs:
           cat stack-guard-fault.log
           grep -q "Triggering controlled task stack guard fault test." stack-guard-fault.log
           grep -q "EXCEPTION: EL1 vector captured." stack-guard-fault.log
+          grep -q "Exception kind: Synchronous" stack-guard-fault.log
           grep -q "Vector: Current EL SPx synchronous" stack-guard-fault.log
+          grep -q "ESR exception description: Data abort from same EL" stack-guard-fault.log
           grep -q "ESR exception class: 0x0000000000000025" stack-guard-fault.log
           grep -q "FAR_EL1: 0x0000000048000000" stack-guard-fault.log
           echo "Nova OS unmapped task stack guard fault test passed."
