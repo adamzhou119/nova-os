@@ -24,10 +24,10 @@ Package versions vary by distribution. Pin exact versions in CI or a development
 ## Compile
 
 ```sh
-make -C kernel clean all
+make -C kernel clean all test
 ```
 
-Expected artifact: `kernel/build/nova.elf`.
+Expected artifacts: `kernel/build/nova.elf` (normal boot) and `kernel/build/nova-test.elf` (controlled exception test).
 
 Inspect it:
 
@@ -58,10 +58,37 @@ CurrentEL: EL1
 BSS zero initialization verified.
 ```
 
-The exception-level value is reported from the CPU register at runtime; the example above is illustrative, not a fixed expectation.
+The exception-level value is reported from the CPU register at runtime; the example above is illustrative, not a fixed expectation. The EL1 vector table reports exception syndrome and faulting/resume address, then halts rather than attempting an unsafe exception return.
 
 QEMU is expected to remain running because the prototype parks in a wait loop. A timeout exit is therefore normal after output is observed. A timeout alone is not proof of successful boot; verify the serial text, including the BSS probe result.
 
 ## Troubleshooting
 
 If there is no serial output, verify the ELF entry point, QEMU's kernel loader behavior, the selected exception level, UART base address, and whether the guest entered the expected execution state. Do not mark the runtime test successful without captured serial output.
+
+
+## Controlled exception test
+
+The `test` Make target builds a second image with `NOVA_TEST_EXCEPTION`:
+
+```sh
+timeout 8s qemu-system-aarch64 \
+  -machine virt \
+  -cpu cortex-a57 \
+  -nographic \
+  -kernel kernel/build/nova-test.elf
+```
+
+On the currently supported EL1 QEMU path, the test image executes `SVC #0`.
+The expected diagnostic includes:
+
+```text
+Triggering controlled SVC exception test.
+EXCEPTION: EL1 vector captured.
+ESR_EL1: 0x...
+ELR_EL1: 0x...
+System halted for diagnosis.
+```
+
+This is a controlled synchronous-exception test, not proof that IRQ, FIQ,
+SError, lower-EL exceptions, or exception return are implemented.
