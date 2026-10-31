@@ -541,6 +541,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         } else {
             uart_write("ERROR: kernel virtual page allocator test failed.\n");
         }
+        if (test_task_lifecycle()) {
+            uart_write("Kernel task lifecycle tests passed.\\n");
+        } else {
+            uart_write("ERROR: kernel task lifecycle test failed.\\n");
+        }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
     }
