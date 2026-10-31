@@ -1,6 +1,6 @@
 # ADR 0008: Distinguish Cooperative and IRQ Resume Contexts
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-31
 - Scope: Single-core AArch64 task resumption
 
@@ -32,7 +32,14 @@ Transitions must be explicit:
 - A timer IRQ that actually suspends a running task records IRQ and stores the current frame pointer.
 - Returning from an IRQ without switching does not publish the frame as a resumable IRQ context, because ERET consumes it.
 
-The scheduler must not attempt to resume a COOPERATIVE task by returning its stale IRQ frame. The initial implementation may continue using the cooperative scheduler loop for cooperative-ready tasks and limit IRQ frame selection to tasks whose resume kind is FIRST_RUN or IRQ, provided round-robin fairness and task-state transitions are defined and tested.
+The scheduler must not attempt to resume a COOPERATIVE task by returning its stale IRQ frame. The scheduler scans all READY tasks in round-robin order and dispatches according to the authoritative resume kind:
+
+- FIRST_RUN and COOPERATIVE tasks resume through the saved AAPCS64 context.
+- IRQ tasks are atomically changed from READY/IRQ to RUNNING/ACTIVE, their saved frame pointer is consumed exactly once, and a dedicated AArch64 restore routine loads x0-x30, ELR_EL1, and SPSR_EL1 before ERET.
+- The timer IRQ dispatcher acknowledges the GIC interrupt before requesting a handoff. If another IRQ-returnable task is selected, it returns that task's frame pointer to the exception assembly; it never calls the cooperative context-switch routine from IRQ context.
+- When an IRQ-resumed task later yields or exits, it returns to the scheduler through its saved cooperative continuation. The scheduler accounts for the task that actually returned, rather than the task originally dispatched.
+
+Wakeups are idempotent for READY tasks. This is required because a waiter may already have become READY through timer preemption before another task attempts to wake it.
 
 ## Required tests
 
@@ -48,4 +55,4 @@ The scheduler must not attempt to resume a COOPERATIVE task by returning its sta
 
 This adds state to the task control block and scheduler, but makes the resume path explicit and reviewable. It prevents a subtle corruption class where a valid-looking but already-consumed exception frame is used as a task's next program counter and stack state.
 
-Timer-driven context switching remains disabled until this invariant is implemented and tested.
+Timer-driven preemption is enabled for the single-core AArch64 prototype after host-side state-machine tests and the QEMU mixed-mode scheduler test validate the complete save, handoff, ERET restore, cooperative yield, and task-exit paths. Floating-point/SIMD context is not part of the current kernel ABI because kernel code is compiled with general-purpose registers only.
