@@ -116,7 +116,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,secure=on,gic-version=2 -cpu cortex-a57 -nographic -bios kernel/build/el3-test-boot.bin -device loader,file=kernel/build/nova-el2-test.elf -device loader,file=kernel/build/virt.dtb,addr=0x41000000 > el2-boot.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,gic-version=2 -cpu cortex-a57 -nographic -bios kernel/build/el3-test-boot.bin -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
           status=$?
           set -e
           cat el2-boot.log
