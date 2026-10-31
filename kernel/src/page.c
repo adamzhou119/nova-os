@@ -137,3 +137,19 @@ int nova_page_free(void *page) {
 
 size_t nova_page_total(void) { return page_ready ? page_count : 0; }
 size_t nova_page_available(void) { return page_ready ? page_free_count : 0; }
+
+
+int nova_page_is_allocated(const void *page) {
+    uintptr_t address = (uintptr_t)page;
+    size_t index, word, bit;
+    uint64_t mask;
+    if (!page_ready || page == NULL ||
+        (address & (NOVA_PAGE_SIZE - 1U)) != 0) return 0;
+    for (index = 0; index < page_count; ++index)
+        if (page_addresses[index] == address) break;
+    if (index == page_count) return 0;
+    word = index / NOVA_PAGE_WORD_BITS;
+    bit = index % NOVA_PAGE_WORD_BITS;
+    mask = (uint64_t)1U << bit;
+    return (page_bitmap[word] & mask) != 0;
+}
