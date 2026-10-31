@@ -185,9 +185,9 @@ int nova_mmu_verify_unmapped(uintptr_t address) {
 int nova_mmu_verify_writable(uintptr_t address) {
     uint64_t par;
     __asm__ volatile(
-        "at s1e1w, %1\\n"
-        "isb\\n"
-        "mrs %0, par_el1\\n"
+        "at s1e1w, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
         : "=r"(par) : "r"((uint64_t)address) : "memory");
     return (par & 1U) == 0;
 }
@@ -195,9 +195,9 @@ int nova_mmu_verify_writable(uintptr_t address) {
 int nova_mmu_verify_write_protected(uintptr_t address) {
     uint64_t par;
     __asm__ volatile(
-        "at s1e1w, %1\\n"
-        "isb\\n"
-        "mrs %0, par_el1\\n"
+        "at s1e1w, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
         : "=r"(par) : "r"((uint64_t)address) : "memory");
     return (par & 1U) != 0;
 }
@@ -205,9 +205,9 @@ int nova_mmu_verify_write_protected(uintptr_t address) {
 int nova_mmu_verify_executable(uintptr_t address) {
     uint64_t par;
     __asm__ volatile(
-        "at s1e1p, %1\\n"
-        "isb\\n"
-        "mrs %0, par_el1\\n"
+        "at s1e1p, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
         : "=r"(par) : "r"((uint64_t)address) : "memory");
     return (par & 1U) == 0;
 }
@@ -215,9 +215,9 @@ int nova_mmu_verify_executable(uintptr_t address) {
 int nova_mmu_verify_execute_never(uintptr_t address) {
     uint64_t par;
     __asm__ volatile(
-        "at s1e1p, %1\\n"
-        "isb\\n"
-        "mrs %0, par_el1\\n"
+        "at s1e1p, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
         : "=r"(par) : "r"((uint64_t)address) : "memory");
     return (par & 1U) != 0;
 }
