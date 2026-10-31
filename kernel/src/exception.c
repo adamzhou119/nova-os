@@ -1,6 +1,7 @@
 #include "exception.h"
 
 const char *nova_exception_kind(uint64_t vector_slot) {
+    if (vector_slot >= 16U) return "Unknown vector";
     switch (vector_slot & 3U) {
     case 0U: return "Synchronous";
     case 1U: return "IRQ";
