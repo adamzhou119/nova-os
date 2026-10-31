@@ -9,6 +9,8 @@
 static uintptr_t next_stack = 0x48000000U;
 static int freed_stacks;
 
+void nova_task_start_trampoline(void) {}
+
 void *nova_vmap_alloc_page(unsigned int flags) {
     uintptr_t result = next_stack;
     (void)flags;
@@ -26,6 +28,7 @@ int main(void) {
     uint32_t first, second;
     struct nova_task_info info;
     struct nova_cpu_context context;
+    struct nova_cpu_context *task_context;
     int argument = 42;
     assert(!nova_arch_context_init(&context, 0U, 0x2000U, 1U, 2U));
     assert(!nova_arch_context_init(&context, 0x1001U, 0x2000U, 1U, 2U));
@@ -39,6 +42,13 @@ int main(void) {
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
     assert(nova_task_get(first, &info));
+    task_context = nova_task_context(first);
+    assert(task_context != 0);
+    assert(task_context->sp == info.kernel_stack_top);
+    assert(task_context->x19_x30[0] == (uintptr_t)dummy_entry);
+    assert(task_context->x19_x30[1] == (uintptr_t)&argument);
+    assert(task_context->x19_x30[2] != 0U);
+    assert(task_context->x19_x30[11] == (uintptr_t)nova_task_start_trampoline);
     assert(info.state == NOVA_TASK_READY);
     assert(info.entry == dummy_entry && info.argument == &argument);
     assert(info.kernel_stack_top - info.kernel_stack_base == 4096U);
