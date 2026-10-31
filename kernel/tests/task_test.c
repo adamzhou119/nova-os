@@ -163,6 +163,27 @@ int main(void) {
                 assert(info.irq_frame == 0);
             }
             assert(nova_task_transition(second, NOVA_TASK_READY));
+            /*
+             * Scheduler dispatch consumes an IRQ frame exactly once and
+             * converts the task back to ACTIVE before ERET.
+             */
+            assert(nova_task_transition(second, NOVA_TASK_RUNNING));
+            assert(nova_task_get(second, &info));
+            {
+                struct nova_irq_frame *saved_frame =
+                    (struct nova_irq_frame *)(info.kernel_stack_top -
+                        sizeof(struct nova_irq_frame));
+                struct nova_irq_frame *taken_frame = 0;
+                assert(nova_task_mark_irq_resumable(second, saved_frame));
+                assert(nova_task_transition(second, NOVA_TASK_READY));
+                assert(nova_task_take_irq_context(second, &taken_frame));
+                assert(taken_frame == saved_frame);
+                assert(nova_task_get(second, &info));
+                assert(info.state == NOVA_TASK_RUNNING);
+                assert(info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
+                assert(info.irq_frame == 0);
+                assert(!nova_task_take_irq_context(second, &taken_frame));
+            }
         }
     assert(!nova_task_destroy(first));
     }
@@ -176,7 +197,6 @@ int main(void) {
     assert(nova_task_get(first, &info) && info.exit_code == -7);
     assert(nova_task_destroy(first));
     assert(!nova_task_get(first, &info));
-    assert(nova_task_transition(second, NOVA_TASK_RUNNING));
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
     assert(freed_stacks == 2);
