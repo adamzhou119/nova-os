@@ -8,6 +8,7 @@
 #include "mmu.h"
 #include "vm.h"
 #include "task.h"
+#include "context.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -426,6 +427,35 @@ static void test_task_entry(void *argument) {
     (void)argument;
 }
 
+static struct nova_cpu_context main_context;
+static struct nova_cpu_context probe_context;
+static volatile uint32_t context_switch_probe;
+
+static void context_probe_entry(void) {
+    context_switch_probe = 0x4E4F5641U;
+    nova_arch_context_switch(&probe_context, &main_context);
+    for (;;) __asm__ volatile("wfe");
+}
+
+static int test_arch_context_switch(void) {
+    void *stack = nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE);
+    int passed;
+    if (stack == NULL) return 0;
+    context_switch_probe = 0;
+    if (!nova_arch_context_init(&probe_context,
+                                (uintptr_t)stack + NOVA_PAGE_SIZE,
+                                (uintptr_t)context_probe_entry, 0, 0)) {
+        (void)nova_vmap_free_page(stack);
+        return 0;
+    }
+    nova_arch_context_switch(&main_context, &probe_context);
+    passed = context_switch_probe == 0x4E4F5641U &&
+             (main_context.sp & 15U) == 0U &&
+             (probe_context.sp & 15U) == 0U;
+    if (!nova_vmap_free_page(stack)) return 0;
+    return passed;
+}
+
 static int test_task_lifecycle(void) {
     uint32_t first, second;
     struct nova_task_info info;
@@ -545,6 +575,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("Kernel task lifecycle tests passed.\\n");
         } else {
             uart_write("ERROR: kernel task lifecycle test failed.\\n");
+        }
+        if (test_arch_context_switch()) {
+            uart_write("AArch64 cooperative context switch test passed.\\n");
+        } else {
+            uart_write("ERROR: AArch64 cooperative context switch test failed.\\n");
         }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
