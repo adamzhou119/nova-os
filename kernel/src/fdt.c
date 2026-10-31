@@ -183,3 +183,154 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
     return -17;
 }
+
+
+static uint64_t read_be64(const uint8_t *p) {
+    return ((uint64_t)read_be32(p) << 32) | read_be32(p + 4U);
+}
+
+static int append_reserved(struct nova_memory_region *regions,
+                           size_t capacity, size_t *found,
+                           uint64_t start, uint64_t size) {
+    if (size == 0) return 1;
+    if (start > UINT64_MAX - size || *found >= capacity) return 0;
+    regions[*found].start = start;
+    regions[*found].size = size;
+    ++*found;
+    return 1;
+}
+
+int nova_fdt_reserved_regions(uintptr_t dtb_address,
+                              struct nova_memory_region *regions,
+                              size_t capacity) {
+    const uint8_t *base = (const uint8_t *)dtb_address;
+    const uint8_t *structure;
+    const uint8_t *strings;
+    uint32_t total_size, reserve_offset, struct_offset, strings_offset;
+    uint32_t struct_size, strings_size, cursor = 0;
+    uint32_t address_cells[FDT_MAX_DEPTH], size_cells[FDT_MAX_DEPTH];
+    uint32_t reg_length[FDT_MAX_DEPTH];
+    const uint8_t *reg_data[FDT_MAX_DEPTH];
+    int reserved_root[FDT_MAX_DEPTH], reserved_child[FDT_MAX_DEPTH];
+    int depth = -1;
+    size_t found = 0;
+    uint32_t reserve_cursor;
+
+    if (dtb_address == 0 || regions == NULL || capacity == 0) return -1;
+    if (read_be32(base) != FDT_MAGIC) return -2;
+    total_size = read_be32(base + 4U);
+    reserve_offset = read_be32(base + 16U);
+    struct_offset = read_be32(base + 8U);
+    strings_offset = read_be32(base + 12U);
+    strings_size = read_be32(base + 32U);
+    struct_size = read_be32(base + 36U);
+    if (total_size < FDT_HEADER_SIZE ||
+        reserve_offset > total_size || total_size - reserve_offset < 16U ||
+        struct_offset > total_size || struct_size > total_size - struct_offset ||
+        strings_offset > total_size || strings_size > total_size - strings_offset)
+        return -3;
+
+    reserve_cursor = reserve_offset;
+    for (;;) {
+        uint64_t start, size;
+        if (reserve_cursor > total_size || total_size - reserve_cursor < 16U)
+            return -4;
+        start = read_be64(base + reserve_cursor);
+        size = read_be64(base + reserve_cursor + 8U);
+        reserve_cursor += 16U;
+        if (start == 0 && size == 0) break;
+        if (!append_reserved(regions, capacity, &found, start, size))
+            return -5;
+    }
+
+    structure = base + struct_offset;
+    strings = base + strings_offset;
+    while (cursor + 4U <= struct_size) {
+        uint32_t token = read_be32(structure + cursor);
+        cursor += 4U;
+        if (token == FDT_BEGIN_NODE) {
+            uint32_t name_start = cursor;
+            uint32_t name_length;
+            int parent_reserved_root = depth >= 0 && reserved_root[depth];
+            int is_reserved_memory;
+            uint32_t i;
+            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -6;
+            while (cursor < struct_size && structure[cursor] != 0) ++cursor;
+            if (cursor >= struct_size) return -7;
+            name_length = cursor - name_start;
+            is_reserved_memory = name_length == 15U;
+            for (i = 0; is_reserved_memory && i < 15U; ++i) {
+                static const char reserved_name[] = "reserved-memory";
+                if ((char)structure[name_start + i] != reserved_name[i])
+                    is_reserved_memory = 0;
+            }
+            ++cursor;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -8;
+            ++depth;
+            address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
+            size_cells[depth] = depth == 0 ? 1U : size_cells[depth - 1];
+            reserved_root[depth] = is_reserved_memory;
+            reserved_child[depth] = parent_reserved_root;
+            reg_data[depth] = NULL;
+            reg_length[depth] = 0;
+        } else if (token == FDT_END_NODE) {
+            if (depth < 0) return -9;
+            if (reserved_child[depth] && reg_data[depth] != NULL) {
+                uint32_t ac = address_cells[depth];
+                uint32_t sc = size_cells[depth];
+                uint32_t tuple_cells = ac + sc;
+                uint32_t tuple_bytes, pos = 0;
+                if (ac == 0 || ac > 2U || sc == 0 || sc > 2U ||
+                    tuple_cells > 4U) return -10;
+                tuple_bytes = tuple_cells * 4U;
+                if (reg_length[depth] == 0 ||
+                    reg_length[depth] % tuple_bytes != 0) return -11;
+                while (pos < reg_length[depth]) {
+                    uint64_t start, size;
+                    if (!read_cells(reg_data[depth] + pos, ac, &start) ||
+                        !read_cells(reg_data[depth] + pos + ac * 4U, sc, &size) ||
+                        !append_reserved(regions, capacity, &found, start, size))
+                        return -12;
+                    pos += tuple_bytes;
+                }
+            }
+            --depth;
+        } else if (token == FDT_PROP) {
+            uint32_t length, name_offset;
+            const uint8_t *data;
+            if (depth < 0 || cursor + 8U > struct_size) return -13;
+            length = read_be32(structure + cursor);
+            name_offset = read_be32(structure + cursor + 4U);
+            cursor += 8U;
+            if (length > struct_size - cursor || name_offset >= strings_size)
+                return -14;
+            data = structure + cursor;
+            if (fdt_string_equals(strings, strings_size, name_offset,
+                                  "#address-cells") && length == 4U) {
+                uint32_t cells = read_be32(data);
+                if (cells > 4U) return -15;
+                address_cells[depth] = cells;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "#size-cells") && length == 4U) {
+                uint32_t cells = read_be32(data);
+                if (cells > 4U) return -16;
+                size_cells[depth] = cells;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "reg")) {
+                reg_data[depth] = data;
+                reg_length[depth] = length;
+            }
+            cursor += length;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -17;
+        } else if (token == FDT_NOP) {
+            continue;
+        } else if (token == FDT_END) {
+            return (int)found;
+        } else {
+            return -18;
+        }
+    }
+    return -19;
+}
