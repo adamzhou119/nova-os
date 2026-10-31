@@ -293,6 +293,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         } else {
             uart_write("ERROR: MMU identity translation test failed.\n");
         }
+        if (nova_mmu_verify_unmapped(0x1000U)) {
+            uart_write("MMU unmapped guard test passed.\n");
+        } else {
+            uart_write("ERROR: MMU unmapped guard address unexpectedly translated.\n");
+        }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
     }
