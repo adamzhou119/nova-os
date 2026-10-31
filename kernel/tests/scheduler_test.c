@@ -58,6 +58,19 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(selected_id == observed_task);
             assert(selected_frame == current_info.irq_frame);
             assert(nova_sched_current() == observed_task);
+
+            /* An expired quantum with no IRQ-resumable peer keeps this frame. */
+            assert(nova_task_transition(peer_task, NOVA_TASK_RUNNING));
+            assert(nova_task_transition(peer_task, NOVA_TASK_BLOCKED));
+            for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
+            assert(nova_sched_preemption_pending());
+            assert(!nova_sched_irq_handoff(current_info.irq_frame,
+                                           &selected_id, &selected_frame));
+            assert(selected_id == observed_task);
+            assert(selected_frame == current_info.irq_frame);
+            assert(nova_sched_current() == observed_task);
+            assert(!nova_sched_preemption_pending());
+            assert(nova_task_transition(peer_task, NOVA_TASK_READY));
         }
         ++switch_depth;
         assert(nova_sched_block_current());
