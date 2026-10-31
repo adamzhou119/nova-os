@@ -96,10 +96,16 @@ int main(void) {
     /* IRQ frames are a distinct resume path, never a cooperative context. */
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
-    assert(nova_task_mark_irq_resumable(first, info.irq_frame));
+    /* Invalid frame publication must leave ownership and state untouched. */
+    assert(!nova_task_save_irq_context(first,
+        (struct nova_irq_frame *)(info.kernel_stack_base - 16U)));
+    assert(nova_task_get(first, &info));
+    assert(info.state == NOVA_TASK_RUNNING);
+    assert(info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
+    assert(nova_task_save_irq_context(first, info.irq_frame));
     assert(nova_task_get(first, &info));
     assert(info.resume_kind == NOVA_TASK_RESUME_IRQ);
-    assert(nova_task_transition(first, NOVA_TASK_READY));
+    assert(info.state == NOVA_TASK_READY);
     {
         uint32_t selected = 0U;
         assert(nova_task_next_ready(0U, &selected) && selected == first);
