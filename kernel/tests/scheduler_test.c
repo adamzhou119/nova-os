@@ -27,6 +27,7 @@ int nova_vmap_free_page(void *address) {
 
 void nova_arch_context_switch(struct nova_cpu_context *from,
                              const struct nova_cpu_context *to) {
+    struct nova_task_info current_info;
     (void)from;
     (void)to;
     if (switch_depth == 0U) {
@@ -37,7 +38,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
         assert(nova_sched_preemption_pending());
         {
-            struct nova_task_info current_info, peer_info;
+            struct nova_task_info peer_info;
             struct nova_irq_frame *selected_frame = 0;
             uint32_t selected_id = 0U;
             assert(nova_task_get(observed_task, &current_info));
