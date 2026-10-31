@@ -3,6 +3,8 @@
 #include "context.h"
 #include "task.h"
 
+#include <stddef.h>
+
 #define NOVA_SCHED_MAX_TASKS NOVA_TASK_MAX
 
 static struct nova_cpu_context scheduler_context;
