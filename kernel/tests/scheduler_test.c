@@ -85,6 +85,16 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(nova_sched_current() == observed_task);
             assert(!nova_sched_preemption_pending());
             assert(nova_task_transition(peer_task, NOVA_TASK_READY));
+            /*
+             * B's earlier IRQ frame was consumed when B ran. Before using B
+             * as an IRQ-resumable peer again, model a fresh interrupt frame.
+             */
+            assert(nova_task_transition(peer_task, NOVA_TASK_RUNNING));
+            assert(nova_task_mark_irq_resumable(
+                peer_task,
+                (struct nova_irq_frame *)(peer_info.kernel_stack_top -
+                    sizeof(struct nova_irq_frame))));
+            assert(nova_task_transition(peer_task, NOVA_TASK_READY));
         }
         /*
          * Switch A -> B through an IRQ frame, then simulate B yielding.
