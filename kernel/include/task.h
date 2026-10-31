@@ -50,6 +50,8 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info);
 int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame);
 /* Publishes a live IRQ frame for a RUNNING task to be resumed by IRQ return. */
 int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame);
+/* Atomically publishes a running task's IRQ frame and makes it READY. */
+int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame);
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind);
 struct nova_cpu_context *nova_task_context(uint32_t task_id);
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
