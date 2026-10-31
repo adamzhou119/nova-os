@@ -74,7 +74,7 @@ $(CONTEXT_ASM_OBJECT): src/context.S | $(BUILD)
 $(CONTEXT_OBJECT): src/context.c include/context.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
+$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
