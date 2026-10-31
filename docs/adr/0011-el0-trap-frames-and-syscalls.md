@@ -106,3 +106,5 @@ deferred.
 The initial 288-byte C frame and host layout test are present. The EL1 vector slot for lower-EL AArch64 synchronous exceptions now branches directly to a dedicated assembly entry, which saves x0-x30, ELR_EL1, SPSR_EL1, SP_EL0, ESR_EL1, and FAR_EL1 before calling C. The current C dispatcher is intentionally fail-closed and reports the captured exception; it does not yet dispatch SVC, return to EL0, or terminate a user task. The existing IRQ frame also now carries SP_EL0 at offset 264, and both IRQ entry and ERET restore paths preserve it so a future EL0 task can retain its user stack across timer preemption. Those behaviors remain unimplemented pending a user-task frame lifecycle and QEMU EL0 tests.
 
 The host scheduler test now seeds distinct SP_EL0 values in two task frames and verifies that cross-address-space IRQ handoff selects each task with its own saved user stack pointer intact.
+
+The lower-EL AArch64 IRQ vector slot now shares the common IRQ entry and scheduler handoff path. Together with the SP_EL0 field, this preserves the user stack across timer IRQs; actual EL0 first-run dispatch remains a separate, unfinished step.
