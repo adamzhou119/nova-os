@@ -69,6 +69,8 @@ int main(void) {
     assert(!nova_sched_preemption_pending());
 
     assert(nova_sched_unblock(task_id));
+    assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(task_id, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(task_id));
     puts("Scheduler phase and cooperative handoff host tests passed.");
     return 0;
