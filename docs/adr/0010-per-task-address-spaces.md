@@ -73,7 +73,7 @@ before widening the allocator. The first implementation remains single-core.
    changing the active TTBR0.
 2. Refactor page-table construction so a new root can share only privileged
    kernel mappings and own private user subtrees.
-3. Add user mapping/unmapping and permission tests, including W^X alias cases.
+3. Add user mapping/unmapping, in-place permission changes with break-before-make, and W^X alias tests.
 4. Add ASID-aware address-space switching while all existing tasks still run
    in EL1.
 5. Add a minimal EL0 trampoline, SVC syscall path, and user exception frame.
