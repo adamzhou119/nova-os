@@ -37,7 +37,7 @@ jobs:
           file kernel/build/nova-fault-test.elf
           file kernel/build/nova-stack-fault-test.elf
           file kernel/build/nova-el2-test.elf
-          file kernel/build/el3-test-boot.bin
+          file kernel/build/el3-test-boot.elf
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
 
