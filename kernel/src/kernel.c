@@ -275,6 +275,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     if (test_pages()) uart_write("Physical page allocator tests passed.\n");
     else uart_write("ERROR: physical page allocator test failed.\n");
 
+    if (memory_regions > 0 && reserved_regions >= 0 &&
+        !test_firmware_pages(memory_regions, reserved_regions, dtb_address))
+        uart_write("ERROR: firmware RAM page allocator test failed.\n");
+
     uart_write("Current page map total: ");
     uart_write_hex64(nova_page_total());
     uart_write("Current page map available: ");
