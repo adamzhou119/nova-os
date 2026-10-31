@@ -34,6 +34,8 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
 /* State changes are validated; this does not yet perform a CPU context switch. */
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state);
 int nova_task_get(uint32_t task_id, struct nova_task_info *info);
+/* Records the stack-resident exception frame for a task after IRQ entry. */
+int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame);
 struct nova_cpu_context *nova_task_context(uint32_t task_id);
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
 void nova_task_mark_zombie(struct nova_task_info *task);
