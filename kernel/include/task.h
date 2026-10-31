@@ -55,6 +55,8 @@ struct nova_cpu_context *nova_task_context(uint32_t task_id);
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
 /* Selects only tasks that can be resumed through nova_cpu_context. */
 int nova_task_next_cooperative_ready(uint32_t after_id, uint32_t *task_id);
+/* Selects READY tasks with a valid first-run or saved IRQ exception frame. */
+int nova_task_next_irq_ready(uint32_t after_id, uint32_t *task_id);
 void nova_task_mark_zombie(struct nova_task_info *task);
 int nova_task_set_exit_code(uint32_t task_id, int exit_code);
 /* Only READY (never dispatched) and ZOMBIE tasks may be destroyed. */
