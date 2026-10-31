@@ -49,13 +49,16 @@ timeout 8s qemu-system-aarch64 \
   -kernel kernel/build/nova.elf
 ```
 
-The guest is expected to print:
+The guest is expected to print a boot banner, its detected exception level (for example, `CurrentEL: EL1` or `CurrentEL: EL2`), and the BSS probe result:
 
 ```text
 Welcome to Nova OS
 AArch64 kernel prototype is running.
+CurrentEL: EL1
 BSS zero initialization verified.
 ```
+
+The exception-level value is reported from the CPU register at runtime; the example above is illustrative, not a fixed expectation.
 
 QEMU is expected to remain running because the prototype parks in a wait loop. A timeout exit is therefore normal after output is observed. A timeout alone is not proof of successful boot; verify the serial text, including the BSS probe result.
 
