@@ -13,6 +13,9 @@ static unsigned int end_count;
 static unsigned int timer_arm_count;
 static unsigned int scheduler_tick_count;
 static uint64_t armed_delta;
+static unsigned int scheduler_handoff_count;
+static int scheduler_handoff_result;
+static struct nova_irq_frame *scheduler_handoff_frame;
 
 int nova_gic_init(void) { return 1; }
 uint32_t nova_gic_acknowledge(void) { return next_interrupt; }
@@ -30,9 +33,11 @@ void nova_sched_timer_tick(void) { ++scheduler_tick_count; }
 int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
                            struct nova_irq_frame **next_frame) {
     (void)frame;
-    (void)next_id;
-    (void)next_frame;
-    return 0;
+    ++scheduler_handoff_count;
+    if (!scheduler_handoff_result) return 0;
+    *next_id = 99U;
+    *next_frame = scheduler_handoff_frame;
+    return 1;
 }
 
 int main(void) {
@@ -52,6 +57,7 @@ int main(void) {
     assert(timer_arm_count == 1U);
     assert(armed_delta == 10000U);
     assert(end_count == 1U && ended_interrupt == 30U);
+    assert(scheduler_handoff_count == 1U);
 
     next_interrupt = 33U;
     assert(nova_irq_dispatch(frame_address) == frame_address);
@@ -59,10 +65,26 @@ int main(void) {
     assert(scheduler_tick_count == 1U);
     assert(timer_arm_count == 1U);
     assert(end_count == 2U && ended_interrupt == 33U);
+    assert(scheduler_handoff_count == 1U);
 
     next_interrupt = 1023U; /* GIC spurious interrupt: no EOI. */
     assert(nova_irq_dispatch(frame_address) == frame_address);
     assert(end_count == 2U);
+    assert(scheduler_handoff_count == 1U);
+
+    /* A timer handoff must return the selected task's frame to assembly. */
+    {
+        struct nova_irq_frame selected_frame = {0};
+        scheduler_handoff_frame = &selected_frame;
+        scheduler_handoff_result = 1;
+        next_interrupt = 30U;
+        assert(nova_irq_dispatch(frame_address) ==
+               (uintptr_t)&selected_frame);
+        assert(scheduler_handoff_count == 2U);
+        assert(scheduler_tick_count == 2U);
+        assert(timer_arm_count == 2U);
+        assert(end_count == 3U && ended_interrupt == 30U);
+    }
 
     assert(frame.x[0] == 0x0123456789abcdefULL);
     assert(frame.x[16] == 0x1020304050607080ULL);
