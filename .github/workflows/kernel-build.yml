@@ -40,7 +40,7 @@ jobs:
 
       - name: Generate QEMU virt device tree
         run: |
-          qemu-system-aarch64 -machine virt,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
+          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
           test -s kernel/build/virt.dtb
 
       - name: QEMU serial boot smoke test
