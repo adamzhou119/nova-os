@@ -1,4 +1,5 @@
 #include "user_context.h"
+#include "interrupt.h"
 
 #include <assert.h>
 #include <stdio.h>
