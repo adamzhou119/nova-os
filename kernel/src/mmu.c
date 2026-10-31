@@ -7,6 +7,7 @@
 #define NOVA_MMU_PAGE_SIZE 4096U
 #define NOVA_MMU_BLOCK_2M 0x00200000ULL
 #define NOVA_MMU_UART_BASE 0x09000000ULL
+#define NOVA_MMU_GIC_BASE  0x08000000ULL
 #define NOVA_MMU_RAM_BASE 0x40000000ULL
 #define NOVA_MMU_RAM_SIZE 0x08000000ULL
 #define NOVA_MMU_L2_ENTRIES NOVA_MMU_TABLE_ENTRIES
@@ -76,6 +77,7 @@ int nova_mmu_enable(void) {
     uint64_t tcr;
     uint64_t sctlr;
     uint64_t device_uart_block;
+    uint64_t device_gic_block;
     uintptr_t l1_address = (uintptr_t)level1_table;
     size_t table_index;
     size_t page_index;
@@ -99,6 +101,13 @@ int nova_mmu_enable(void) {
                       DESC_VALID | DESC_TABLE;
     level1_table[1] = ((uintptr_t)level2_ram_table & DESC_ADDR_MASK) |
                       DESC_VALID | DESC_TABLE;
+
+    /* QEMU virt GICv2 distributor and CPU interface share this device block. */
+    device_gic_block = (NOVA_MMU_GIC_BASE & ~(NOVA_MMU_BLOCK_2M - 1ULL)) |
+                       DESC_VALID | DESC_AF | DESC_SH_OUTER |
+                       DESC_PXN | DESC_UXN;
+    level2_low_table[(NOVA_MMU_GIC_BASE / NOVA_MMU_BLOCK_2M) & 0x1ffU] =
+        device_gic_block;
 
     /* QEMU virt PL011: map its 2 MiB region as Device-nGnRnE. */
     device_uart_block = (NOVA_MMU_UART_BASE & ~(NOVA_MMU_BLOCK_2M - 1ULL)) |
