@@ -48,7 +48,7 @@ Implemented and runtime-verified on QEMU virt:
 - [x] Add host-side allocator, task, scheduler, and IRQ-dispatcher tests.
 
 Remaining:
-- [ ] Add per-class exception entry/exit policy, recoverable fault handling, and documented recovery rules (current typed diagnostics halt on non-IRQ exceptions).
+- [ ] Complete runtime per-class exception entry/exit and recoverable fault handling. The conservative EL0/SVC/fault policy classifier and its host tests are implemented; synchronous exceptions still halt until an EL0 frame, task-fault handoff, and syscall boundary exist.
 - [x] Implement and QEMU-test a controlled EL3-to-EL2-to-EL1 transition,
       including EL1 physical timer access controls.
 - [ ] Add EL2/EL3 vector tables, trap handling, and a general firmware
