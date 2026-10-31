@@ -242,6 +242,7 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
 
 static int test_dynamic_virtual_pages(void) {
     const uintptr_t alias = 0x48000000U;
+    const uintptr_t second_alias = 0x48001000U;
     const uint64_t initial_value = 0x4E4F56414D4D5531ULL;
     const uint64_t alias_value = 0x504147454D415031ULL;
     void *physical_page = nova_page_alloc();
@@ -281,10 +282,19 @@ static int test_dynamic_virtual_pages(void) {
         return 0;
     }
 
-    /* Enable read-only execution, then switch to writable and execute-never. */
-    if (!nova_mmu_protect_page(alias, NOVA_MMU_MAP_EXECUTABLE) ||
+    /*
+     * Global W^X: a second executable alias must block writable permission
+     * on the first alias, and vice versa.
+     */
+    if (!nova_mmu_map_page(second_alias, physical_address,
+                           NOVA_MMU_MAP_EXECUTABLE) ||
+        nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_unmap_page(second_alias) ||
+        !nova_mmu_protect_page(alias, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_verify_write_protected(alias) ||
         !nova_mmu_verify_executable(alias) ||
+        nova_mmu_map_page(second_alias, physical_address,
+                          NOVA_MMU_MAP_WRITABLE) ||
         nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE |
                                     NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
