@@ -7,34 +7,37 @@
 .type _start, %function
 
 _start:
-    /* Establish a private stack for the primary CPU. */
+    /* Establish the bootstrap stack before using any memory. */
     ldr     x0, =_stack_top
     mov     sp, x0
 
+    /*
+     * Only the primary CPU may initialize shared .bss. Secondary CPUs park
+     * before touching the shared stack or the initialization range.
+     */
+    mrs     x0, mpidr_el1
+    and     x0, x0, #0xff
+    cbz     x0, 1f
+2:
+    wfe
+    b       2b
+
+1:
     /*
      * Clear .bss before entering C. The stack is inside .bss, but no stack
      * memory is used between setting SP and completing this loop.
      */
     ldr     x1, =__bss_start
     ldr     x2, =__bss_end
-1:
+3:
     cmp     x1, x2
-    b.hs    2f
+    b.hs    4f
     str     xzr, [x1], #8
-    b       1b
-2:
+    b       3b
+4:
     dsb     sy
     isb
 
-    /* Park secondary CPUs until per-CPU stacks and SMP support exist. */
-    mrs     x0, mpidr_el1
-    and     x0, x0, #0xff
-    cbz     x0, 3f
-4:
-    wfe
-    b       4b
-
-3:
     bl      kernel_main
 
 5:
