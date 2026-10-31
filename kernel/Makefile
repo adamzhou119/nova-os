@@ -41,7 +41,7 @@ host-test: | $(BUILD)
 	$(BUILD)/page-allocator-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vm_test.c src/vm.c -o $(BUILD)/vm-test
 	$(BUILD)/vm-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c -o $(BUILD)/task-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c src/address_space.c -o $(BUILD)/task-test
 	$(BUILD)/task-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/interrupt_test.c src/interrupt.c -o $(BUILD)/interrupt-test
 	$(BUILD)/interrupt-test
@@ -90,7 +90,7 @@ $(MMU_OBJECT): src/mmu.c include/mmu.h | $(BUILD)
 $(VM_OBJECT): src/vm.c include/vm.h include/mmu.h include/memory.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(TASK_OBJECT): src/task.c include/task.h include/context.h include/interrupt.h include/vm.h | $(BUILD)
+$(TASK_OBJECT): src/task.c include/task.h include/context.h include/interrupt.h include/vm.h include/address_space.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(SCHEDULER_OBJECT): src/scheduler.c include/scheduler.h include/task.h include/context.h include/interrupt.h include/exception.h | $(BUILD)
