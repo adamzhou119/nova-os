@@ -113,7 +113,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                 uint32_t tuple_cells = address_cells[depth] + size_cells[depth];
                 uint32_t tuple_bytes;
                 uint32_t pos = 0;
-                if (tuple_cells == 0 || tuple_cells > 4U) return -1;
+                if (address_cells[depth] == 0 || size_cells[depth] == 0 ||
+                    tuple_cells > 4U) return -1;
                 tuple_bytes = tuple_cells * 4U;
                 if (reg_length[depth] == 0 ||
                     reg_length[depth] % tuple_bytes != 0) return -1;
@@ -152,11 +153,11 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
             if (fdt_string_equals(strings, strings_size, name_offset, "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells == 0 || cells > 2U) return -1;
+                if (cells > 2U) return -1;
                 address_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "#size-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells == 0 || cells > 2U) return -1;
+                if (cells > 2U) return -1;
                 size_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "device_type") &&
                        length >= 7U && data[0] == 'm' && data[1] == 'e' &&
