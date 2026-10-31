@@ -71,7 +71,9 @@ exception_irq_entry:
     str     x16, [sp, #248]
     mrs     x16, SPSR_EL1
     str     x16, [sp, #256]
+    mov     x0, sp
     bl      nova_irq_dispatch
+    mov     sp, x0
     ldr     x16, [sp, #256]
     msr     SPSR_EL1, x16
     ldr     x16, [sp, #248]
