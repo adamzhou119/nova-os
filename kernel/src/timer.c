@@ -41,6 +41,15 @@ int nova_timer_arm(uint64_t delta_ticks) {
     return 1;
 }
 
+int nova_timer_arm_irq(uint64_t delta_ticks) {
+    uint64_t control = NOVA_TIMER_CTL_ENABLE;
+    if (timer_frequency == 0U || delta_ticks == 0U || delta_ticks > NOVA_TIMER_MAX_DELTA) return 0;
+    __asm__ volatile("msr cntp_tval_el0, %0\n\tisb" :: "r"(delta_ticks) : "memory");
+    __asm__ volatile("msr cntp_ctl_el0, %0\n\tisb" :: "r"(control) : "memory");
+    return 1;
+}
+int nova_timer_start_irq(uint64_t delta_ticks) { return nova_timer_arm_irq(delta_ticks); }
+
 int nova_timer_expired(void) {
     uint64_t control;
     __asm__ volatile("mrs %0, cntp_ctl_el0" : "=r"(control));
