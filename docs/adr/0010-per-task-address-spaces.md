@@ -19,7 +19,10 @@ introduced.
 ## Decision
 
 Each process/address space will own a distinct TTBR0_EL1 translation-table
-root and a nonzero ASID. The first implementation remains single-core.
+root and a nonzero ASID. The current TCR_EL1 configuration leaves the ASID
+size control clear, so ASIDs must be restricted to 8 bits (1..255). Enabling
+16-bit ASIDs requires setting TCR_EL1.AS and adding architecture-level tests
+before widening the allocator. The first implementation remains single-core.
 
 ### Mapping layout
 
