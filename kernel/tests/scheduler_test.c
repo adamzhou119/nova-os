@@ -208,9 +208,6 @@ int main(void) {
 
     assert(nova_task_create(dummy_entry, 0, &task_id));
     assert(nova_task_create(dummy_entry, 0, &peer_task));
-    assert(nova_task_create(dummy_entry, 0, &user_task));
-    assert(nova_address_space_create(0x2000U, 7U, &user_space_id));
-    assert(nova_task_set_address_space(user_task, user_space_id));
     assert(nova_sched_start());
     assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
     assert(nova_address_space_get(user_space_id, &space));
@@ -225,10 +222,15 @@ int main(void) {
     assert(nova_task_get(peer_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
-    assert(nova_task_get(user_task, &info));
-    assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
+    assert(nova_task_create(dummy_entry, 0, &user_task));
+    assert(nova_address_space_create(0x2000U, 7U, &user_space_id));
+    assert(nova_task_set_address_space(user_task, user_space_id));
+    assert(nova_sched_start());
+    assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
     assert(nova_address_space_get(user_space_id, &space));
     assert(space.references == 2U && space.active_cpus == 0U);
+    assert(nova_task_get(user_task, &info));
+    assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
     assert(nova_task_transition(user_task, NOVA_TASK_READY));
     assert(nova_task_transition(user_task, NOVA_TASK_RUNNING));
     assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
