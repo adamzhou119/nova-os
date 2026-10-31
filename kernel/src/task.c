@@ -136,12 +136,17 @@ int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame)
 
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind) {
     struct nova_task_info *task = find_task(task_id);
-    if (task == 0 || (kind != NOVA_TASK_RESUME_FIRST_RUN &&
-                      kind != NOVA_TASK_RESUME_COOPERATIVE &&
-                      kind != NOVA_TASK_RESUME_IRQ))
+    if (task == 0 ||
+        (kind != NOVA_TASK_RESUME_COOPERATIVE &&
+         kind != NOVA_TASK_RESUME_IRQ))
         return 0;
-    if (kind == NOVA_TASK_RESUME_FIRST_RUN &&
-        task->state != NOVA_TASK_READY)
+    /*
+     * FIRST_RUN is creation-only. A cooperative context becomes resumable
+     * only after the task has yielded/blocked; an IRQ frame is published
+     * only while the interrupted task is still RUNNING.
+     */
+    if (kind == NOVA_TASK_RESUME_COOPERATIVE &&
+        task->state != NOVA_TASK_READY && task->state != NOVA_TASK_BLOCKED)
         return 0;
     if (kind == NOVA_TASK_RESUME_IRQ && task->state != NOVA_TASK_RUNNING)
         return 0;
