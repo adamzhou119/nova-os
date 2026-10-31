@@ -84,8 +84,14 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         nova_sched_timer_tick();
         assert(!nova_sched_preemption_pending());
     } else {
+        struct nova_irq_frame *selected_frame = 0;
+        uint32_t selected_id = 0U;
         assert(switch_depth == 1U);
         assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
+        /* A scheduler-stack IRQ must never be attached to a task. */
+        assert(!nova_sched_irq_handoff((struct nova_irq_frame *)to,
+                                       &selected_id, &selected_frame));
+        assert(nova_sched_current() == observed_task);
     }
 }
 
@@ -99,6 +105,14 @@ int main(void) {
     assert(nova_sched_current() == 0U);
     nova_sched_timer_tick();
     assert(!nova_sched_preemption_pending());
+    {
+        _Alignas(16) struct nova_irq_frame inactive_frame;
+        struct nova_irq_frame *selected_frame = 0;
+        uint32_t selected_id = 0U;
+        assert(!nova_sched_irq_handoff(&inactive_frame, &selected_id,
+                                       &selected_frame));
+        assert(nova_sched_current() == 0U);
+    }
 
     assert(nova_task_create(dummy_entry, 0, &task_id));
     assert(nova_task_create(dummy_entry, 0, &peer_task));
