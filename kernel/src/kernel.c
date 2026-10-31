@@ -499,6 +499,11 @@ static void scheduler_task_a(void *argument) {
 static void scheduler_task_b(void *argument) {
     (void)argument;
     scheduler_order[scheduler_order_count++] = 2U;
+    /* The waiter may already be READY because the timer IRQ preempted it. */
+    if (!nova_sched_unblock(scheduler_waiter_id)) return;
+    (void)nova_sched_yield();
+
+    /* After the interrupted task resumes, it blocks cooperatively. */
     if (!nova_sched_unblock(scheduler_waiter_id)) return;
     (void)nova_sched_yield();
     scheduler_order[scheduler_order_count++] = 4U;
