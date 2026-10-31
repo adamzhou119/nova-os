@@ -24,6 +24,7 @@ nova_arch_context_switch:
 .size nova_arch_context_switch, . - nova_arch_context_switch
 
 /* First-run trampoline: x19=entry, x20=argument, x21=task control block. */
+.extern nova_sched_task_exit
 .global nova_task_start_trampoline
 .type nova_task_start_trampoline, %function
 nova_task_start_trampoline:
@@ -31,6 +32,7 @@ nova_task_start_trampoline:
     blr     x19
     mov     x0, x21
     bl      nova_task_mark_zombie
+    bl      nova_sched_task_exit
 1:
     wfe
     b       1b
