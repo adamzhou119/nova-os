@@ -278,11 +278,11 @@ static size_t physical_frame_index(uintptr_t physical_address) {
 }
 
 static int descriptor_is_writable(uint64_t descriptor) {
-    return (descriptor & DESC_AP_MASK) == 0;
+    return (descriptor & (1ULL << 7)) == 0;
 }
 
 static int descriptor_is_executable(uint64_t descriptor) {
-    return (descriptor & DESC_PXN) == 0;
+    return (descriptor & (DESC_PXN | DESC_UXN)) != (DESC_PXN | DESC_UXN);
 }
 
 int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
