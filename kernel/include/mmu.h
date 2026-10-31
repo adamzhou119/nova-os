@@ -12,6 +12,9 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical);
 /* Switch TTBR0_EL1 using an 8-bit ASID; ASID zero is reserved for kernel root. */
 int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid);
 uintptr_t nova_mmu_kernel_root(void);
+int nova_mmu_user_map_page(uintptr_t root_physical, uint16_t asid, uintptr_t virtual_address, uintptr_t physical_address, unsigned int flags);
+int nova_mmu_user_unmap_page(uintptr_t root_physical, uint16_t asid, uintptr_t virtual_address);
+int nova_mmu_verify_user_access(uintptr_t virtual_address, int write);
 
 /* Verify that an EL1 stage-1 address translation preserves the address. */
 int nova_mmu_verify_identity(uintptr_t address);
