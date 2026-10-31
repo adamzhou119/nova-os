@@ -129,8 +129,16 @@ void nova_sched_clear_preemption(void) {
     preemption_pending = 0;
 }
 
-void nova_sched_task_exit(void) {
-    if (current_task_id == 0U) for (;;) __asm__ volatile("wfe");
-    (void)switch_to_scheduler(NOVA_TASK_ZOMBIE, 0);
+static void scheduler_wait_forever(void) {
+#if defined(__aarch64__)
     for (;;) __asm__ volatile("wfe");
+#else
+    for (;;) __asm__ volatile("" ::: "memory");
+#endif
+}
+
+void nova_sched_task_exit(void) {
+    if (current_task_id == 0U) scheduler_wait_forever();
+    (void)switch_to_scheduler(NOVA_TASK_ZOMBIE, 0);
+    scheduler_wait_forever();
 }
