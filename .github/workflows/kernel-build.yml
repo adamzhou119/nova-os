@@ -34,11 +34,16 @@ jobs:
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|_start|exception_vectors_el1'
 
+      - name: Generate QEMU virt device tree
+        run: |
+          qemu-system-aarch64 -machine virt,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
+          test -s kernel/build/virt.dtb
+
       - name: QEMU serial boot smoke test
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel kernel/build/nova.elf > qemu.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova.elf > qemu.log 2>&1
           status=$?
           set -e
           cat qemu.log
@@ -55,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel kernel/build/nova-test.elf > exception.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-test.elf > exception.log 2>&1
           status=$?
           set -e
           cat exception.log
