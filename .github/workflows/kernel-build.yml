@@ -53,6 +53,10 @@ jobs:
           timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova.elf > qemu.log 2>&1
           status=$?
           set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
           cat qemu.log
           grep -q "Welcome to Nova OS" qemu.log || { echo "Boot banner missing (QEMU exit: $status)"; exit 1; }
           grep -Eq "CurrentEL: EL[0-3]" qemu.log
@@ -85,6 +89,10 @@ jobs:
           timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-test.elf > exception.log 2>&1
           status=$?
           set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
           cat exception.log
           grep -q "Triggering controlled SVC exception test." exception.log
           grep -q "EXCEPTION: EL1 vector captured." exception.log
@@ -104,6 +112,10 @@ jobs:
           timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-fault-test.elf > mmu-fault.log 2>&1
           status=$?
           set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
           cat mmu-fault.log
           grep -q "Triggering controlled MMU translation fault test." mmu-fault.log
           grep -q "EXCEPTION: EL1 vector captured." mmu-fault.log
@@ -119,6 +131,10 @@ jobs:
           timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
           status=$?
           set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
           cat el2-boot.log
           cat el2-qemu-trace.log
           grep -q "Welcome to Nova OS" el2-boot.log
@@ -133,6 +149,10 @@ jobs:
           timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-stack-fault-test.elf > stack-guard-fault.log 2>&1
           status=$?
           set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
           cat stack-guard-fault.log
           grep -q "Triggering controlled task stack guard fault test." stack-guard-fault.log
           grep -q "EXCEPTION: EL1 vector captured." stack-guard-fault.log
