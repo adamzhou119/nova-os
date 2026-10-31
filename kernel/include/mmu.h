@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-/* Enable a minimal EL1 identity map for QEMU virt RAM and PL011 UART. */
+/* Enable the QEMU EL1 RAM/PL011 map and reserve a dynamic virtual window. */
 int nova_mmu_enable(void);
 
 /* Verify that an EL1 stage-1 address translation preserves the address. */
