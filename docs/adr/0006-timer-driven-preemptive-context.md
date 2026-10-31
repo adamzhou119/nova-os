@@ -90,3 +90,25 @@ Before IRQ frame switching can be integrated, the scheduler dispatch loop must:
 - Keep the current-task ID, task states, and selected frame ownership consistent before an exception return or cooperative context switch.
 
 A unit test must model a task entered from an IRQ frame yielding back to the shared scheduler continuation, followed by resumption of the previously interrupted task. The QEMU CPU-bound-task test remains the acceptance test. This section is a design constraint, not evidence that the integration is implemented.
+
+## Blocking integration issue: scheduler continuation ownership
+
+Code inspection of the current implementation found that `nova_sched_start()` owns one shared `scheduler_context` and dispatches cooperative tasks from inside its loop. IRQ frame handoff changes `current_task_id` and returns another task's exception frame, but it does not establish a new scheduler-stack continuation.
+
+Consequently, if an IRQ-resumed task later calls `nova_sched_yield()`, its cooperative context switch restores the previously saved shared scheduler context. That continuation may be the suspended dispatch call for a different task. The loop's local `next` variable and post-switch cleanup are then not authoritative for the task that actually yielded. Reaping or current-task bookkeeping can therefore target the wrong task.
+
+**Do not connect `nova_sched_irq_handoff()` to `nova_irq_dispatch()` yet.** The current code is a tested task/frame selection helper, not a safe preemptive scheduler.
+
+Before enabling IRQ frame switching, refactor dispatch so that every task-to-scheduler return lands at one scheduler entry whose identity does not depend on the task that originally entered it. Acceptable designs include a dedicated per-CPU scheduler stack with an explicit IRQ-to-scheduler trampoline, or another rigorously specified continuation model. Per-task cooperative contexts must remain separate from the scheduler continuation. Task reaping must use the task ID returned to the scheduler, not a stale local from an earlier dispatch.
+
+Required regression sequence:
+
+1. Scheduler dispatches task A.
+2. A is interrupted and its IRQ frame is saved; B is selected and resumed by exception return.
+3. B calls yield or block and returns to the scheduler entry.
+4. Scheduler dispatches A from its saved IRQ frame.
+5. A calls yield or exits; scheduler again identifies A correctly.
+6. B resumes from its saved cooperative context.
+7. Both tasks exit and are reaped exactly once, on the scheduler stack.
+
+The test must assert task IDs, states, resume kinds, and stack/continuation ownership at every transition. QEMU CPU-bound tasks remain the acceptance test. Until this sequence passes, timer preemption remains disabled.
