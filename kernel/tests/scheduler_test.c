@@ -167,6 +167,7 @@ int main(void) {
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
     assert(nova_task_transition(task_id, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(task_id));
+    assert(nova_sched_unblock(peer_task));
     assert(nova_task_transition(peer_task, NOVA_TASK_RUNNING));
     assert(nova_task_transition(peer_task, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(peer_task));
