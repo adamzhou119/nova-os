@@ -1,5 +1,7 @@
 #include "task.h"
 
+#include <stddef.h>
+
 #include "vm.h"
 
 #define NOVA_TASK_STACK_SIZE 4096U
