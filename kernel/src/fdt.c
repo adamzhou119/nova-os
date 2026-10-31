@@ -25,6 +25,18 @@ static int string_equals(const char *value, const char *expected) {
     return value[i] == '\0';
 }
 
+static int fdt_string_equals(const uint8_t *strings, uint32_t strings_size,
+                             uint32_t offset, const char *expected) {
+    size_t i = 0;
+    if (offset >= strings_size) return 0;
+    while (i < strings_size - offset && expected[i] != 0) {
+        if ((char)strings[offset + i] != expected[i]) return 0;
+        ++i;
+    }
+    return i < strings_size - offset && strings[offset + i] == 0 &&
+           expected[i] == 0;
+}
+
 static int node_is_memory(const char *name) {
     static const char prefix[] = "memory";
     size_t i;
@@ -138,7 +150,6 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
         } else if (token == FDT_PROP) {
             uint32_t length;
             uint32_t name_offset;
-            const char *property_name;
             const uint8_t *data;
             if (depth < 0 || cursor + 8U > struct_size) return -1;
             length = read_be32(structure + cursor);
@@ -147,22 +158,21 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             if (length > struct_size - cursor || name_offset >= strings_size)
                 return -1;
             data = structure + cursor;
-            property_name = (const char *)(strings + name_offset);
 
-            if (string_equals(property_name, "#address-cells") && length == 4U) {
+            if (fdt_string_equals(strings, strings_size, name_offset, "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
                 if (cells == 0 || cells > 2U) return -1;
                 address_cells[depth] = cells;
-            } else if (string_equals(property_name, "#size-cells") && length == 4U) {
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "#size-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
                 if (cells == 0 || cells > 2U) return -1;
                 size_cells[depth] = cells;
-            } else if (string_equals(property_name, "device_type") &&
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "device_type") &&
                        length >= 7U && data[0] == 'm' && data[1] == 'e' &&
                        data[2] == 'm' && data[3] == 'o' && data[4] == 'r' &&
                        data[5] == 'y' && data[6] == 0) {
                 memory_node[depth] = 1;
-            } else if (string_equals(property_name, "reg")) {
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "reg")) {
                 reg_data[depth] = data;
                 reg_length[depth] = length;
             }
