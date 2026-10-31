@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "memory.h"
 #include "fdt.h"
+#include "mmu.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -283,6 +284,22 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write_hex64(nova_page_total());
     uart_write("Current page map available: ");
     uart_write_hex64(nova_page_available());
+
+    if (nova_mmu_enable()) {
+        uart_write("EL1 MMU enabled with identity-mapped RAM and PL011.
+");
+        if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
+            nova_mmu_verify_identity((uintptr_t)UART0_BASE)) {
+            uart_write("MMU identity translation tests passed.
+");
+        } else {
+            uart_write("ERROR: MMU identity translation test failed.
+");
+        }
+    } else {
+        uart_write("ERROR: EL1 MMU initialization rejected current state.
+");
+    }
 
 #ifdef NOVA_TEST_EXCEPTION
     if (current_el == 1) {
