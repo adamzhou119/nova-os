@@ -32,36 +32,31 @@ jobs:
           file kernel/build/nova.elf
           file kernel/build/nova-test.elf
           readelf -h kernel/build/nova.elf
-          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|_start|exception_vectors_el1'
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|_start|exception_vectors_el1'
 
       - name: QEMU serial boot smoke test
         shell: bash
         run: |
           set +e
           timeout 8s qemu-system-aarch64 \
-            -machine virt \
-            -cpu cortex-a57 \
-            -nographic \
+            -machine virt -cpu cortex-a57 -nographic \
             -kernel kernel/build/nova.elf > qemu.log 2>&1
           status=$?
           set -e
           cat qemu.log
-          if ! grep -q "Welcome to Nova OS" qemu.log; then
-            echo "Expected serial banner was not observed (QEMU exit: $status)."
-            exit 1
-          fi
+          grep -q "Welcome to Nova OS" qemu.log || { echo "Boot banner missing (QEMU exit: $status)"; exit 1; }
           grep -Eq "CurrentEL: EL[0-3]" qemu.log
           grep -q "BSS zero initialization verified." qemu.log
-          echo "Nova OS normal boot checks passed."
+          grep -q "Heap allocator tests passed." qemu.log
+          grep -q "Heap bytes available:" qemu.log
+          echo "Nova OS boot and heap allocator checks passed."
 
       - name: QEMU controlled exception test
         shell: bash
         run: |
           set +e
           timeout 8s qemu-system-aarch64 \
-            -machine virt \
-            -cpu cortex-a57 \
-            -nographic \
+            -machine virt -cpu cortex-a57 -nographic \
             -kernel kernel/build/nova-test.elf > exception.log 2>&1
           status=$?
           set -e
