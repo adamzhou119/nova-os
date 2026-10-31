@@ -32,15 +32,13 @@ jobs:
           file kernel/build/nova.elf
           file kernel/build/nova-test.elf
           readelf -h kernel/build/nova.elf
-          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|_start|exception_vectors_el1'
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|_start|exception_vectors_el1'
 
       - name: QEMU serial boot smoke test
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 \
-            -machine virt -cpu cortex-a57 -nographic \
-            -kernel kernel/build/nova.elf > qemu.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel kernel/build/nova.elf > qemu.log 2>&1
           status=$?
           set -e
           cat qemu.log
@@ -48,16 +46,15 @@ jobs:
           grep -Eq "CurrentEL: EL[0-3]" qemu.log
           grep -q "BSS zero initialization verified." qemu.log
           grep -q "Heap allocator tests passed." qemu.log
-          grep -q "Heap bytes available:" qemu.log
-          echo "Nova OS boot and heap allocator checks passed."
+          grep -q "Physical page allocator tests passed." qemu.log
+          grep -q "Page pool available:" qemu.log
+          echo "Nova OS boot, heap, and page allocator checks passed."
 
       - name: QEMU controlled exception test
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 \
-            -machine virt -cpu cortex-a57 -nographic \
-            -kernel kernel/build/nova-test.elf > exception.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel kernel/build/nova-test.elf > exception.log 2>&1
           status=$?
           set -e
           cat exception.log
