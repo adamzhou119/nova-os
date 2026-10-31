@@ -16,15 +16,6 @@ static uint32_t read_be32(const uint8_t *p) {
            (uint32_t)p[3];
 }
 
-static int string_equals(const char *value, const char *expected) {
-    size_t i = 0;
-    while (expected[i] != '\0') {
-        if (value[i] != expected[i]) return 0;
-        ++i;
-    }
-    return value[i] == '\0';
-}
-
 static int fdt_string_equals(const uint8_t *strings, uint32_t strings_size,
                              uint32_t offset, const char *expected) {
     size_t i = 0;
