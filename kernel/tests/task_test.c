@@ -59,6 +59,14 @@ int main(void) {
     task_context = nova_task_context(first);
     assert(task_context != 0);
     assert(task_context->sp == info.kernel_stack_top);
+    assert(info.irq_frame != 0);
+    assert((uintptr_t)info.irq_frame == info.kernel_stack_top - sizeof(struct nova_irq_frame));
+    assert(info.irq_frame->x[0] == (uintptr_t)&argument);
+    assert(info.irq_frame->x[19] == (uintptr_t)dummy_entry);
+    assert(info.irq_frame->x[20] == (uintptr_t)&argument);
+    assert(info.irq_frame->x[21] != 0U);
+    assert(info.irq_frame->elr_el1 == (uintptr_t)nova_task_start_trampoline);
+    assert(info.irq_frame->spsr_el1 == 0x5U);
     assert(task_context->x19_x30[0] == (uintptr_t)dummy_entry);
     assert(task_context->x19_x30[1] == (uintptr_t)&argument);
     assert(task_context->x19_x30[2] != 0U);
