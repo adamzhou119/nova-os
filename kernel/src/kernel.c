@@ -9,6 +9,9 @@
 #define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
 #define UARTFR_TXFF      (1U << 5)
 
+/* This zero-initialized object is a runtime probe for early .bss clearing. */
+static volatile uint64_t bss_probe;
+
 static void uart_putc(char c) {
     while (UARTFR & UARTFR_TXFF) {
         __asm__ volatile("nop");
@@ -28,6 +31,13 @@ static void uart_write(const char *s) {
 void kernel_main(void) {
     uart_write("Welcome to Nova OS\n");
     uart_write("AArch64 kernel prototype is running.\n");
+
+    if (bss_probe == 0) {
+        uart_write("BSS zero initialization verified.\n");
+    } else {
+        uart_write("ERROR: BSS zero initialization failed.\n");
+    }
+
     for (;;) {
         __asm__ volatile("wfe");
     }
