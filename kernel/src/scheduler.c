@@ -46,7 +46,8 @@ static int switch_to_scheduler(enum nova_task_state next_state, int change_state
     }
     task_context = nova_task_context(id);
     if (task_context == 0 ||
-        (change_state && !nova_task_transition(id, next_state))) {
+        ((change_state || next_state == NOVA_TASK_ZOMBIE) &&
+         !nova_task_transition(id, next_state))) {
         irq_restore(saved_daif);
         return 0;
     }
@@ -90,6 +91,14 @@ int nova_sched_start(void) {
         nova_arch_context_switch(&scheduler_context, context);
 
         execution_phase = NOVA_SCHED_SCHEDULER;
+        {
+            struct nova_task_info finished;
+            if (nova_task_get(next, &finished) &&
+                finished.state == NOVA_TASK_ZOMBIE) {
+                /* Reap only after execution has returned to the scheduler stack. */
+                (void)nova_task_destroy(next);
+            }
+        }
         current_task_id = 0U;
         irq_restore(saved_daif);
     }
