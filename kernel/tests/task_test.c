@@ -87,10 +87,24 @@ int main(void) {
     assert(task_context->x19_x30[2] != 0U);
     assert(task_context->x19_x30[11] == (uintptr_t)nova_task_start_trampoline);
     assert(info.state == NOVA_TASK_READY);
+    assert(info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
     assert(info.entry == dummy_entry && info.argument == &argument);
     assert(info.kernel_stack_top - info.kernel_stack_base == 4096U);
     assert((info.kernel_stack_top & 15U) == 0U);
     assert(!nova_task_transition(first, NOVA_TASK_BLOCKED));
+    /* IRQ frames are a distinct resume path, never a cooperative context. */
+    assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+    assert(nova_task_mark_irq_resumable(first, info.irq_frame));
+    assert(nova_task_get(first, &info));
+    assert(info.resume_kind == NOVA_TASK_RESUME_IRQ);
+    assert(nova_task_transition(first, NOVA_TASK_READY));
+    {
+        uint32_t selected = 0U;
+        assert(nova_task_next_ready(0U, &selected) && selected == first);
+        assert(!nova_task_next_cooperative_ready(0U, &selected));
+        assert(nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
+        assert(nova_task_next_cooperative_ready(0U, &selected) && selected == first);
+    }
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(!nova_task_destroy(first));
     assert(nova_task_set_exit_code(first, -7));
