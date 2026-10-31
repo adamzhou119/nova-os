@@ -269,17 +269,22 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
 
     {
         struct nova_task_info current_info, candidate_info;
-        uint32_t candidate_id=0U;
-        /* Cross-space IRQ handoff stays disabled until TTBR0 and IRQ-frame
-         * selection can be committed as one atomic operation. */
-        if(!nova_task_get(current_id,&current_info) ||
-           current_info.address_space_id!=0U ||
-           (nova_task_next_irq_ready(current_id,&candidate_id) &&
-            candidate_id!=current_id &&
-            (!nova_task_get(candidate_id,&candidate_info) ||
-             candidate_info.address_space_id!=0U))) {
-            current_quantum_ticks=0U; preemption_pending=0;
-            irq_restore(saved_daif); return 0;
+        uint32_t candidate_id = 0U;
+        /*
+         * IRQ-frame handoff is safe without a TTBR change only when both
+         * tasks share the same address space. Cross-address-space handoff
+         * remains deferred until frame and TTBR selection are atomic.
+         */
+        if (!nova_task_get(current_id, &current_info) ||
+            (nova_task_next_irq_ready(current_id, &candidate_id) &&
+             candidate_id != current_id &&
+             (!nova_task_get(candidate_id, &candidate_info) ||
+              candidate_info.address_space_id !=
+                  current_info.address_space_id))) {
+            current_quantum_ticks = 0U;
+            preemption_pending = 0;
+            irq_restore(saved_daif);
+            return 0;
         }
     }
     switched = nova_task_irq_handoff(current_id, frame, next_id, next_frame);
