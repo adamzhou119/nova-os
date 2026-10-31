@@ -61,4 +61,4 @@ Timer IRQs also feed a five-tick (50 ms at 100 Hz) round-robin quantum counter. 
 - The C IRQ dispatcher receives the current 272-byte exception-frame address and returns the frame address that the vector entry must restore.
 - The assembly entry switches its restore SP to that returned address before restoring registers and executing `eret`.
 - The current dispatcher deliberately returns the same frame, so runtime behavior remains unchanged; this is an integration seam, not yet timer-driven task preemption.
-- The C structure in `interrupt.h` statically checks the assembly offsets and total frame size.
+- The C structure in `interrupt.h` statically checks the assembly offsets and total frame size. Host-side IRQ dispatcher tests validate timer PPI accounting, scheduler tick notification, timer rearming at 100 Hz, EOI behavior for normal interrupts, spurious interrupt handling, and frame-pointer preservation. These tests do not simulate an actual exception return or prove task preemption.
