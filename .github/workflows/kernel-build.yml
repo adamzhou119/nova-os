@@ -31,7 +31,7 @@ jobs:
           file kernel/build/nova.elf
           file kernel/build/nova-test.elf
           readelf -h kernel/build/nova.elf
-          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|_start|exception_vectors_el1'
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
 
       - name: Generate QEMU virt device tree
         run: |
@@ -53,6 +53,7 @@ jobs:
           grep -q "FDT memory map parsed." qemu.log
           grep -q "FDT reserved ranges parsed:" qemu.log
           grep -q "Physical page allocator tests passed." qemu.log
+          grep -q "Firmware RAM page allocator tests passed." qemu.log
           grep -q "Page pool available:" qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
