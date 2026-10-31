@@ -1,5 +1,6 @@
 CLANG ?= clang
 LD_LLD ?= ld.lld
+CC ?= cc
 
 TARGET := --target=aarch64-none-elf
 CFLAGS := $(TARGET) -ffreestanding -fno-stack-protector -fno-pic \
@@ -16,8 +17,12 @@ PAGE_OBJECT := $(BUILD)/page.o
 FDT_OBJECT := $(BUILD)/fdt.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 
-.PHONY: all test clean
+.PHONY: all test host-test clean
 all: $(BUILD)/nova.elf
+
+host-test: | $(BUILD)
+\t$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
+\t$(BUILD)/page-allocator-test
 
 test: $(BUILD)/nova-test.elf
 
