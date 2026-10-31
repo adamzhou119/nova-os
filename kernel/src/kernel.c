@@ -602,9 +602,31 @@ static void cpu_bound_task_b(void *argument) {
     nova_timer_stop();
 }
 
-static int test_irq_preemptive_scheduler(void) {
-    uint32_t first, second;
+static void cleanup_scheduler_test_task(uint32_t task_id) {
     struct nova_task_info info;
+    if (task_id == 0U || !nova_task_get(task_id, &info)) return;
+    if (info.state == NOVA_TASK_READY &&
+        info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN) {
+        (void)nova_task_destroy(task_id);
+        return;
+    }
+    if (info.state == NOVA_TASK_BLOCKED)
+        (void)nova_task_transition(task_id, NOVA_TASK_READY);
+    if (nova_task_get(task_id, &info) && info.state == NOVA_TASK_READY)
+        (void)nova_task_transition(task_id, NOVA_TASK_RUNNING);
+    if (nova_task_get(task_id, &info) && info.state == NOVA_TASK_RUNNING)
+        (void)nova_task_transition(task_id, NOVA_TASK_ZOMBIE);
+    if (nova_task_get(task_id, &info) && info.state == NOVA_TASK_ZOMBIE)
+        (void)nova_task_destroy(task_id);
+}
+
+static int test_irq_preemptive_scheduler(void) {
+    uint32_t first = 0U, second = 0U;
+    uint32_t space_a = 0U, space_b = 0U;
+    uintptr_t root_a = 0U, root_b = 0U;
+    struct nova_task_info info;
+    struct nova_address_space_info address_space;
+    int result = 0;
 
     cpu_bound_start_tick = nova_irq_tick_count();
     cpu_bound_progress_a = 0U;
@@ -613,29 +635,65 @@ static int test_irq_preemptive_scheduler(void) {
     cpu_bound_a_resumed = 0U;
     cpu_bound_b_resumed = 0U;
 
-    if (!nova_task_create(cpu_bound_task_a, 0, &first) ||
-        !nova_task_create(cpu_bound_task_b, 0, &second))
-        return 0;
+    /*
+     * These tasks still execute privileged kernel code, but own distinct
+     * TTBR0 roots. Their timer-driven handoff therefore exercises the real
+     * cross-address-space path while all kernel stacks/code remain shared.
+     */
+    if (!nova_mmu_address_space_create(&root_a) ||
+        !nova_mmu_address_space_create(&root_b) ||
+        !nova_address_space_create(root_a, 11U, &space_a) ||
+        !nova_address_space_create(root_b, 12U, &space_b) ||
+        !nova_task_create(cpu_bound_task_a, 0, &first) ||
+        !nova_task_create(cpu_bound_task_b, 0, &second) ||
+        !nova_task_set_address_space(first, space_a) ||
+        !nova_task_set_address_space(second, space_b))
+        goto cleanup;
+
     if (!nova_sched_start()) {
         nova_timer_stop();
-        return 0;
+        goto cleanup;
     }
 
     /*
-     * Neither entry calls Yield or Block. B can start only after A's first
-     * timer preemption; A's post-B progress proves A was resumed; B's
-     * post-A progress proves a second timer handoff resumed B.
+     * Neither entry calls Yield or Block. B starts only after A's first
+     * timer preemption; A's post-B progress proves A resumed under its own
+     * TTBR0; B's post-A progress proves the reverse handoff also completed.
      */
-    if (cpu_bound_progress_a == 0U || cpu_bound_progress_b == 0U ||
-        !cpu_bound_b_started || !cpu_bound_a_resumed ||
-        !cpu_bound_b_resumed ||
-        nova_irq_tick_count() - cpu_bound_start_tick < 20U ||
-        nova_sched_current() != 0U ||
-        nova_task_get(first, &info) || nova_task_get(second, &info)) {
-        nova_timer_stop();
-        return 0;
+    result = cpu_bound_progress_a != 0U &&
+             cpu_bound_progress_b != 0U &&
+             cpu_bound_b_started &&
+             cpu_bound_a_resumed &&
+             cpu_bound_b_resumed &&
+             nova_irq_tick_count() - cpu_bound_start_tick >= 20U &&
+             nova_sched_current() == 0U &&
+             !nova_task_get(first, &info) &&
+             !nova_task_get(second, &info);
+
+cleanup:
+    nova_timer_stop();
+    cleanup_scheduler_test_task(first);
+    cleanup_scheduler_test_task(second);
+
+    if (space_a != 0U &&
+        nova_address_space_get(space_a, &address_space) &&
+        address_space.references == 1U && address_space.active_cpus == 0U) {
+        if (!nova_address_space_release(space_a) ||
+            !nova_mmu_address_space_destroy(root_a))
+            result = 0;
+    } else if (space_a == 0U && root_a != 0U) {
+        if (!nova_mmu_address_space_destroy(root_a)) result = 0;
     }
-    return 1;
+    if (space_b != 0U &&
+        nova_address_space_get(space_b, &address_space) &&
+        address_space.references == 1U && address_space.active_cpus == 0U) {
+        if (!nova_address_space_release(space_b) ||
+            !nova_mmu_address_space_destroy(root_b))
+            result = 0;
+    } else if (space_b == 0U && root_b != 0U) {
+        if (!nova_mmu_address_space_destroy(root_b)) result = 0;
+    }
+    return result;
 }
 
 static int test_generic_timer(void) {
@@ -880,7 +938,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: kernel cooperative scheduler test failed.\n");
         }
         if (test_irq_preemptive_scheduler()) {
-            uart_write("Kernel CPU-bound IRQ preemption tests passed.\n");
+            uart_write("Kernel cross-address-space CPU-bound IRQ preemption tests passed.\n");
         } else {
             uart_write("ERROR: kernel CPU-bound IRQ preemption test failed.\n");
         }
