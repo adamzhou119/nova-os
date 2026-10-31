@@ -49,7 +49,7 @@ host-test: | $(BUILD)
 	$(BUILD)/exception-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/address_space_test.c src/address_space.c -o $(BUILD)/address-space-test
 	$(BUILD)/address-space-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c -o $(BUILD)/scheduler-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c src/address_space.c -o $(BUILD)/scheduler-test
 	$(BUILD)/scheduler-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/el3-test-boot.elf
