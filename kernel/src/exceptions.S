@@ -39,6 +39,10 @@ exception_vectors_el1:
     VECTOR 14
     VECTOR 15
 
+/* Every AArch64 vector table has 16 fixed 128-byte slots. */
+.if (. - exception_vectors_el1) != 2048
+    .error "EL1 exception vector table must contain exactly 16 x 128-byte slots"
+.endif
 .size exception_vectors_el1, . - exception_vectors_el1
 
 /*
