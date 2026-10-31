@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "context.h"
+#include "interrupt.h"
 
 #define NOVA_TASK_MAX 16U
 
@@ -25,6 +26,7 @@ struct nova_task_info {
     uintptr_t kernel_stack_top;
     int exit_code;
     struct nova_cpu_context context;
+    struct nova_irq_frame *irq_frame;
 };
 
 /* Creates a task control block and one mapped kernel stack page. */
