@@ -1,0 +1,11 @@
+# Build outputs
+kernel/build/
+build/
+*.o
+*.elf
+*.map
+
+# Editor / OS files
+.DS_Store
+.vscode/
+.idea/
