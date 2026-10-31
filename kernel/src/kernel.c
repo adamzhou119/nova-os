@@ -459,17 +459,19 @@ static int test_arch_context_switch(void) {
 
 static volatile uint32_t scheduler_order[4];
 static volatile uint32_t scheduler_order_count;
+static uint32_t scheduler_waiter_id;
 
 static void scheduler_task_a(void *argument) {
     (void)argument;
     scheduler_order[scheduler_order_count++] = 1U;
-    (void)nova_sched_yield();
+    (void)nova_sched_block_current();
     scheduler_order[scheduler_order_count++] = 3U;
 }
 
 static void scheduler_task_b(void *argument) {
     (void)argument;
     scheduler_order[scheduler_order_count++] = 2U;
+    if (!nova_sched_unblock(scheduler_waiter_id)) return;
     (void)nova_sched_yield();
     scheduler_order[scheduler_order_count++] = 4U;
 }
@@ -482,6 +484,7 @@ static int test_cooperative_scheduler(void) {
     scheduler_order[2] = scheduler_order[3] = 0U;
     if (!nova_task_create(scheduler_task_a, 0, &first) ||
         !nova_task_create(scheduler_task_b, 0, &second)) return 0;
+    scheduler_waiter_id = first;
     if (!nova_sched_start() || scheduler_order_count != 4U ||
         scheduler_order[0] != 1U || scheduler_order[1] != 2U ||
         scheduler_order[2] != 3U || scheduler_order[3] != 4U ||
@@ -620,9 +623,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: kernel task lifecycle test failed.\n");
         }
         if (test_cooperative_scheduler()) {
-            uart_write("Kernel cooperative scheduler tests passed.\\n");
+            uart_write("Kernel cooperative scheduler tests passed.\n");
         } else {
-            uart_write("ERROR: kernel cooperative scheduler test failed.\\n");
+            uart_write("ERROR: kernel cooperative scheduler test failed.\n");
         }
         if (test_arch_context_switch()) {
             uart_write("AArch64 cooperative context switch test passed.\\n");
