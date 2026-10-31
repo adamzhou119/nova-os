@@ -14,5 +14,7 @@ int nova_arch_context_init(struct nova_cpu_context *context,
                            uintptr_t argument0, uintptr_t argument1);
 void nova_arch_context_switch(struct nova_cpu_context *from,
                               const struct nova_cpu_context *to);
+/* Restores a complete EL1 exception frame and returns with ERET. */
+void nova_arch_irq_resume(const struct nova_irq_frame *frame);
 
 #endif
