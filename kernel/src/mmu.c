@@ -400,3 +400,86 @@ int nova_mmu_verify_translation(uintptr_t virtual_address,
     return (par & DESC_ADDR_MASK) ==
            ((uint64_t)physical_address & DESC_ADDR_MASK);
 }
+
+
+/*
+ * Address-space roots share the privileged platform/RAM subtrees, but own
+ * L1[2] (VA 0x80000000..0xbfffffff) for future EL0 mappings. The private
+ * L2 starts empty, so no user mapping can accidentally inherit kernel access.
+ */
+uintptr_t nova_mmu_kernel_root(void) {
+    return (uintptr_t)level1_table;
+}
+
+int nova_mmu_address_space_create(uintptr_t *root_physical) {
+    uint64_t *root;
+    uint64_t *user_l2;
+    size_t i;
+    if (root_physical == NULL) return 0;
+    root = (uint64_t *)nova_page_alloc();
+    if (root == NULL) return 0;
+    user_l2 = (uint64_t *)nova_page_alloc();
+    if (user_l2 == NULL) {
+        (void)nova_page_free(root);
+        return 0;
+    }
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        root[i] = level1_table[i];
+        user_l2[i] = 0U;
+    }
+    root[2] = ((uintptr_t)user_l2 & DESC_ADDR_MASK) |
+              DESC_VALID | DESC_TABLE;
+    if (!nova_page_pin(root) || !nova_page_pin(user_l2)) {
+        if (nova_page_pin_count(root) != 0U) (void)nova_page_unpin(root);
+        (void)nova_page_free(user_l2);
+        (void)nova_page_free(root);
+        return 0;
+    }
+    *root_physical = (uintptr_t)root;
+    return 1;
+}
+
+int nova_mmu_address_space_destroy(uintptr_t root_physical) {
+    uint64_t *root = (uint64_t *)root_physical;
+    uint64_t *user_l2;
+    size_t i;
+    if (root_physical == 0U || root_physical == (uintptr_t)level1_table ||
+        (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
+        !nova_page_is_allocated(root)) return 0;
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
+        if (i != 2U && root[i] != level1_table[i]) return 0;
+    if ((root[2] & (DESC_VALID | DESC_TABLE)) !=
+        (DESC_VALID | DESC_TABLE)) return 0;
+    user_l2 = (uint64_t *)(uintptr_t)(root[2] & DESC_ADDR_MASK);
+    if (!nova_page_is_allocated(user_l2)) return 0;
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
+        if (user_l2[i] != 0U) return 0;
+    if (nova_page_pin_count(root) != 1U ||
+        nova_page_pin_count(user_l2) != 1U) return 0;
+    if (!nova_page_unpin(user_l2) || !nova_page_unpin(root)) return 0;
+    if (!nova_page_free(user_l2)) return 0;
+    return nova_page_free(root);
+}
+
+int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid) {
+    uint64_t ttbr;
+    uint64_t operand;
+    if ((root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
+        asid > 255U ||
+        (root_physical != (uintptr_t)level1_table &&
+         !nova_page_is_allocated((const void *)root_physical)) ||
+        (root_physical == (uintptr_t)level1_table && asid != 0U) ||
+        (root_physical != (uintptr_t)level1_table && asid == 0U))
+        return 0;
+    ttbr = ((uint64_t)asid << 48) |
+           ((uint64_t)root_physical & DESC_ADDR_MASK);
+    operand = (uint64_t)asid << 48;
+    __asm__ volatile(
+        "dsb ishst\n"
+        "tlbi aside1is, %0\n"
+        "dsb ish\n"
+        "msr ttbr0_el1, %1\n"
+        "isb\n"
+        : : "r"(operand), "r"(ttbr) : "memory");
+    return 1;
+}
