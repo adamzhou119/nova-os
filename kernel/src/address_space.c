@@ -53,7 +53,7 @@ int nova_address_space_retain(uint32_t address_space_id) {
 int nova_address_space_release(uint32_t address_space_id) {
     struct address_space_slot *space = find_space(address_space_id);
     if (space == 0 || space->info.references == 0U) return 0;
-    if (space->info.references == 1U && space->info.active_cpus != 0U)
+    if (space->info.active_cpus >= space->info.references)
         return 0;
     --space->info.references;
     if (space->info.references == 0U) {
