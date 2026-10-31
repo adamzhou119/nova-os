@@ -74,9 +74,6 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             user_space_mode = 1;
             assert(nova_sched_block_current());
             user_space_mode = 0;
-            assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
-            assert(nova_address_space_get(user_space_id, &space));
-            assert(space.active_cpus == 0U);
             return;
         }
         for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
@@ -215,6 +212,9 @@ int main(void) {
     assert(nova_address_space_create(0x2000U, 7U, &user_space_id));
     assert(nova_task_set_address_space(user_task, user_space_id));
     assert(nova_sched_start());
+    assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
+    assert(nova_address_space_get(user_space_id, &space));
+    assert(space.active_cpus == 0U);
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
     assert(observed_task == task_id);
