@@ -107,6 +107,20 @@ static void exception_report_at_level(uint64_t level, uint64_t esr,
     uart_putc('\n');
     uart_write("ESR instruction-specific syndrome: ");
     uart_write_hex64(esr & 0x01ffffffU);
+    if (nova_exception_is_instruction_abort(esr) ||
+        nova_exception_is_data_abort(esr)) {
+        uart_write("Abort fault status: ");
+        uart_write(nova_abort_fault_status_name(esr));
+        uart_putc('\\n');
+        uart_write("Fault address valid: ");
+        uart_write(nova_exception_fault_address_valid(esr) ? "yes\\n" : "no\\n");
+        uart_write("Stage-1 page-table walk: ");
+        uart_write(nova_exception_is_stage1_page_walk(esr) ? "yes\\n" : "no\\n");
+        if (nova_exception_is_data_abort(esr)) {
+            uart_write("Data access: ");
+            uart_write(nova_exception_is_write_abort(esr) ? "write\\n" : "read\\n");
+        }
+    }
     uart_write("ELR_EL");
     uart_putc((char)('0' + level));
     uart_write(": ");
