@@ -463,10 +463,15 @@ static int test_arch_context_switch(void) {
 static volatile uint32_t scheduler_order[4];
 static volatile uint32_t scheduler_order_count;
 static uint32_t scheduler_waiter_id;
+static int scheduler_quantum_observed;
 
 static void scheduler_task_a(void *argument) {
     (void)argument;
+    uint32_t tick;
     scheduler_order[scheduler_order_count++] = 1U;
+    for (tick = 0U; tick < 5U; ++tick) nova_sched_timer_tick();
+    scheduler_quantum_observed = nova_sched_preemption_pending();
+    nova_sched_clear_preemption();
     (void)nova_sched_block_current();
     scheduler_order[scheduler_order_count++] = 3U;
 }
@@ -483,12 +488,13 @@ static int test_cooperative_scheduler(void) {
     uint32_t first, second;
     struct nova_task_info info;
     scheduler_order_count = 0U;
+    scheduler_quantum_observed = 0;
     scheduler_order[0] = scheduler_order[1] = 0U;
     scheduler_order[2] = scheduler_order[3] = 0U;
     if (!nova_task_create(scheduler_task_a, 0, &first) ||
         !nova_task_create(scheduler_task_b, 0, &second)) return 0;
     scheduler_waiter_id = first;
-    if (!nova_sched_start() || scheduler_order_count != 4U ||
+    if (!nova_sched_start() || !scheduler_quantum_observed || scheduler_order_count != 4U ||
         scheduler_order[0] != 1U || scheduler_order[1] != 2U ||
         scheduler_order[2] != 3U || scheduler_order[3] != 4U ||
         nova_sched_current() != 0U ||
