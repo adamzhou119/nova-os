@@ -572,9 +572,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: kernel virtual page allocator test failed.\n");
         }
         if (test_task_lifecycle()) {
-            uart_write("Kernel task lifecycle tests passed.\\n");
+            uart_write("Kernel task lifecycle tests passed.\n");
         } else {
-            uart_write("ERROR: kernel task lifecycle test failed.\\n");
+            uart_write("ERROR: kernel task lifecycle test failed.\n");
         }
         if (test_arch_context_switch()) {
             uart_write("AArch64 cooperative context switch test passed.\\n");
