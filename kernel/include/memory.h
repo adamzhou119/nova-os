@@ -11,7 +11,7 @@ void *nova_alloc(size_t size, size_t alignment);
 size_t nova_heap_used(void);
 size_t nova_heap_available(void);
 
-/* 4 KiB physical page allocator: single-core, no MMU integration yet. */
+/* 4 KiB physical page allocator: single-core; vm.h layers virtual pages on top. */
 #define NOVA_PAGE_SIZE 4096U
 int nova_page_init(uintptr_t start, uintptr_t end);
 int nova_page_init_regions(const struct nova_memory_region *memory,
