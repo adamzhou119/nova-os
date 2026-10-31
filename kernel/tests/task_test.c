@@ -137,14 +137,23 @@ int main(void) {
             assert(nova_task_get(first, &info) &&
                    info.state == NOVA_TASK_RUNNING);
 
-            /* With no other IRQ-resumable READY task, keep the same task. */
+            /* With no IRQ-resumable peer, ERET consumes the current frame. */
             assert(nova_task_transition(second, NOVA_TASK_RUNNING));
             assert(nova_task_transition(second, NOVA_TASK_BLOCKED));
-            assert(!nova_task_irq_handoff(first, info.irq_frame,
-                                          &chosen_id, &chosen_frame));
-            assert(chosen_id == first && chosen_frame == info.irq_frame);
-            assert(nova_task_get(first, &info) &&
-                   info.state == NOVA_TASK_RUNNING);
+            assert(nova_task_transition(first, NOVA_TASK_READY));
+            assert(nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
+            assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+            assert(nova_task_get(first, &info));
+            {
+                struct nova_irq_frame *prior_frame = info.irq_frame;
+                assert(!nova_task_irq_handoff(first, info.irq_frame,
+                                              &chosen_id, &chosen_frame));
+                assert(chosen_id == first && chosen_frame == info.irq_frame);
+                assert(nova_task_get(first, &info));
+                assert(info.state == NOVA_TASK_RUNNING);
+                assert(info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
+                assert(info.irq_frame == prior_frame);
+            }
             assert(nova_task_transition(second, NOVA_TASK_READY));
         }
     assert(!nova_task_destroy(first));
