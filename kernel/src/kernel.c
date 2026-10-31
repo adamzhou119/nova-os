@@ -513,10 +513,8 @@ static int test_cooperative_scheduler(void) {
         scheduler_order[0] != 1U || scheduler_order[1] != 2U ||
         scheduler_order[2] != 3U || scheduler_order[3] != 4U ||
         nova_sched_current() != 0U ||
-        !nova_task_get(first, &info) || info.state != NOVA_TASK_ZOMBIE ||
-        !nova_task_destroy(first) ||
-        !nova_task_get(second, &info) || info.state != NOVA_TASK_ZOMBIE ||
-        !nova_task_destroy(second)) return 0;
+        nova_task_get(first, &info) ||
+        nova_task_get(second, &info)) return 0;
     return 1;
 }
 
