@@ -37,6 +37,7 @@ static int find_next_ready(uint32_t *task_id) {
 
 static int switch_to_scheduler(enum nova_task_state next_state, int change_state) {
     struct nova_cpu_context *task_context;
+    struct nova_task_info task_info;
     uintptr_t saved_daif = irq_save_disable();
     uint32_t id = current_task_id;
 
@@ -46,8 +47,18 @@ static int switch_to_scheduler(enum nova_task_state next_state, int change_state
     }
     task_context = nova_task_context(id);
     if (task_context == 0 ||
-        ((change_state || next_state == NOVA_TASK_ZOMBIE) &&
-         !nova_task_transition(id, next_state))) {
+        !nova_task_get(id, &task_info)) {
+        irq_restore(saved_daif);
+        return 0;
+    }
+    /*
+     * The first-run trampoline may already have marked the task ZOMBIE.
+     * Do not attempt an illegal second RUNNING -> ZOMBIE transition.
+     */
+    if ((change_state || next_state == NOVA_TASK_ZOMBIE) &&
+        !(next_state == NOVA_TASK_ZOMBIE &&
+          task_info.state == NOVA_TASK_ZOMBIE) &&
+        !nova_task_transition(id, next_state)) {
         irq_restore(saved_daif);
         return 0;
     }
