@@ -56,7 +56,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
         tasks[i].irq_frame->x[30] = 0U;
         tasks[i].irq_frame->elr_el1 = (uintptr_t)nova_task_start_trampoline;
         tasks[i].irq_frame->spsr_el1 = 0x5U;
-        tasks[i].irq_frame->reserved = 0U;
+        tasks[i].irq_frame->sp_el0 = 0U;
     }
     if (!nova_arch_context_init(&tasks[i].context,
                                 (uintptr_t)tasks[i].irq_frame,
