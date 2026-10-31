@@ -36,6 +36,8 @@ jobs:
           file kernel/build/nova-test.elf
           file kernel/build/nova-fault-test.elf
           file kernel/build/nova-stack-fault-test.elf
+          file kernel/build/nova-el2-test.elf
+          file kernel/build/el3-test-boot.bin
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
 
@@ -109,6 +111,19 @@ jobs:
           grep -q "ESR exception class: 0x0000000000000025" mmu-fault.log
           grep -q "FAR_EL1: 0x0000000000001000" mmu-fault.log
           echo "Nova OS unmapped-address data-abort handling passed."
+
+      - name: QEMU EL2-to-EL1 boot transition test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,gic-version=2 -cpu cortex-a57 -nographic -bios kernel/build/el3-test-boot.bin -device loader,file=kernel/build/nova-el2-test.elf -device loader,file=kernel/build/virt.dtb,addr=0x41000000 > el2-boot.log 2>&1
+          status=$?
+          set -e
+          cat el2-boot.log
+          grep -q "Welcome to Nova OS" el2-boot.log
+          grep -q "CurrentEL: EL1" el2-boot.log
+          grep -q "EL2-to-EL1 transition passed." el2-boot.log
+          echo "Nova OS EL2-to-EL1 boot transition passed."
 
       - name: QEMU task stack guard fault test
         shell: bash
