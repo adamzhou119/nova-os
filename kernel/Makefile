@@ -16,6 +16,7 @@ MEMORY_OBJECT := $(BUILD)/memory.o
 PAGE_OBJECT := $(BUILD)/page.o
 FDT_OBJECT := $(BUILD)/fdt.o
 MMU_OBJECT := $(BUILD)/mmu.o
+VM_OBJECT := $(BUILD)/vm.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 
 .PHONY: all test host-test clean
@@ -51,11 +52,14 @@ $(FDT_OBJECT): src/fdt.c include/fdt.h | $(BUILD)
 $(MMU_OBJECT): src/mmu.c include/mmu.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
+$(VM_OBJECT): src/vm.c include/vm.h include/mmu.h include/memory.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
 $(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
-$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) -o $@
+$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) -o $@
 
 $(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) -o $@
