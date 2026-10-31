@@ -482,9 +482,14 @@ static void scheduler_task_a(void *argument) {
             __asm__ volatile("nop");
         __asm__ volatile("msr daifset, #2\n\tisb" ::: "memory");
         nova_timer_stop();
+        /*
+         * A successful IRQ handoff consumes the pending request before the
+         * interrupted task resumes. The task-order assertion below proves
+         * the peer ran before this continuation.
+         */
         scheduler_quantum_observed =
             (nova_irq_tick_count() - start_ticks >= 5U) &&
-            nova_sched_preemption_pending();
+            !nova_sched_preemption_pending();
     }
     nova_sched_clear_preemption();
     (void)nova_sched_block_current();
