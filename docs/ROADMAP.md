@@ -37,6 +37,7 @@ Implemented and runtime-verified on QEMU virt:
 - [x] Install the EL1 vector table when the boot path reports EL1.
 - [x] Capture synchronous exception diagnostics including ESR_EL1, ELR_EL1, FAR_EL1, and SPSR_EL1.
 - [x] Capture and restore the complete integer IRQ frame (x0-x30, ELR_EL1, SPSR_EL1).
+- [x] Classify all 16 EL1 vector slots as synchronous, IRQ, FIQ, or SError and decode common ESR_EL1 exception classes with host tests.
 - [x] Add a controlled SVC exception image and verify the synchronous exception path in CI.
 - [x] Parse FDT RAM and reserved ranges and build a firmware-backed physical page allocator.
 - [x] Add a bounded kernel virtual-page allocator, 4 KiB map/unmap, permission checks, alias W^X tracking, and frame pinning.
@@ -47,7 +48,7 @@ Implemented and runtime-verified on QEMU virt:
 - [x] Add host-side allocator, task, scheduler, and IRQ-dispatcher tests.
 
 Remaining:
-- [ ] Distinguish synchronous exceptions, IRQ, FIQ, and SError with typed handlers and documented recovery policy.
+- [ ] Add per-class exception entry/exit policy, recoverable fault handling, and documented recovery rules (current typed diagnostics halt on non-IRQ exceptions).
 - [x] Implement and QEMU-test a controlled EL3-to-EL2-to-EL1 transition,
       including EL1 physical timer access controls.
 - [ ] Add EL2/EL3 vector tables, trap handling, and a general firmware
