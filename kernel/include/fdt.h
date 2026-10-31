@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #define NOVA_FDT_MAX_MEMORY_REGIONS 8U
+#define NOVA_FDT_MAX_RESERVED_REGIONS 16U
 
 struct nova_memory_region {
     uint64_t start;
@@ -15,5 +16,10 @@ struct nova_memory_region {
 int nova_fdt_memory_regions(uintptr_t dtb_address,
                             struct nova_memory_region *regions,
                             size_t capacity);
+
+/* FDT header memreserve map plus /reserved-memory child reg entries. */
+int nova_fdt_reserved_regions(uintptr_t dtb_address,
+                              struct nova_memory_region *regions,
+                              size_t capacity);
 
 #endif
