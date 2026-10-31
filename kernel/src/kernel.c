@@ -44,9 +44,36 @@ static void uart_write_current_el(uint64_t current_el) {
     uart_putc('\n');
 }
 
+static const char *exception_vector_name(uint64_t vector) {
+    switch (vector) {
+    case 0: return "Current EL SP0 synchronous";
+    case 1: return "Current EL SP0 IRQ";
+    case 2: return "Current EL SP0 FIQ";
+    case 3: return "Current EL SP0 SError";
+    case 4: return "Current EL SPx synchronous";
+    case 5: return "Current EL SPx IRQ";
+    case 6: return "Current EL SPx FIQ";
+    case 7: return "Current EL SPx SError";
+    case 8: return "Lower EL AArch64 synchronous";
+    case 9: return "Lower EL AArch64 IRQ";
+    case 10: return "Lower EL AArch64 FIQ";
+    case 11: return "Lower EL AArch64 SError";
+    case 12: return "Lower EL AArch32 synchronous";
+    case 13: return "Lower EL AArch32 IRQ";
+    case 14: return "Lower EL AArch32 FIQ";
+    case 15: return "Lower EL AArch32 SError";
+    default: return "Unknown vector";
+    }
+}
+
 /* Called from the non-returning assembly exception entry. */
-void exception_report(uint64_t esr, uint64_t elr) {
+void exception_report(uint64_t esr, uint64_t elr, uint64_t vector) {
     uart_write("EXCEPTION: EL1 vector captured.\n");
+    uart_write("Vector: ");
+    uart_write(exception_vector_name(vector));
+    uart_putc('\n');
+    uart_write("Vector slot: ");
+    uart_write_hex64(vector);
     uart_write("ESR_EL1: ");
     uart_write_hex64(esr);
     uart_write("ELR_EL1: ");
