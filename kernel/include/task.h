@@ -54,6 +54,8 @@ int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame);
 int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame);
 /* Atomically publishes a running task's IRQ frame and makes it READY. */
 int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame);
+/* Atomically consumes a READY task's saved IRQ frame and marks it RUNNING. */
+int nova_task_take_irq_context(uint32_t task_id, struct nova_irq_frame **frame);
 /* IRQ-masked atomic task/frame handoff; returns 1 only when another task is selected. */
 int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame);
