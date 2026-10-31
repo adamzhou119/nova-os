@@ -162,7 +162,10 @@ static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
     if (task_id == 0) return 0;
     for (i = 0; i < NOVA_TASK_MAX; ++i) {
         if (tasks[i].state != NOVA_TASK_READY ||
-            (cooperative_only && tasks[i].resume_kind == NOVA_TASK_RESUME_IRQ))
+            (resume_path == 1 &&
+             tasks[i].resume_kind == NOVA_TASK_RESUME_IRQ) ||
+            (resume_path == 2 &&
+             tasks[i].resume_kind == NOVA_TASK_RESUME_COOPERATIVE))
             continue;
         if (wrapped == 0 || tasks[i].id < wrapped->id) wrapped = &tasks[i];
         if (tasks[i].id > after_id &&
