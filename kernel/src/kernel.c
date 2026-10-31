@@ -781,7 +781,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: GICv2 physical timer IRQ test failed.\n");
         }
         if (test_cooperative_scheduler()) {
-            uart_write("Kernel cooperative scheduler tests passed.\n");
+            uart_write("Kernel mixed-mode scheduler tests passed.\n");
         } else {
             uart_write("ERROR: kernel cooperative scheduler test failed.\n");
         }
