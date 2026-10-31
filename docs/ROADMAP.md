@@ -57,6 +57,8 @@ Remaining:
 - [ ] Generalize device-memory mappings and page-table construction from FDT data.
 - [x] Define per-task address-space ownership, mapping, permission, ASID,
       exception-frame, and isolation requirements (ADR 0010).
+- [x] Add address-space metadata, unique live-ASID checks, reference counting,
+      active-use protection, and task ownership/lifetime tests.
 - [ ] Implement private address-space page tables and ASID-aware switching.
 - [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
