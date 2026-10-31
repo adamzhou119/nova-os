@@ -185,6 +185,10 @@ int nova_task_next_cooperative_ready(uint32_t after_id, uint32_t *task_id) {
     return next_ready_matching(after_id, task_id, 1);
 }
 
+int nova_task_next_irq_ready(uint32_t after_id, uint32_t *task_id) {
+    return next_ready_matching(after_id, task_id, 2);
+}
+
 struct nova_cpu_context *nova_task_context(uint32_t task_id) {
     struct nova_task_info *task = find_task(task_id);
     return task == 0 ? 0 : &task->context;
