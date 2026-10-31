@@ -1,12 +1,25 @@
 /*
- * EL3 test firmware: enter non-secure EL2h and transfer control to the
- * kernel ELF at 0x40200000. The kernel is expected to drop to EL1h.
+ * Test firmware accepts a QEMU secure reset at EL3 or an EL2 reset, then
+ * transfers control to the EL2 test kernel at 0x40200000. The kernel must
+ * enter EL1h before calling C.
  */
 .section .text.boot, "ax"
 .global _el3_test_start
 .type _el3_test_start, %function
 _el3_test_start:
     msr     DAIFSet, #0xf
+    mrs     x2, CurrentEL
+    lsr     x2, x2, #2
+    cmp     x2, #3
+    b.eq    1f
+    cmp     x2, #2
+    b.eq    2f
+3:
+    wfe
+    b       3b
+
+/* Secure firmware entry: configure a non-secure AArch64 EL2 target. */
+1:
     mrs     x1, SCR_EL3
     orr     x1, x1, #1
     orr     x1, x1, #0x400
@@ -14,9 +27,15 @@ _el3_test_start:
     msr     SCR_EL3, x1
     mov     x1, #0x3c9
     msr     SPSR_EL3, x1
-    ldr     x1, =0x40080000
+    adr     x1, 2f
     msr     ELR_EL3, x1
     ldr     x0, =0x40000000
     isb
     eret
+
+/* Enter the kernel at EL2; boot.S is responsible for the EL2-to-EL1 drop. */
+2:
+    ldr     x0, =0x40000000
+    ldr     x1, =0x40200000
+    br      x1
 .size _el3_test_start, . - _el3_test_start
