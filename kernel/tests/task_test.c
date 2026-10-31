@@ -58,7 +58,7 @@ int main(void) {
     assert(nova_task_get(first, &info));
     task_context = nova_task_context(first);
     assert(task_context != 0);
-    assert(task_context->sp == info.kernel_stack_top);
+    assert(task_context->sp == (uintptr_t)info.irq_frame);
     assert(info.irq_frame != 0);
     assert((uintptr_t)info.irq_frame == info.kernel_stack_top - sizeof(struct nova_irq_frame));
     assert(info.irq_frame->x[0] == (uintptr_t)&argument);
