@@ -11,13 +11,13 @@
 #define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
 #define UARTFR_TXFF      (1U << 5)
 
-extern char __heap_start[];
+extern char __kernel_start[];\nextern char __kernel_end[];\nextern char __heap_start[];
 extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
 static volatile uint64_t bss_probe;
 static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
-static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];
+static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];\nstatic struct nova_memory_region allocator_reserved[NOVA_FDT_MAX_RESERVED_REGIONS + 2U];
 
 static void uart_putc(char c) {
     while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
@@ -171,7 +171,67 @@ static int test_pages(void) {
     return 1;
 }
 
-void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
+
+static int range_contains(uint64_t start, uint64_t size, uint64_t address) {
+    return size != 0 && start <= UINT64_MAX - size &&
+           address >= start && address < start + size;
+}
+
+static int test_firmware_pages(int memory_regions, int reserved_regions,
+                               uintptr_t dtb_address) {
+    size_t i;
+    size_t initial;
+    size_t reserve_count = 0;
+    size_t dtb_size = nova_fdt_total_size(dtb_address);
+    void *pages[3];
+
+    if (memory_regions <= 0 || reserved_regions < 0 || dtb_size == 0 ||
+        dtb_address > UINTPTR_MAX - dtb_size) return 0;
+
+    for (i = 0; i < (size_t)reserved_regions; ++i)
+        allocator_reserved[reserve_count++] = reserved_memory[i];
+
+    allocator_reserved[reserve_count].start = (uint64_t)(uintptr_t)__kernel_start;
+    allocator_reserved[reserve_count++].size =
+        (uint64_t)((uintptr_t)__kernel_end - (uintptr_t)__kernel_start);
+    allocator_reserved[reserve_count].start = (uint64_t)dtb_address;
+    allocator_reserved[reserve_count++].size = (uint64_t)dtb_size;
+
+    if (!nova_page_init_regions(detected_memory, (size_t)memory_regions,
+                                allocator_reserved, reserve_count)) {
+        uart_write("Firmware page test: map initialization failed.\n");
+        return 0;
+    }
+
+    initial = nova_page_total();
+    if (initial == 0) return 0;
+    for (i = 0; i < 3U; ++i) {
+        size_t r;
+        uintptr_t address;
+        pages[i] = nova_page_alloc();
+        if (pages[i] == NULL) return 0;
+        address = (uintptr_t)pages[i];
+        if ((address & (NOVA_PAGE_SIZE - 1U)) != 0) return 0;
+        for (r = 0; r < reserve_count; ++r) {
+            uint64_t reserve_start = allocator_reserved[r].start;
+            uint64_t reserve_size = allocator_reserved[r].size;
+            if (range_contains(reserve_start, reserve_size, address) ||
+                (reserve_size != 0 && reserve_start <= UINT64_MAX - reserve_size &&
+                 address < reserve_start &&
+                 address + NOVA_PAGE_SIZE > reserve_start)) {
+                uart_write("Firmware page test: reserved page was allocated.\n");
+                return 0;
+            }
+        }
+    }
+
+    for (i = 0; i < 3U; ++i)
+        if (!nova_page_free(pages[i])) return 0;
+    if (nova_page_available() != initial) return 0;
+    uart_write("Firmware RAM page allocator tests passed.\n");
+    return 1;
+}
+\nvoid kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
     uint64_t total_ram = 0;
@@ -211,7 +271,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     if (test_pages()) uart_write("Physical page allocator tests passed.\n");
     else uart_write("ERROR: physical page allocator test failed.\n");
 
-    uart_write("Page pool total: ");
+    uart_write("Available RAM pages: ");\n    uart_write_hex64(nova_page_total());\n    uart_write("Page pool total: ");
     uart_write_hex64(nova_page_total());
     uart_write("Page pool available: ");
     uart_write_hex64(nova_page_available());
