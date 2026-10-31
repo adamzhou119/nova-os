@@ -40,7 +40,8 @@ _el3_test_start:
 
 /* Enter the kernel at EL2; boot.S is responsible for the EL2-to-EL1 drop. */
 2:
-    ldr     x0, =0x40000000
+    /* Match the DTB address used by the CI QEMU loader. */
+    ldr     x0, =0x41000000
     ldr     x1, =0x40200000
     br      x1
 .size _el3_test_start, . - _el3_test_start
