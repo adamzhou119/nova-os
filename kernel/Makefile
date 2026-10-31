@@ -86,7 +86,7 @@ $(VM_OBJECT): src/vm.c include/vm.h include/mmu.h include/memory.h | $(BUILD)
 $(TASK_OBJECT): src/task.c include/task.h include/context.h include/interrupt.h include/vm.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(SCHEDULER_OBJECT): src/scheduler.c include/scheduler.h include/task.h include/context.h include/interrupt.h | $(BUILD)
+$(SCHEDULER_OBJECT): src/scheduler.c include/scheduler.h include/task.h include/context.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(TIMER_OBJECT): src/timer.c include/timer.h | $(BUILD)
@@ -101,16 +101,16 @@ $(INTERRUPT_OBJECT): src/interrupt.c include/interrupt.h include/gic.h include/t
 $(EXCEPTION_CLASS_OBJECT): src/exception.c include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h | $(BUILD)
+$(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
-$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h | $(BUILD)
+$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_MMU_FAULT -c $< -o $@
 
-$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h | $(BUILD)
+$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_STACK_GUARD_FAULT -c $< -o $@
 
-$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h | $(BUILD)
+$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL2_BOOT -c $< -o $@
 
 $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
