@@ -1,6 +1,7 @@
 #include "mmu.h"
 
 #include <stddef.h>
+#include "memory.h"
 
 #define NOVA_MMU_TABLE_ENTRIES 512U
 #define NOVA_MMU_PAGE_SIZE 4096U
@@ -12,6 +13,7 @@
 #define NOVA_MMU_L3_TABLES NOVA_MMU_L2_ENTRIES
 #define NOVA_MMU_DYNAMIC_VA_BASE 0x48000000ULL
 #define NOVA_MMU_DYNAMIC_VA_END  0x80000000ULL
+#define NOVA_MMU_MAX_PHYSICAL_PAGES (NOVA_MMU_RAM_SIZE / NOVA_MMU_PAGE_SIZE)
 
 #define DESC_VALID       (1ULL << 0)
 #define DESC_TABLE       (1ULL << 1)
@@ -34,6 +36,9 @@ static uint64_t level2_ram_table[NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
 static uint64_t level3_ram_tables[NOVA_MMU_L3_TABLES][NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
+/* Track writable/executable aliases per physical frame to enforce global W^X. */
+static uint16_t writable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
+static uint16_t executable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
 
 extern char __text_start[];
 extern char __text_end[];
@@ -79,6 +84,10 @@ int nova_mmu_enable(void) {
     if (((current_el >> 2) & 0x3U) != 1U) return 0;
     if ((l1_address & (NOVA_MMU_PAGE_SIZE - 1U)) != 0) return 0;
 
+    for (table_index = 0; table_index < NOVA_MMU_MAX_PHYSICAL_PAGES; ++table_index) {
+        writable_aliases[table_index] = 0;
+        executable_aliases[table_index] = 0;
+    }
     zero_table(level1_table);
     zero_table(level2_low_table);
     zero_table(level2_ram_table);
@@ -254,58 +263,100 @@ static void invalidate_stage1_page(uintptr_t address) {
         : : "r"(operand) : "memory");
 }
 
+static size_t physical_frame_index(uintptr_t physical_address) {
+    return (size_t)((physical_address - NOVA_MMU_RAM_BASE) /
+                    NOVA_MMU_PAGE_SIZE);
+}
+
+static int descriptor_is_writable(uint64_t descriptor) {
+    return (descriptor & DESC_AP_MASK) == 0;
+}
+
+static int descriptor_is_executable(uint64_t descriptor) {
+    return (descriptor & DESC_PXN) == 0;
+}
+
 int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
                       unsigned int flags) {
-    size_t l2_index, l3_index;
+    size_t l2_index, l3_index, frame_index;
     uint64_t descriptor;
     uint64_t *slot;
+    int writable = (flags & NOVA_MMU_MAP_WRITABLE) != 0;
+    int executable = (flags & NOVA_MMU_MAP_EXECUTABLE) != 0;
     if ((physical_address & (NOVA_MMU_PAGE_SIZE - 1U)) != 0 ||
         physical_address < NOVA_MMU_RAM_BASE ||
         physical_address >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
         (flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0 ||
-        (flags & (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) ==
-            (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE) ||
+        (writable && executable) ||
+        !nova_page_is_allocated((const void *)physical_address) ||
         !dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
 
     slot = &level3_ram_tables[l2_index][l3_index];
     if ((*slot & DESC_VALID) != 0) return 0;
+    frame_index = physical_frame_index(physical_address);
+    if ((writable && executable_aliases[frame_index] != 0) ||
+        (executable && writable_aliases[frame_index] != 0)) return 0;
 
     descriptor = ((uint64_t)physical_address & DESC_ADDR_MASK) |
                  DESC_VALID | DESC_PAGE | DESC_ATTR(1) |
                  DESC_SH_INNER | DESC_AF | DESC_UXN;
-    if ((flags & NOVA_MMU_MAP_WRITABLE) == 0) descriptor |= DESC_AP_RO;
-    if ((flags & NOVA_MMU_MAP_EXECUTABLE) == 0) descriptor |= DESC_PXN;
+    if (!writable) descriptor |= DESC_AP_RO;
+    if (!executable) descriptor |= DESC_PXN;
     *slot = descriptor;
+    if (writable) ++writable_aliases[frame_index];
+    if (executable) ++executable_aliases[frame_index];
     invalidate_stage1_page(virtual_address);
     return 1;
 }
 
 int nova_mmu_unmap_page(uintptr_t virtual_address) {
-    size_t l2_index, l3_index;
+    size_t l2_index, l3_index, frame_index;
     uint64_t *slot;
+    uintptr_t physical_address;
     if (!dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
     slot = &level3_ram_tables[l2_index][l3_index];
     if ((*slot & DESC_VALID) == 0) return 0;
+    physical_address = (uintptr_t)(*slot & DESC_ADDR_MASK);
+    frame_index = physical_frame_index(physical_address);
+    if (descriptor_is_writable(*slot) && writable_aliases[frame_index] != 0)
+        --writable_aliases[frame_index];
+    if (descriptor_is_executable(*slot) && executable_aliases[frame_index] != 0)
+        --executable_aliases[frame_index];
     *slot = 0;
     invalidate_stage1_page(virtual_address);
     return 1;
 }
 
 int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
-    size_t l2_index, l3_index;
+    size_t l2_index, l3_index, frame_index;
     uint64_t *slot;
     uint64_t descriptor;
+    uintptr_t physical_address;
+    int old_writable, old_executable;
+    int new_writable = (flags & NOVA_MMU_MAP_WRITABLE) != 0;
+    int new_executable = (flags & NOVA_MMU_MAP_EXECUTABLE) != 0;
     if ((flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0 ||
-        (flags & (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) ==
-            (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE) ||
+        (new_writable && new_executable) ||
         !dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
     slot = &level3_ram_tables[l2_index][l3_index];
     if ((*slot & DESC_VALID) == 0) return 0;
+    physical_address = (uintptr_t)(*slot & DESC_ADDR_MASK);
+    frame_index = physical_frame_index(physical_address);
+    old_writable = descriptor_is_writable(*slot);
+    old_executable = descriptor_is_executable(*slot);
+    if ((new_writable && executable_aliases[frame_index] > (size_t)old_executable) ||
+        (new_executable && writable_aliases[frame_index] > (size_t)old_writable))
+        return 0;
+
     descriptor = *slot & ~(DESC_AP_MASK | DESC_PXN | DESC_UXN);
-    if ((flags & NOVA_MMU_MAP_WRITABLE) == 0) descriptor |= DESC_AP_RO;
-    if ((flags & NOVA_MMU_MAP_EXECUTABLE) == 0) descriptor |= DESC_PXN;
+    if (!new_writable) descriptor |= DESC_AP_RO;
+    if (!new_executable) descriptor |= DESC_PXN;
     descriptor |= DESC_UXN;
     *slot = descriptor;
+    if (old_writable && !new_writable) --writable_aliases[frame_index];
+    if (!old_writable && new_writable) ++writable_aliases[frame_index];
+    if (old_executable && !new_executable) --executable_aliases[frame_index];
+    if (!old_executable && new_executable) ++executable_aliases[frame_index];
     invalidate_stage1_page(virtual_address);
     return 1;
 }
