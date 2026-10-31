@@ -9,7 +9,7 @@ AArch64 `virt` machine.
 - Explicit `.bss` zero initialization before entering C.
 - Runtime reporting of the current exception level.
 - EL1 exception vector table installation.
-- Terminal EL1 exception diagnostics for `ESR_EL1` and `ELR_EL1`.
+- Architectural EL1 vector-slot identification and terminal diagnostics for `ESR_EL1` and `ELR_EL1`.
 - PL011 UART output.
 - Normal and controlled-exception test ELF images.
 
