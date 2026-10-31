@@ -4,29 +4,32 @@ A milestone is complete only when its acceptance criteria are demonstrated and r
 
 ## Milestone 0 — Project foundation
 
-Status: in progress.
+Status: complete.
 
 - [x] Define project vision and product principles.
 - [x] Establish an initial repository structure.
-- [ ] Add a reproducible build environment and pinned toolchain guidance.
-- [ ] Run the kernel under QEMU and capture actual serial output.
-- [ ] Add a minimal automated build check.
+- [x] Document the build and test workflow.
+- [x] Add an automated AArch64 build and QEMU smoke test.
 
-Exit criteria: a clean checkout can be built with documented commands, and a QEMU boot test produces the expected serial output. Until then, the prototype is not described as boot-tested.
+Exit criteria met: the repository has a documented build path and an automated QEMU serial boot check. This milestone does not imply a complete operating system.
 
 ## Milestone 1 — Virtual platform bring-up
 
-- Document the supported QEMU version and machine configuration.
-- Establish the AArch64 boot contract and exception-level assumptions.
-- Verify UART output in QEMU.
-- Add linker-map and ELF inspection steps.
-- Add a smoke test to CI.
+Status: in progress.
 
-Exit criteria: repeatable QEMU boot with captured evidence and no reliance on undocumented local state.
+- [x] Document the QEMU `virt` machine configuration.
+- [x] Establish and document the current experimental early-boot sequence.
+- [x] Verify PL011 UART output in QEMU.
+- [x] Add ELF header and linker-symbol inspection to CI.
+- [x] Add a runtime probe for zero-initialized `.bss`.
+- [ ] Pin and document a supported QEMU/toolchain version set.
+- [ ] Capture a passing CI run for the latest secondary-CPU-safe startup sequence.
+
+Exit criteria: repeatable QEMU boot with captured evidence and no reliance on undocumented local state. The current prototype remains QEMU-specific.
 
 ## Milestone 2 — Kernel foundations
 
-- Define memory map and physical memory allocator.
+- Define a platform memory map and physical memory allocator.
 - Add exception vectors and basic fault diagnostics.
 - Establish timer and interrupt handling.
 - Introduce a minimal scheduler only after interrupt and timer foundations are tested.
