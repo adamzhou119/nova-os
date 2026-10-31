@@ -26,6 +26,10 @@ jobs:
         run: |
           make -C kernel clean all test
 
+      - name: Run host-side page allocator edge-case tests
+        run: |
+          make -C kernel host-test
+
       - name: Inspect ELF images
         run: |
           file kernel/build/nova.elf
