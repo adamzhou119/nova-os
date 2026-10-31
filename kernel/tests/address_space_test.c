@@ -12,6 +12,8 @@ int main(void) {
     assert(!nova_address_space_create(0U, 1U, &first));
     assert(!nova_address_space_create(0x40001001U, 1U, &first));
     assert(!nova_address_space_create(0x40001000U, 0U, &first));
+    assert(!nova_address_space_create(0x40001000U, 256U, &first));
+    assert(!nova_address_space_create(0x40001000U, UINT16_MAX, &first));
     assert(!nova_address_space_create(0x40001000U, 1U, 0));
 
     assert(nova_address_space_create(0x40001000U, 1U, &first));
