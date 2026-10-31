@@ -28,6 +28,8 @@ int main(void) {
     assert(!nova_address_space_release(first));
     assert(nova_address_space_retain(first));
     assert(nova_address_space_activate(first));
+    assert(!nova_address_space_release(first));
+    assert(nova_address_space_deactivate(first));
     assert(nova_address_space_release(first));
     assert(nova_address_space_get(first, &info));
     assert(info.references == 1U && info.active_cpus == 1U);
