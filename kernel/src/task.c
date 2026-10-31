@@ -153,6 +153,42 @@ int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame) {
     return 1;
 }
 
+int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
+                           uint32_t *next_id, struct nova_irq_frame **next_frame) {
+    struct nova_task_info *current = find_task(current_id);
+    struct nova_task_info *selected;
+    uint32_t selected_id;
+
+    if (current == 0 || current->state != NOVA_TASK_RUNNING ||
+        next_id == 0 || next_frame == 0 || frame == 0)
+        return 0;
+    if (!nova_task_save_irq_context(current_id, frame)) return 0;
+
+    if (!nova_task_next_irq_ready(current_id, &selected_id) ||
+        selected_id == current_id) {
+        current->state = NOVA_TASK_RUNNING;
+        *next_id = current_id;
+        *next_frame = frame;
+        return 0;
+    }
+
+    selected = find_task(selected_id);
+    if (selected == 0 || selected->state != NOVA_TASK_READY ||
+        (selected->resume_kind != NOVA_TASK_RESUME_FIRST_RUN &&
+         selected->resume_kind != NOVA_TASK_RESUME_IRQ) ||
+        selected->irq_frame == 0) {
+        current->state = NOVA_TASK_RUNNING;
+        *next_id = current_id;
+        *next_frame = frame;
+        return 0;
+    }
+
+    selected->state = NOVA_TASK_RUNNING;
+    *next_id = selected_id;
+    *next_frame = selected->irq_frame;
+    return 1;
+}
+
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind) {
     struct nova_task_info *task = find_task(task_id);
     if (task == 0 ||
