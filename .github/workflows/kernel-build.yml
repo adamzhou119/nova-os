@@ -80,6 +80,10 @@ jobs:
             echo "EL1 exception vector did not capture the exception."
             exit 1
           fi
+          if ! grep -q "Vector: Current EL SPx synchronous" exception.log; then
+            echo "The synchronous EL1 SPx vector was not identified."
+            exit 1
+          fi
           if ! grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log; then
             echo "ESR_EL1 diagnostic was not printed."
             exit 1
