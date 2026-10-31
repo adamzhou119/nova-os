@@ -689,9 +689,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: kernel cooperative scheduler test failed.\n");
         }
         if (test_arch_context_switch()) {
-            uart_write("AArch64 cooperative context switch test passed.\\n");
+            uart_write("AArch64 cooperative context switch test passed.\n");
         } else {
-            uart_write("ERROR: AArch64 cooperative context switch test failed.\\n");
+            uart_write("ERROR: AArch64 cooperative context switch test failed.\n");
         }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
