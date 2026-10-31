@@ -302,6 +302,21 @@ static int test_dynamic_virtual_pages(void) {
         return 0;
     }
 
+    /* Exercise the final page in the reserved virtual window and its guard. */
+    if (nova_mmu_map_page(0x80000000U, physical_address,
+                          NOVA_MMU_MAP_WRITABLE) ||
+        nova_mmu_map_page(0x47fff000U, physical_address,
+                          NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_map_page(0x7ffff000U, physical_address,
+                           NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_verify_translation(0x7ffff000U, physical_address) ||
+        !nova_mmu_unmap_page(0x7ffff000U) ||
+        !nova_mmu_verify_unmapped(0x7ffff000U)) {
+        (void)nova_mmu_unmap_page(0x7ffff000U);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
     /* Re-map writable and verify alias reads/writes hit the same RAM page. */
     if (!nova_mmu_map_page(alias, physical_address, NOVA_MMU_MAP_WRITABLE) ||
         !nova_mmu_verify_translation(alias, physical_address) ||
