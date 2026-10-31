@@ -11,13 +11,16 @@
 #define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
 #define UARTFR_TXFF      (1U << 5)
 
-extern char __kernel_start[];\nextern char __kernel_end[];\nextern char __heap_start[];
+extern char __kernel_start[];
+extern char __kernel_end[];
+extern char __heap_start[];
 extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
 static volatile uint64_t bss_probe;
 static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
-static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];\nstatic struct nova_memory_region allocator_reserved[NOVA_FDT_MAX_RESERVED_REGIONS + 2U];
+static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];
+static struct nova_memory_region allocator_reserved[NOVA_FDT_MAX_RESERVED_REGIONS + 2U];
 
 static void uart_putc(char c) {
     while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
@@ -231,7 +234,8 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
     uart_write("Firmware RAM page allocator tests passed.\n");
     return 1;
 }
-\nvoid kernel_main(uint64_t current_el, uintptr_t dtb_address) {
+
+void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
     uint64_t total_ram = 0;
@@ -271,7 +275,9 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
     if (test_pages()) uart_write("Physical page allocator tests passed.\n");
     else uart_write("ERROR: physical page allocator test failed.\n");
 
-    uart_write("Available RAM pages: ");\n    uart_write_hex64(nova_page_total());\n    uart_write("Page pool total: ");
+    uart_write("Current page map total: ");
+    uart_write_hex64(nova_page_total());
+    uart_write("Current page map available: ");
     uart_write_hex64(nova_page_total());
     uart_write("Page pool available: ");
     uart_write_hex64(nova_page_available());
