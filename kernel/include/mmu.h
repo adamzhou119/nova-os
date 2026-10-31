@@ -9,4 +9,7 @@ int nova_mmu_enable(void);
 /* Verify that an EL1 stage-1 address translation preserves the address. */
 int nova_mmu_verify_identity(uintptr_t address);
 
+/* Verify that an address outside the prototype map faults translation. */
+int nova_mmu_verify_unmapped(uintptr_t address);
+
 #endif
