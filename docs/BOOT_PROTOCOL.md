@@ -37,8 +37,10 @@ boot specification.
   five-tick quantum. The selected task is resumed through a full exception
   frame and ERET; cooperative task switches use the separate AAPCS64 context.
 - Synchronous exceptions, FIQ, SError, and unsupported vector slots use a
-  terminal diagnostic path. It reports the vector slot, ESR_EL1, ELR_EL1,
-  FAR_EL1, and SPSR_EL1, then halts.
+  terminal diagnostic path. The diagnostic identifies the architectural
+  vector class (synchronous, IRQ, FIQ, or SError), decodes known ESR_EL1
+  exception classes, reports ELR_EL1, FAR_EL1, and SPSR_EL1, then halts.
+  This is typed diagnosis, not exception recovery or per-class service.
 - A separate `NOVA_TEST_EXCEPTION` image executes `SVC #0` to verify the
   synchronous EL1 vector path in QEMU.
 - Dedicated MMU-fault images verify both an unmapped-address data abort and a
