@@ -18,6 +18,8 @@ FDT_OBJECT := $(BUILD)/fdt.o
 MMU_OBJECT := $(BUILD)/mmu.o
 VM_OBJECT := $(BUILD)/vm.o
 TASK_OBJECT := $(BUILD)/task.o
+CONTEXT_OBJECT := $(BUILD)/context.o
+CONTEXT_ASM_OBJECT := $(BUILD)/context-asm.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-fault-test.o
 
@@ -27,7 +29,7 @@ all: $(BUILD)/nova.elf
 host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
 	$(BUILD)/page-allocator-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c -o $(BUILD)/task-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c -o $(BUILD)/task-test
 	$(BUILD)/task-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf
@@ -41,7 +43,13 @@ $(BOOT_OBJECT): src/boot.S | $(BUILD)
 $(EXCEPTION_OBJECT): src/exceptions.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
 
-$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h | $(BUILD)
+$(CONTEXT_ASM_OBJECT): src/context.S | $(BUILD)
+	$(CLANG) $(ASFLAGS) -c $< -o $@
+
+$(CONTEXT_OBJECT): src/context.c include/context.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
+$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
@@ -68,8 +76,8 @@ $(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h
 $(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_MMU_FAULT -c $< -o $@
 
-$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) -o $@
+$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) -o $@
 
 $(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) -o $@
