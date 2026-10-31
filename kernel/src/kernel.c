@@ -191,8 +191,12 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         uart_write("FDT raw header word: ");
         uart_write_hex64(*(volatile const uint32_t *)dtb_address);
     }
+    uart_write("FDT header total size: ");
+    uart_write_hex64(*(volatile const uint32_t *)(dtb_address + 4U));
+    uart_write("FDT parser result: ");
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
                                              NOVA_FDT_MAX_MEMORY_REGIONS);
+    uart_write_hex64((uint64_t)(int64_t)memory_regions);
     if (memory_regions > 0) {
         for (region_index = 0; region_index < (size_t)memory_regions; ++region_index)
             total_ram += detected_memory[region_index].size;
