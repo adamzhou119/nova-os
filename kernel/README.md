@@ -8,25 +8,27 @@ Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 - Explicit `.bss` zeroing and current exception-level reporting.
 - EL1 exception vectors and terminal fault diagnostics.
 - PL011 UART output.
-- A 1 MiB fixed bootstrap heap with checked aligned monotonic allocation.
-- A bounded Flattened Device Tree (FDT) parser that discovers RAM regions and parses the header memreserve map plus `/reserved-memory` child ranges.\n- A 4 MiB fixed page pool with a bitmap-backed 4 KiB page allocator,
-  allocation, free, double-free rejection, invalid-alignment rejection, and
-  page reuse checks.
-- QEMU checks for normal boot, heap/page allocator behavior, and a controlled
-  EL1 `SVC #0` exception.
+- A 1 MiB bootstrap heap with checked aligned monotonic allocation.
+- A bounded Flattened Device Tree (FDT) parser that discovers RAM regions and parses both the header memreserve map and `/reserved-memory` child `reg` entries.
+- A bitmap-backed 4 KiB page allocator with allocation, free, double-free rejection, invalid-alignment rejection, and reuse checks.
+- A firmware-backed physical page map built from FDT RAM regions, excluding the kernel image, DTB blob, and firmware-reserved ranges.
+- QEMU checks for normal boot, heap/page allocator behavior, and a controlled EL1 `SVC #0` exception.
+
+## Firmware-backed physical memory map
+
+At boot, the kernel reads the FDT memory descriptors and reservation entries. The page allocator aligns each RAM region inward to complete 4 KiB pages, rejects malformed or overlapping RAM descriptors, and excludes every page intersecting a reserved range. The kernel reservation covers the image, BSS, bootstrap heap, and legacy test pool; the DTB blob is reserved separately.
+
+The QEMU smoke test currently uses a 128 MiB `virt` RAM configuration and explicitly loads the generated DTB at `0x41000000`, because this ELF-loader test setup does not populate the Linux boot-protocol x0 register. The assembly entry has an explicit QEMU fallback address; a real bootloader should provide the DTB pointer in x0.
+
+The firmware-backed map is the active page map after the legacy fixed-pool regression test. Its address index and bitmap are statically bounded to 32,768 pages (128 MiB at 4 KiB per page).
 
 ## Important limitations
 
-The DTB parser reports firmware-provided RAM regions and discovers reservations from both the FDT header memreserve map and `/reserved-memory` child `reg` properties. These ranges are currently diagnostic only: they are not yet subtracted from RAM or fed into the page allocator. The QEMU bare-metal test harness explicitly loads its generated DTB at 0x41000000 because QEMU's ELF loader does not populate the Linux boot-protocol x0 register. Real bootloaders should pass the DTB pointer in x0. The current heap and page pool are still fixed linker reservations for the QEMU prototype;
-they are not discovered from firmware or a board memory map. The page allocator
-is single-core only, has no locking, and is not yet connected to an MMU or
-virtual-memory subsystem. There is no paging, page-table management, reclaim,
-or memory protection. The exception handler is terminal and does not preserve
-or restore the complete register context. Interrupt controller, scheduler,
-drivers, networking, storage, and app runtime are not implemented. This is
-not yet a complete kernel or phone OS.
+This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, MMU integration, virtual-memory mappings, reclaim, or hotplug support. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
 
 ## Build and run
+
+From the `kernel` directory:
 
 ```sh
 make clean all test
@@ -34,12 +36,4 @@ qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova.
 qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova-test.elf
 ```
 
-The normal image tests heap and physical page allocation. The test image also
-triggers an EL1 synchronous exception and prints diagnostic registers.
-
-
-### Firmware-backed page map
-
-The kernel now builds a page-address map from FDT RAM regions. It excludes the FDT header memreserve entries, /reserved-memory child ranges, the complete linker-defined kernel reservation (including the bootstrap heap and legacy test pool), and the live DTB blob itself. The QEMU smoke test allocates and frees pages from this map and checks that returned pages do not overlap any reservation.
-
-This is an early single-core physical page allocator prototype: it uses a bounded static address index and bitmap, has no SMP locking, MMU mapping, reclaim, or hotplug support. The original fixed 4 MiB pool remains only for the bootstrap allocator regression test; the firmware-backed allocator is the active page map after that test.
+The normal image exercises heap allocation and both page allocator paths. The test image also triggers an EL1 synchronous exception and prints diagnostic registers.
