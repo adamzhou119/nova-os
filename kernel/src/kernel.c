@@ -7,6 +7,7 @@
 #include "fdt.h"
 #include "mmu.h"
 #include "vm.h"
+#include "task.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -417,6 +418,35 @@ static int test_virtual_page_allocator(void) {
         return 0;
     if (nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE |
                              NOVA_MMU_MAP_EXECUTABLE) != NULL) return 0;
+    return 1;
+}
+
+
+static void test_task_entry(void *argument) {
+    (void)argument;
+}
+
+static int test_task_lifecycle(void) {
+    uint32_t first, second;
+    struct nova_task_info info;
+    if (!nova_task_create(test_task_entry, (void *)0x1234U, &first) ||
+        !nova_task_create(test_task_entry, 0, &second) || first == second)
+        return 0;
+    if (!nova_task_get(first, &info) || info.state != NOVA_TASK_READY ||
+        info.entry != test_task_entry || info.argument != (void *)0x1234U ||
+        info.kernel_stack_top - info.kernel_stack_base != NOVA_PAGE_SIZE ||
+        (info.kernel_stack_top & 15U) != 0U) return 0;
+    if (nova_task_transition(first, NOVA_TASK_BLOCKED) ||
+        !nova_task_transition(first, NOVA_TASK_RUNNING) ||
+        nova_task_destroy(first) ||
+        !nova_task_set_exit_code(first, 7) ||
+        !nova_task_transition(first, NOVA_TASK_BLOCKED) ||
+        !nova_task_transition(first, NOVA_TASK_READY) ||
+        !nova_task_transition(first, NOVA_TASK_RUNNING) ||
+        !nova_task_transition(first, NOVA_TASK_ZOMBIE) ||
+        !nova_task_get(first, &info) || info.exit_code != 7 ||
+        !nova_task_destroy(first) || nova_task_get(first, &info) ||
+        !nova_task_destroy(second)) return 0;
     return 1;
 }
 
