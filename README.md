@@ -6,15 +6,17 @@ Nova OS is an early-stage research and engineering project exploring a mobile op
 
 ## Project status
 
-**Stage:** Milestone 0 — project foundation and architecture.
+**Stage:** Early kernel bring-up (AArch64 QEMU prototype).
 
-The repository contains project planning documents and an experimental AArch64 bare-metal kernel starter targeting QEMU's `virt` machine. The kernel starter is a learning scaffold, not a usable mobile operating system. A complete QEMU boot has not yet been verified in this repository.
+The repository contains project planning documents and an experimental bare-metal kernel targeting QEMU's `virt` machine. The kernel has been compiled and its serial boot path has passed a GitHub Actions QEMU smoke test. Early `.bss` initialization is now checked by a runtime probe in CI. This remains a learning and engineering scaffold, not a usable mobile operating system.
 
 ## Start here
 
 - [Project charter](docs/PROJECT_CHARTER.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Architecture overview](docs/ARCHITECTURE.md)
+- [Early boot contract](docs/BOOT_PROTOCOL.md)
+- [Build and test guide](docs/BUILD.md)
 - [Kernel prototype notes](kernel/README.md)
 
 ## Guiding principles
