@@ -95,6 +95,23 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     return 1;
 }
 
+int nova_task_next_ready(uint32_t after_id, uint32_t *task_id) {
+    struct nova_task_info *wrapped = 0;
+    struct nova_task_info *next = 0;
+    size_t i;
+    if (task_id == 0) return 0;
+    for (i = 0; i < NOVA_TASK_MAX; ++i) {
+        if (tasks[i].state != NOVA_TASK_READY) continue;
+        if (wrapped == 0 || tasks[i].id < wrapped->id) wrapped = &tasks[i];
+        if (tasks[i].id > after_id &&
+            (next == 0 || tasks[i].id < next->id)) next = &tasks[i];
+    }
+    if (next == 0) next = wrapped;
+    if (next == 0) return 0;
+    *task_id = next->id;
+    return 1;
+}
+
 struct nova_cpu_context *nova_task_context(uint32_t task_id) {
     struct nova_task_info *task = find_task(task_id);
     return task == 0 ? 0 : &task->context;
