@@ -1,18 +1,18 @@
 /*
- * Nova OS — EL1 exception vector table and terminal diagnostic entry.
+ * Nova OS — AArch64 EL1 exception vectors.
  *
- * Each slot records its vector index in x16 before entering the common
- * non-returning handler. This is diagnostic scaffolding, not exception return.
+ * IRQ entry preserves the complete integer register set plus ELR_EL1 and
+ * SPSR_EL1. The 272-byte frame remains 16-byte aligned for the C dispatcher.
  */
 .section .text.vectors, "ax"
 .balign 2048
 .global exception_vectors_el1
 .type exception_vectors_el1, %object
 
-.macro IRQ_VECTOR slot
-    mov     x16, #\slot
+/* Do not use a GPR to encode the vector slot: interrupted x16 must survive. */
+.macro IRQ_VECTOR
     b       exception_irq_entry
-    .space  120
+    .space  124
 .endm
 
 .macro VECTOR slot
@@ -27,7 +27,7 @@ exception_vectors_el1:
     VECTOR 2
     VECTOR 3
     VECTOR 4
-    IRQ_VECTOR 5
+    IRQ_VECTOR
     VECTOR 6
     VECTOR 7
     VECTOR 8
@@ -41,12 +41,16 @@ exception_vectors_el1:
 
 .size exception_vectors_el1, . - exception_vectors_el1
 
-
-/* Current EL SPx IRQ: preserve all integer registers and return with eret. */
+/*
+ * Current EL SPx IRQ frame:
+ *   x0..x30: offsets 0..240
+ *   ELR_EL1: offset 248
+ *   SPSR_EL1: offset 256
+ */
 .global exception_irq_entry
 .type exception_irq_entry, %function
 exception_irq_entry:
-    sub     sp, sp, #256
+    sub     sp, sp, #272
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
     stp x4, x5, [sp, #32]
@@ -63,7 +67,15 @@ exception_irq_entry:
     stp x26, x27, [sp, #208]
     stp x28, x29, [sp, #224]
     str x30, [sp, #240]
-    bl nova_irq_dispatch
+    mrs     x16, ELR_EL1
+    str     x16, [sp, #248]
+    mrs     x16, SPSR_EL1
+    str     x16, [sp, #256]
+    bl      nova_irq_dispatch
+    ldr     x16, [sp, #256]
+    msr     SPSR_EL1, x16
+    ldr     x16, [sp, #248]
+    msr     ELR_EL1, x16
     ldr x30, [sp, #240]
     ldp x28, x29, [sp, #224]
     ldp x26, x27, [sp, #208]
@@ -80,7 +92,7 @@ exception_irq_entry:
     ldp x4, x5, [sp, #32]
     ldp x2, x3, [sp, #16]
     ldp x0, x1, [sp, #0]
-    add sp, sp, #256
+    add sp, sp, #272
     eret
 .size exception_irq_entry, . - exception_irq_entry
 
