@@ -18,6 +18,7 @@ FDT_OBJECT := $(BUILD)/fdt.o
 MMU_OBJECT := $(BUILD)/mmu.o
 VM_OBJECT := $(BUILD)/vm.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
+FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-fault-test.o
 
 .PHONY: all test host-test clean
 all: $(BUILD)/nova.elf
@@ -26,7 +27,7 @@ host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
 	$(BUILD)/page-allocator-test
 
-test: $(BUILD)/nova-test.elf
+test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -58,11 +59,17 @@ $(VM_OBJECT): src/vm.c include/vm.h include/mmu.h include/memory.h | $(BUILD)
 $(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
+$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -DNOVA_TEST_MMU_FAULT -c $< -o $@
+
 $(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) -o $@
 
 $(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) -o $@
+
+$(BUILD)/nova-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) -o $@
 
 clean:
 	rm -rf $(BUILD)
