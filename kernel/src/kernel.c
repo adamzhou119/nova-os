@@ -193,6 +193,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         uart_write("WARNING: FDT memory map unavailable.\n");
     }
 
+    reserved_regions = nova_fdt_reserved_regions(
+        dtb_address, reserved_memory, NOVA_FDT_MAX_RESERVED_REGIONS);
+    if (reserved_regions >= 0) {
+        uart_write("FDT reserved ranges parsed: ");
+        uart_write_hex64((uint64_t)reserved_regions);
+    } else {
+        uart_write("WARNING: FDT reserved ranges unavailable.\n");
+    }
+
     if (bss_probe == 0) uart_write("BSS zero initialization verified.\n");
     else uart_write("ERROR: BSS zero initialization failed.\n");
 
