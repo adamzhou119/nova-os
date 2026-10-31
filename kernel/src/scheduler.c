@@ -94,6 +94,11 @@ int nova_sched_start(void) {
             irq_restore(saved_daif);
             continue;
         }
+        if (!nova_task_set_resume_kind(next, NOVA_TASK_RESUME_ACTIVE)) {
+            (void)nova_task_transition(next, NOVA_TASK_READY);
+            irq_restore(saved_daif);
+            continue;
+        }
         current_task_id = next;
         next_after_id = next;
         current_quantum_ticks = 0U;
