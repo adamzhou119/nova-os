@@ -64,6 +64,7 @@ jobs:
           grep -q "MMU 4 KiB RAM page boundary tests passed." qemu.log
           grep -q "MMU unmapped guard test passed." qemu.log
           grep -q "MMU kernel text/rodata/data permission tests passed." qemu.log
+          grep -q "MMU dynamic map/unmap and permission tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
       - name: QEMU controlled exception test
