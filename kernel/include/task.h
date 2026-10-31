@@ -33,6 +33,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state);
 int nova_task_get(uint32_t task_id, struct nova_task_info *info);
 struct nova_cpu_context *nova_task_context(uint32_t task_id);
+int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
 void nova_task_mark_zombie(struct nova_task_info *task);
 int nova_task_set_exit_code(uint32_t task_id, int exit_code);
 /* Only READY (never dispatched) and ZOMBIE tasks may be destroyed. */
