@@ -38,9 +38,17 @@ _start:
     dsb     sy
     isb
 
-    /* Pass the current exception level (CurrentEL[3:2]) to kernel_main. */
+    /* Pass the decoded current exception level to kernel_main. */
     mrs     x0, CurrentEL
     lsr     x0, x0, #2
+
+    /* The current prototype installs vectors only when running at EL1. */
+    cmp     x0, #1
+    b.ne    6f
+    ldr     x1, =exception_vectors_el1
+    msr     VBAR_EL1, x1
+    isb
+6:
     bl      kernel_main
 
 5:
