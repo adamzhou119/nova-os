@@ -64,7 +64,9 @@ int nova_page_init_regions(const struct nova_memory_region *memory,
     for (r = 0; r < memory_count; ++r) {
         uint64_t raw_start = memory[r].start;
         uint64_t raw_end = raw_start + memory[r].size;
-        uint64_t address = (raw_start + NOVA_PAGE_SIZE - 1U) &
+        uint64_t address;
+        if (raw_start > UINT64_MAX - (NOVA_PAGE_SIZE - 1U)) return 0;
+        address = (raw_start + NOVA_PAGE_SIZE - 1U) &
                            ~((uint64_t)NOVA_PAGE_SIZE - 1U);
         uint64_t end = raw_end & ~((uint64_t)NOVA_PAGE_SIZE - 1U);
         while (address < end) {
