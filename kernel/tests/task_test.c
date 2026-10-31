@@ -128,14 +128,20 @@ int main(void) {
                    info.state == NOVA_TASK_READY &&
                    info.resume_kind == NOVA_TASK_RESUME_IRQ);
             assert(nova_task_get(second, &info) &&
-                   info.state == NOVA_TASK_RUNNING);
-            assert(nova_task_irq_handoff(second, info.irq_frame,
+                   info.state == NOVA_TASK_RUNNING &&
+                   info.resume_kind == NOVA_TASK_RESUME_ACTIVE &&
+                   info.irq_frame == 0);
+            assert(nova_task_irq_handoff(second,
+                                         (struct nova_irq_frame *)(info.kernel_stack_top -
+                                             sizeof(struct nova_irq_frame)),
                                          &chosen_id, &chosen_frame));
             assert(chosen_id == first && chosen_frame != 0);
             assert(nova_task_get(second, &info) &&
                    info.state == NOVA_TASK_READY);
             assert(nova_task_get(first, &info) &&
-                   info.state == NOVA_TASK_RUNNING);
+                   info.state == NOVA_TASK_RUNNING &&
+                   info.resume_kind == NOVA_TASK_RESUME_ACTIVE &&
+                   info.irq_frame == 0);
 
             /* With no IRQ-resumable peer, ERET consumes the current frame. */
             assert(nova_task_transition(second, NOVA_TASK_RUNNING));
@@ -145,14 +151,16 @@ int main(void) {
             assert(nova_task_transition(first, NOVA_TASK_RUNNING));
             assert(nova_task_get(first, &info));
             {
-                struct nova_irq_frame *prior_frame = info.irq_frame;
-                assert(!nova_task_irq_handoff(first, info.irq_frame,
+                struct nova_irq_frame *live_frame =
+                    (struct nova_irq_frame *)(info.kernel_stack_top -
+                        sizeof(struct nova_irq_frame));
+                assert(!nova_task_irq_handoff(first, live_frame,
                                               &chosen_id, &chosen_frame));
-                assert(chosen_id == first && chosen_frame == info.irq_frame);
+                assert(chosen_id == first && chosen_frame == live_frame);
                 assert(nova_task_get(first, &info));
                 assert(info.state == NOVA_TASK_RUNNING);
-                assert(info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
-                assert(info.irq_frame == prior_frame);
+                assert(info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
+                assert(info.irq_frame == 0);
             }
             assert(nova_task_transition(second, NOVA_TASK_READY));
         }
