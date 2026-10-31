@@ -109,7 +109,21 @@ int nova_sched_start(void) {
              * continuation established by the first context switch below.
              */
             nova_arch_irq_resume(frame);
-            /* Host-side scheduler tests provide a returning architecture shim. */
+            /*
+             * Only a returning host test shim reaches this path. On hardware,
+             * ERET resumes the task and a later cooperative switch returns to
+             * the continuation following the original context switch below.
+             */
+            execution_phase = NOVA_SCHED_SCHEDULER;
+            {
+                uint32_t returned_id = current_task_id;
+                struct nova_task_info returned_task;
+                if (returned_id != 0U &&
+                    nova_task_get(returned_id, &returned_task) &&
+                    returned_task.state == NOVA_TASK_ZOMBIE)
+                    (void)nova_task_destroy(returned_id);
+            }
+            current_task_id = 0U;
             irq_restore(saved_daif);
             continue;
         }
