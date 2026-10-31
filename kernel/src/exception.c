@@ -6,6 +6,8 @@
 #define ESR_ISS_WNR (1U << 6)
 #define ESR_ISS_S1PTW (1U << 7)
 #define ESR_ISS_FNV (1U << 10)
+#define SPSR_MODE_MASK 0x0fU
+#define SPSR_MODE_EL0T 0x00U
 
 static uint64_t exception_class(uint64_t esr) {
     return (esr >> ESR_EC_SHIFT) & ESR_EC_MASK;
@@ -47,6 +49,24 @@ const char *nova_exception_class_name(uint64_t esr_el1) {
     }
 }
 
+enum nova_exception_policy nova_exception_policy_for(
+    uint64_t vector_slot, uint64_t esr_el1, uint64_t spsr_el1) {
+    uint64_t ec = exception_class(esr_el1);
+    int from_el0 = (spsr_el1 & SPSR_MODE_MASK) == SPSR_MODE_EL0T;
+
+    /* Only synchronous exceptions from EL0 are eligible for task containment. */
+    if (vector_slot != 8U || !from_el0)
+        return NOVA_EXCEPTION_POLICY_KERNEL_FATAL;
+
+    if (ec == 0x15U) return NOVA_EXCEPTION_POLICY_USER_SVC;
+    if (ec == 0x20U || ec == 0x24U || ec == 0x30U ||
+        ec == 0x32U || ec == 0x34U || ec == 0x3cU)
+        return NOVA_EXCEPTION_POLICY_USER_FAULT;
+
+    /* Same-EL aborts, SError, illegal state and unknown traps stay fatal. */
+    return NOVA_EXCEPTION_POLICY_KERNEL_FATAL;
+}
+
 int nova_exception_is_instruction_abort(uint64_t esr) {
     uint64_t ec = exception_class(esr);
     return ec == 0x20U || ec == 0x21U;
@@ -76,9 +96,6 @@ int nova_exception_is_stage1_page_walk(uint64_t esr) {
 const char *nova_abort_fault_status_name(uint64_t esr) {
     uint64_t ec = exception_class(esr);
     uint64_t fsc = esr & ESR_ISS_FSC_MASK;
-    static const char *const levels[] = {
-        "level 0", "level 1", "level 2", "level 3"
-    };
 
     if (ec != 0x20U && ec != 0x21U && ec != 0x24U && ec != 0x25U)
         return "Not an instruction/data abort";
@@ -97,6 +114,5 @@ const char *nova_abort_fault_status_name(uint64_t esr) {
     if (fsc == 0x21U) return "Alignment fault";
     if (fsc == 0x22U) return "Debug event";
     if (fsc == 0x30U) return "TLB conflict abort";
-    (void)levels;
     return "Reserved or implementation-defined fault status";
 }
