@@ -278,8 +278,6 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write("Current page map total: ");
     uart_write_hex64(nova_page_total());
     uart_write("Current page map available: ");
-    uart_write_hex64(nova_page_total());
-    uart_write("Page pool available: ");
     uart_write_hex64(nova_page_available());
 
 #ifdef NOVA_TEST_EXCEPTION
