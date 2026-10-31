@@ -7,6 +7,9 @@
 .type _start, %function
 
 _start:
+    /* Preserve the QEMU/firmware DTB pointer passed in x0. */
+    mov     x20, x0
+
     /* Establish the bootstrap stack before using any memory. */
     ldr     x0, =_stack_top
     mov     sp, x0
@@ -41,6 +44,9 @@ _start:
     /* Pass the decoded current exception level to kernel_main. */
     mrs     x0, CurrentEL
     lsr     x0, x0, #2
+
+    /* Pass the original DTB pointer in x1 to kernel_main. */
+    mov     x1, x20
 
     /* The current prototype installs vectors only when running at EL1. */
     cmp     x0, #1
