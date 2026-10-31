@@ -159,6 +159,8 @@ int main(void) {
     assert(nova_task_get(first, &info) && info.exit_code == -7);
     assert(nova_task_destroy(first));
     assert(!nova_task_get(first, &info));
+    assert(nova_task_transition(second, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
     assert(freed_stacks == 2);
     puts("Task lifecycle host tests passed.");
