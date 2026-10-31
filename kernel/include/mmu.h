@@ -16,6 +16,7 @@ int nova_mmu_verify_identity(uintptr_t address);
 int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
                       unsigned int flags);
 int nova_mmu_unmap_page(uintptr_t virtual_address);
+int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags);
 int nova_mmu_verify_translation(uintptr_t virtual_address,
                                 uintptr_t physical_address);
 
