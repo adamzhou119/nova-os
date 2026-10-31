@@ -120,3 +120,57 @@ exception_vector_panic:
     b       1b
 
 .size exception_vector_panic, . - exception_vector_panic
+
+/*
+ * EL2 vector table protects the short firmware-to-kernel transition window.
+ * The handlers are terminal diagnostics; they do not provide hypervisor
+ * services or recover from EL2 faults.
+ */
+.section .text.vectors.el2, "ax"
+.balign 2048
+.global exception_vectors_el2
+.type exception_vectors_el2, %object
+.macro VECTOR_EL2 slot
+    mov     x16, #\\slot
+    b       exception_vector_panic_el2
+    .space  120
+.endm
+
+exception_vectors_el2:
+    VECTOR_EL2 0
+    VECTOR_EL2 1
+    VECTOR_EL2 2
+    VECTOR_EL2 3
+    VECTOR_EL2 4
+    VECTOR_EL2 5
+    VECTOR_EL2 6
+    VECTOR_EL2 7
+    VECTOR_EL2 8
+    VECTOR_EL2 9
+    VECTOR_EL2 10
+    VECTOR_EL2 11
+    VECTOR_EL2 12
+    VECTOR_EL2 13
+    VECTOR_EL2 14
+    VECTOR_EL2 15
+
+.if (. - exception_vectors_el2) != 2048
+    .error "EL2 exception vector table must contain exactly 16 x 128-byte slots"
+.endif
+.size exception_vectors_el2, . - exception_vectors_el2
+
+.section .text, "ax"
+.global exception_vector_panic_el2
+.type exception_vector_panic_el2, %function
+exception_vector_panic_el2:
+    sub     sp, sp, #16
+    mrs     x0, ESR_EL2
+    mrs     x1, ELR_EL2
+    mov     x2, x16
+    mrs     x3, FAR_EL2
+    mrs     x4, SPSR_EL2
+    bl      exception_report_el2
+1:
+    wfe
+    b       1b
+.size exception_vector_panic_el2, . - exception_vector_panic_el2
