@@ -28,6 +28,8 @@ nova_arch_context_switch:
 .global nova_task_start_trampoline
 .type nova_task_start_trampoline, %function
 nova_task_start_trampoline:
+    /* First entry uses RET, not ERET; enable IRQs for task execution. */
+    msr     daifclr, #2
     mov     x0, x20
     blr     x19
     mov     x0, x21
