@@ -111,6 +111,18 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     return 1;
 }
 
+int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame) {
+    struct nova_task_info *task = find_task(task_id);
+    uintptr_t address = (uintptr_t)frame;
+    if (task == 0 || frame == 0 ||
+        (address & 15U) != 0U ||
+        address < task->kernel_stack_base ||
+        address > task->kernel_stack_top - sizeof(*frame))
+        return 0;
+    task->irq_frame = frame;
+    return 1;
+}
+
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id) {
     struct nova_task_info *wrapped = 0;
     struct nova_task_info *next = 0;
