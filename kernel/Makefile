@@ -71,7 +71,7 @@ $(EXCEPTION_OBJECT): src/exceptions.S | $(BUILD)
 $(CONTEXT_ASM_OBJECT): src/context.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
 
-$(CONTEXT_OBJECT): src/context.c include/context.h | $(BUILD)
+$(CONTEXT_OBJECT): src/context.c include/context.h include/user_context.h include/interrupt.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h | $(BUILD)
