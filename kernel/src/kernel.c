@@ -827,6 +827,12 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_user_map_page(root_b,2U,user_va,frame_b,NOVA_MMU_MAP_WRITABLE)&&
                nova_mmu_switch_address_space(root_a,1U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_a&&
                nova_mmu_verify_user_access(user_va,0)&&nova_mmu_verify_user_access(user_va,1)&&
+               nova_mmu_user_protect_page(root_a,1U,user_va,0U)&&
+               nova_mmu_switch_address_space(root_a,1U)&&nova_mmu_verify_user_access(user_va,0)&&
+               !nova_mmu_verify_user_access(user_va,1)&&
+               nova_mmu_user_protect_page(root_a,1U,user_va,NOVA_MMU_MAP_EXECUTABLE)&&
+               !nova_mmu_user_map_page(root_b,2U,user_va+NOVA_PAGE_SIZE,frame_a,NOVA_MMU_MAP_WRITABLE)&&
+               nova_mmu_user_protect_page(root_a,1U,user_va,NOVA_MMU_MAP_WRITABLE)&&
                !nova_mmu_user_map_page(root_a,1U,user_va+NOVA_PAGE_SIZE,frame_b,NOVA_MMU_MAP_EXECUTABLE)&&
                nova_mmu_user_map_page(root_a,1U,user_va+NOVA_PAGE_SIZE,frame_b,0U)&&
                nova_mmu_switch_address_space(root_a,1U)&&
