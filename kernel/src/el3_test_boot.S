@@ -26,10 +26,13 @@ _el3_test_start:
 /* Secure firmware entry: configure a non-secure AArch64 EL2 target. */
 1:
     mrs     x1, SCR_EL3
+    /* SCR_EL3 bits [5:4] are RES1 on the Cortex-A57 profile. */
+    orr     x1, x1, #0x30
     orr     x1, x1, #1
     orr     x1, x1, #0x400
     orr     x1, x1, #0x100
     msr     SCR_EL3, x1
+    isb
     mov     x1, #0x3c9
     msr     SPSR_EL3, x1
     adr     x1, 2f
