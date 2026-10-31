@@ -44,3 +44,8 @@ qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova-
 ```
 
 The normal image exercises heap allocation and both page allocator paths. The test image also triggers an EL1 synchronous exception and prints diagnostic registers.
+
+
+## Scheduler quantum accounting
+
+Timer IRQs also feed a five-tick (50 ms at 100 Hz) round-robin quantum counter. The scheduler raises a deferred preemption-pending flag when a running task exhausts its quantum; this stage only validates accounting and does not yet switch task contexts from IRQ context.
