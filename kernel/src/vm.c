@@ -46,6 +46,57 @@ void *nova_vmap_alloc_page(unsigned int flags) {
     return (void *)virtual_address;
 }
 
+void *nova_vmap_alloc_guarded_page(unsigned int flags) {
+    size_t index;
+    void *physical_page;
+    uintptr_t virtual_address;
+
+    /* Reserve one unmapped guard slot followed by one mapped stack slot. */
+    for (index = 0; index + 1U < NOVA_VM_PAGE_COUNT; ++index)
+        if (!bitmap_test(index) && !bitmap_test(index + 1U)) break;
+    if (index + 1U >= NOVA_VM_PAGE_COUNT) return NULL;
+
+    physical_page = nova_page_alloc();
+    if (physical_page == NULL) return NULL;
+
+    virtual_address = (uintptr_t)(NOVA_VM_VA_BASE +
+                                  (uint64_t)(index + 1U) * NOVA_PAGE_SIZE);
+    if (!nova_mmu_map_page(virtual_address, (uintptr_t)physical_page, flags)) {
+        (void)nova_page_free(physical_page);
+        return NULL;
+    }
+
+    bitmap_set(index);
+    bitmap_set(index + 1U);
+    return (void *)virtual_address;
+}
+
+int nova_vmap_free_guarded_page(void *stack_address) {
+    uintptr_t address = (uintptr_t)stack_address;
+    uintptr_t physical_address;
+    uintptr_t guard_physical;
+    uintptr_t guard_address;
+    size_t index;
+
+    if ((address & (NOVA_PAGE_SIZE - 1U)) != 0U ||
+        address < NOVA_VM_VA_BASE + NOVA_PAGE_SIZE ||
+        address >= NOVA_VM_VA_END)
+        return 0;
+
+    index = (size_t)((address - NOVA_VM_VA_BASE) / NOVA_PAGE_SIZE);
+    guard_address = address - NOVA_PAGE_SIZE;
+    if (!bitmap_test(index - 1U) || !bitmap_test(index) ||
+        nova_mmu_translate(guard_address, &guard_physical) ||
+        !nova_mmu_translate(address, &physical_address))
+        return 0;
+
+    if (!nova_mmu_unmap_page(address)) return 0;
+    bitmap_clear(index - 1U);
+    bitmap_clear(index);
+    return nova_page_free((void *)(physical_address &
+                                   ~(uintptr_t)(NOVA_PAGE_SIZE - 1U)));
+}
+
 int nova_vmap_free_page(void *virtual_address) {
     uintptr_t address = (uintptr_t)virtual_address;
     uintptr_t physical_address;
@@ -55,6 +106,16 @@ int nova_vmap_free_page(void *virtual_address) {
         address < NOVA_VM_VA_BASE || address >= NOVA_VM_VA_END) return 0;
     index = (size_t)((address - NOVA_VM_VA_BASE) / NOVA_PAGE_SIZE);
     if (!bitmap_test(index)) return 0;
+    /*
+     * A guarded stack's immediately preceding bitmap slot is reserved but
+     * intentionally unmapped. It must be released as a pair.
+     */
+    if (index > 0U && bitmap_test(index - 1U)) {
+        uintptr_t previous_physical;
+        if (!nova_mmu_translate(address - NOVA_PAGE_SIZE,
+                                &previous_physical))
+            return 0;
+    }
     if (!nova_mmu_translate(address, &physical_address)) return 0;
     if (!nova_mmu_unmap_page(address)) return 0;
 
