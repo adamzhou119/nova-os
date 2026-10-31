@@ -258,6 +258,17 @@ static int test_dynamic_virtual_pages(void) {
     physical_word = (volatile uint64_t *)physical_address;
     *physical_word = initial_value;
 
+    /* Reject malformed mappings and enforce write-xor-execute (W^X). */
+    if (nova_mmu_map_page(alias + 1U, physical_address, 0U) ||
+        nova_mmu_map_page(alias, physical_address + 1U, 0U) ||
+        nova_mmu_map_page(alias, 0x48000000U, NOVA_MMU_MAP_WRITABLE) ||
+        nova_mmu_map_page(alias, physical_address,
+                          NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE) ||
+        nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE)) {
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
     /* First map read-only and prove the write permission is denied. */
     if (!nova_mmu_map_page(alias, physical_address, 0U) ||
         !nova_mmu_verify_translation(alias, physical_address) ||
@@ -270,10 +281,11 @@ static int test_dynamic_virtual_pages(void) {
     }
 
     /* Change the same mapping to writable/executable, then disable execution. */
-    if (!nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE |
-                                     NOVA_MMU_MAP_EXECUTABLE) ||
-        !nova_mmu_verify_writable(alias) ||
+    if (!nova_mmu_protect_page(alias, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_verify_write_protected(alias) ||
         !nova_mmu_verify_executable(alias) ||
+        nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE |
+                                    NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
         !nova_mmu_verify_writable(alias) ||
         !nova_mmu_verify_execute_never(alias)) {
