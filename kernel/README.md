@@ -1,75 +1,36 @@
 # AArch64 Kernel Starter
 
-This directory contains an experimental bare-metal kernel targeting QEMU's
-AArch64 `virt` machine.
+Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 
-## Current scope
+## Implemented prototype features
 
-- AArch64 primary-core entry assembly and secondary-core parking.
-- Explicit `.bss` zero initialization before entering C.
-- Runtime reporting of the current exception level.
-- EL1 exception vector table installation.
-- Architectural EL1 vector-slot identification.
-- Terminal exception diagnostics for `ESR_EL1`, decoded exception class and
-  instruction-specific syndrome, `ELR_EL1`, `FAR_EL1`, and `SPSR_EL1`.
+- AArch64 primary-core entry and secondary-core parking.
+- Explicit `.bss` zeroing and current exception-level reporting.
+- EL1 exception vectors and terminal fault diagnostics (`ESR_EL1`, `ELR_EL1`,
+  `FAR_EL1`, `SPSR_EL1`).
 - PL011 UART output.
-- Normal and controlled-exception test ELF images.
+- A 1 MiB linker-reserved bootstrap heap and a checked, aligned monotonic
+  allocator (`nova_alloc`).
+- QEMU checks for normal boot, heap alignment/allocation/exhaustion, and a
+  controlled EL1 `SVC #0` exception.
 
-This remains a bring-up scaffold, not a complete kernel or a phone operating
-system. The exception handler is terminal: it does not save the complete
-register context, restore context, or return from an exception. The fault
-address register may not contain a meaningful address for exception classes
-that do not report one. MMU, interrupt controller, scheduler, drivers,
-networking, storage, and application runtime are not implemented.
+## Important limitations
 
-## Requirements
+The heap is a fixed region reserved by this QEMU prototype's linker script;
+it is not discovered from firmware or a board memory map. The allocator is
+monotonic: there is no free operation, page allocator, MMU, paging, or SMP
+locking. Do not use it concurrently from secondary CPUs. The exception handler
+is terminal and does not preserve/restore the complete register context.
+Interrupt controller, scheduler, drivers, networking, storage, and app runtime
+are not implemented. This is not yet a complete kernel or phone OS.
 
-- An AArch64 bare-metal-capable Clang toolchain.
-- LLD.
-- GNU Make.
-- QEMU system emulator for AArch64 (`qemu-system-aarch64`).
-
-Tool versions and a reproducible container/CI environment still need to be
-pinned.
-
-## Build
-
-From this directory:
+## Build and run
 
 ```sh
 make clean all test
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova.elf
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova-test.elf
 ```
 
-Expected outputs:
-
-- `build/nova.elf`: normal boot image.
-- `build/nova-test.elf`: image that deliberately executes `SVC #0` to test
-  the EL1 synchronous exception path.
-
-## Run the normal image
-
-```sh
-qemu-system-aarch64 \
-  -machine virt \
-  -cpu cortex-a57 \
-  -nographic \
-  -kernel build/nova.elf
-```
-
-## Run the exception test image
-
-```sh
-qemu-system-aarch64 \
-  -machine virt \
-  -cpu cortex-a57 \
-  -nographic \
-  -kernel build/nova-test.elf
-```
-
-The normal image prints the boot banner, detected exception level, and
-`.bss` probe result. The test image additionally prints EL1 syndrome,
-fault-address, saved-status, and return-address diagnostics before halting.
-
-Boot behavior is validated in GitHub Actions for the configured QEMU path.
-This does not establish compatibility with a physical phone or arbitrary
-boards.
+The normal image reports heap test results. The test image additionally
+triggers an EL1 synchronous exception and prints diagnostic registers.
