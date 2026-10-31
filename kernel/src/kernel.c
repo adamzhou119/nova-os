@@ -659,6 +659,13 @@ static int test_task_lifecycle(void) {
         info.entry != test_task_entry || info.argument != (void *)0x1234U ||
         info.kernel_stack_top - info.kernel_stack_base != NOVA_PAGE_SIZE ||
         (info.kernel_stack_top & 15U) != 0U) return 0;
+    if (info.kernel_stack_base < NOVA_PAGE_SIZE ||
+        !nova_mmu_verify_unmapped(info.kernel_stack_base - NOVA_PAGE_SIZE) ||
+        !nova_task_get(second, &second_info) ||
+        second_info.kernel_stack_base < NOVA_PAGE_SIZE ||
+        !nova_mmu_verify_unmapped(second_info.kernel_stack_base -
+                                  NOVA_PAGE_SIZE))
+        return 0;
     if (nova_task_transition(first, NOVA_TASK_BLOCKED) ||
         !nova_task_transition(first, NOVA_TASK_RUNNING) ||
         nova_task_destroy(first) ||
