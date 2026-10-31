@@ -637,6 +637,7 @@ static int test_timer_irq(void) {
 static int test_task_lifecycle(void) {
     uint32_t first, second;
     struct nova_task_info info;
+    struct nova_task_info second_info;
     struct nova_cpu_context *context;
     if (!nova_task_create(test_task_entry, (void *)0x1234U, &first) ||
         !nova_task_create(test_task_entry, 0, &second) || first == second)
