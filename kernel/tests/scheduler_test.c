@@ -5,6 +5,7 @@
 #include "context.h"
 #include "scheduler.h"
 #include "task.h"
+#include "address_space.h"
 
 static _Alignas(16) unsigned char stack_pool[NOVA_TASK_MAX][4096];
 static size_t next_stack;
@@ -12,8 +13,21 @@ static unsigned int switch_depth;
 static uint32_t observed_task;
 static uint32_t peer_task;
 static int irq_resume_mock;
+static uint32_t user_task;
+static uint32_t user_space_id;
+static int user_space_mode;
+static uintptr_t mock_ttbr_root = 0x1000U;
+static uint16_t mock_ttbr_asid;
 
 void nova_task_start_trampoline(void) {}
+
+uintptr_t nova_mmu_kernel_root(void) { return 0x1000U; }
+int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
+    mock_ttbr_root = root;
+    mock_ttbr_asid = asid;
+    return 1;
+}
+
 
 void *nova_vmap_alloc_page(unsigned int flags) {
     (void)flags;
@@ -37,6 +51,11 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
     struct nova_task_info current_info;
     (void)from;
     (void)to;
+    if (user_space_mode) {
+        assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
+        assert(nova_sched_current() == user_task);
+        return;
+    }
     if (irq_resume_mock) {
         assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
         assert(nova_sched_current() == observed_task);
@@ -47,6 +66,19 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         assert(nova_sched_execution_phase() == NOVA_SCHED_TASK);
         observed_task = nova_sched_current();
         assert(observed_task != 0U);
+        if (observed_task == user_task) {
+            struct nova_address_space_info space;
+            assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
+            assert(nova_address_space_get(user_space_id, &space));
+            assert(space.active_cpus == 1U);
+            user_space_mode = 1;
+            assert(nova_sched_block_current());
+            user_space_mode = 0;
+            assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
+            assert(nova_address_space_get(user_space_id, &space));
+            assert(space.active_cpus == 0U);
+            return;
+        }
         for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
         assert(nova_sched_preemption_pending());
         {
@@ -178,6 +210,9 @@ int main(void) {
 
     assert(nova_task_create(dummy_entry, 0, &task_id));
     assert(nova_task_create(dummy_entry, 0, &peer_task));
+    assert(nova_task_create(dummy_entry, 0, &user_task));
+    assert(nova_address_space_create(0x2000U, 7U, &user_space_id));
+    assert(nova_task_set_address_space(user_task, user_space_id));
     assert(nova_sched_start());
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
@@ -189,6 +224,14 @@ int main(void) {
     assert(nova_task_get(peer_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
+    assert(nova_task_get(user_task, &info));
+    assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
+    assert(nova_address_space_get(user_space_id, (struct nova_address_space_info *)&info));
+    assert(nova_task_transition(user_task, NOVA_TASK_READY));
+    assert(nova_task_transition(user_task, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
+    assert(nova_task_destroy(user_task));
+    assert(nova_address_space_release(user_space_id));
 
     assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
