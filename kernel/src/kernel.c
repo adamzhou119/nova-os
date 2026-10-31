@@ -124,11 +124,6 @@ static int test_pages(void) {
     initial = nova_page_total();
     first = nova_page_alloc();
     second = nova_page_alloc();
-    uart_write("Page test first address: ");
-    uart_write_hex64((uintptr_t)first);
-    uart_write("Page test second address: ");
-    uart_write_hex64((uintptr_t)second);
-
     if (first == NULL || second == NULL) {
         uart_write("Page test: allocation returned NULL.\n");
         return 0;
@@ -157,8 +152,6 @@ static int test_pages(void) {
     }
 
     reused = nova_page_alloc();
-    uart_write("Page test reused address: ");
-    uart_write_hex64((uintptr_t)reused);
     if (reused != first || nova_page_available() != initial - 2U) {
         uart_write("Page test: freed page was not reused correctly.\n");
         return 0;
@@ -185,18 +178,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write("AArch64 kernel prototype is running.\n");
     uart_write_current_el(current_el);
 
-    uart_write("FDT pointer: ");
-    uart_write_hex64((uint64_t)dtb_address);
-    if (dtb_address != 0) {
-        uart_write("FDT raw header word: ");
-        uart_write_hex64(*(volatile const uint32_t *)dtb_address);
-    }
-    uart_write("FDT header total size: ");
-    uart_write_hex64(*(volatile const uint32_t *)(dtb_address + 4U));
-    uart_write("FDT parser result: ");
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
                                              NOVA_FDT_MAX_MEMORY_REGIONS);
-    uart_write_hex64((uint64_t)(int64_t)memory_regions);
     if (memory_regions > 0) {
         for (region_index = 0; region_index < (size_t)memory_regions; ++region_index)
             total_ram += detected_memory[region_index].size;
