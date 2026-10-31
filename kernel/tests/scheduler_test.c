@@ -103,6 +103,8 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         {
             struct nova_irq_frame *selected_frame = 0;
             uint32_t selected_id = 0U;
+            for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
+            assert(nova_sched_preemption_pending());
             assert(nova_sched_irq_handoff(
                 (struct nova_irq_frame *)(current_info.kernel_stack_top -
                     sizeof(struct nova_irq_frame)),
