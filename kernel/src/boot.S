@@ -45,17 +45,44 @@ _start:
     dsb     sy
     isb
 
-    /* Pass the decoded current exception level to kernel_main. */
+    /* Decode the current exception level before entering C. */
     mrs     x0, CurrentEL
     lsr     x0, x0, #2
+    cmp     x0, #2
+    b.ne    6f
+
+    /*
+     * Firmware may enter at EL2. Drop to AArch64 EL1h with IRQ/FIQ/SError
+     * masked. Give EL1 its own bootstrap stack and a known MMU-off SCTLR.
+     */
+    mov     x1, #1
+    lsl     x1, x1, #31
+    msr     HCR_EL2, x1
+    mov     x1, #3
+    msr     CNTHCTL_EL2, x1
+    msr     CNTVOFF_EL2, xzr
+    ldr     x1, =_stack_top
+    msr     SP_EL1, x1
+    movz    x1, #0x0800
+    movk    x1, #0x30d0, lsl #16
+    msr     SCTLR_EL1, x1
+    mov     x1, #0x3c5
+    msr     SPSR_EL2, x1
+    adr     x1, 8f
+    msr     ELR_EL2, x1
+    isb
+    eret
+8:
+    mov     x0, #1
 
     /* The current prototype installs vectors only when running at EL1. */
+6:
     cmp     x0, #1
-    b.ne    6f
+    b.ne    9f
     ldr     x1, =exception_vectors_el1
     msr     VBAR_EL1, x1
     isb
-6:
+9:
     /* Pass the original DTB pointer after vector setup (which uses x1). */
     mov     x1, x20
     bl      kernel_main
