@@ -357,7 +357,7 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
             old_asid = old_space.asid;
         }
         if (!nova_mmu_switch_address_space(old_root, old_asid))
-            for (;;) __asm__ volatile("wfe");
+            scheduler_wait_forever();
         if (target_activated)
             (void)nova_address_space_deactivate(target_space_id);
     }
