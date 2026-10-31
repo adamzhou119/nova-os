@@ -26,7 +26,7 @@ The firmware-backed map is the active page map after the legacy fixed-pool regre
 
 The QEMU `virt` target now has an initial AArch64 stage-1 translation setup using a 4 KiB translation-table granule and a 39-bit TTBR0 virtual-address space. The prototype identity-maps the 1 GiB window beginning at `0x40000000` as Normal write-back memory and maps the 2 MiB PL011 UART window at `0x09000000` as Device-nGnRnE. It installs MAIR_EL1, TCR_EL1, and TTBR0_EL1, invalidates EL1 stage-1 TLB entries, then enables the EL1 MMU and data/instruction caches.
 
-The QEMU smoke test verifies stage-1 identity translations for a kernel code address and the UART address after enabling translation. This mapping is intentionally board-specific and minimal: it is not yet a general FDT-driven page-table builder, does not provide per-page permissions or user address spaces, and does not implement TTBR1 high-half mappings or dynamic map/unmap operations.
+The QEMU smoke test verifies stage-1 identity translations for a kernel code address and the UART address after enabling translation, and confirms that an unmapped low virtual address faults as expected. This mapping is intentionally board-specific and minimal: it is not yet a general FDT-driven page-table builder, does not provide per-page permissions or user address spaces, and does not implement TTBR1 high-half mappings or dynamic map/unmap operations.
 
 ## Important limitations
 
