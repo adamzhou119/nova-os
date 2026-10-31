@@ -55,3 +55,10 @@ Timer IRQs also feed a five-tick (50 ms at 100 Hz) round-robin quantum counter. 
 - The EL1 SPx IRQ vector no longer overwrites x16 to carry a diagnostic vector number; the interrupted x16 value is preserved.
 - IRQ entry now saves and restores x0-x30, ELR_EL1, and SPSR_EL1 in a 272-byte, 16-byte-aligned frame.
 - This hardens exception return and establishes the register frame needed for a later IRQ-driven task switch. The dispatcher still returns to the interrupted task; task switching is not enabled by this change.
+
+### IRQ frame restore ABI
+
+- The C IRQ dispatcher receives the current 272-byte exception-frame address and returns the frame address that the vector entry must restore.
+- The assembly entry switches its restore SP to that returned address before restoring registers and executing `eret`.
+- The current dispatcher deliberately returns the same frame, so runtime behavior remains unchanged; this is an integration seam, not yet timer-driven task preemption.
+- The C structure in `interrupt.h` statically checks the assembly offsets and total frame size.
