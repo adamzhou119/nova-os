@@ -110,7 +110,7 @@ $(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/m
 $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
 
-$(BUILD)/el3-test-boot.bin: $(EL3_TEST_BOOT_OBJECT) el3_test_boot.ld
+$(BUILD)/el3-test-boot.elf: $(EL3_TEST_BOOT_OBJECT) el3_test_boot.ld
 	$(LD_LLD) -m aarch64elf -T el3_test_boot.ld -nostdlib $< -o $@
 
 $(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) linker.ld
