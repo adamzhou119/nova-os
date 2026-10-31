@@ -6,11 +6,14 @@
 #include <stddef.h>
 
 #define NOVA_SCHED_MAX_TASKS NOVA_TASK_MAX
+#define NOVA_SCHED_QUANTUM_TICKS 5U
 
 static struct nova_cpu_context scheduler_context;
 static uint32_t current_task_id;
 static uint32_t next_after_id;
 static int scheduler_active;
+static volatile uint32_t current_quantum_ticks;
+static volatile int preemption_pending;
 
 static int find_next_ready(uint32_t *task_id) {
     return nova_task_next_ready(next_after_id, task_id);
@@ -45,12 +48,16 @@ int nova_sched_start(void) {
 
 int nova_sched_yield(void) {
     uint32_t id = current_task_id;
+    current_quantum_ticks = 0U;
+    preemption_pending = 0;
     if (id == 0U || !nova_task_transition(id, NOVA_TASK_READY)) return 0;
     return switch_to_scheduler();
 }
 
 int nova_sched_block_current(void) {
     uint32_t id = current_task_id;
+    current_quantum_ticks = 0U;
+    preemption_pending = 0;
     if (id == 0U || !nova_task_transition(id, NOVA_TASK_BLOCKED)) return 0;
     return switch_to_scheduler();
 }
@@ -62,6 +69,13 @@ int nova_sched_unblock(uint32_t task_id) {
 uint32_t nova_sched_current(void) {
     return current_task_id;
 }
+
+void nova_sched_timer_tick(void) {
+    if (!scheduler_active || current_task_id == 0U || preemption_pending) return;
+    if (++current_quantum_ticks >= NOVA_SCHED_QUANTUM_TICKS) preemption_pending = 1;
+}
+int nova_sched_preemption_pending(void) { return preemption_pending; }
+void nova_sched_clear_preemption(void) { current_quantum_ticks = 0U; preemption_pending = 0; }
 
 void nova_sched_task_exit(void) {
     if (current_task_id == 0U) for (;;) __asm__ volatile("wfe");
