@@ -15,6 +15,7 @@
 #include "interrupt.h"
 #include "exception.h"
 #include "address_space.h"
+#include "user_context.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -147,6 +148,20 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
 void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
                           uint64_t far, uint64_t spsr) {
     exception_report_at_level(2U, esr, elr, vector, far, spsr);
+}
+
+/*
+ * Initial lower-EL synchronous trap policy is deliberately fail-closed.
+ * The assembly entry captures the complete user frame; syscall dispatch and
+ * task-local fault recovery are enabled only after user task lifecycle exists.
+ */
+__attribute__((noreturn))
+void nova_user_sync_dispatch(uintptr_t frame_address) {
+    const struct nova_user_trap_frame *frame =
+        (const struct nova_user_trap_frame *)frame_address;
+    exception_report(frame->esr_el1, frame->elr_el1, 8U,
+                     frame->far_el1, frame->spsr_el1);
+    for (;;) __asm__ volatile("wfe");
 }
 
 static int test_heap(void) {
