@@ -149,6 +149,30 @@ void nova_sched_timer_tick(void) {
 
 int nova_sched_preemption_pending(void) { return preemption_pending; }
 
+int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
+                           struct nova_irq_frame **next_frame) {
+    uintptr_t saved_daif = irq_save_disable();
+    uint32_t current_id = current_task_id;
+    int switched;
+
+    if (execution_phase != NOVA_SCHED_TASK || current_id == 0U ||
+        !preemption_pending || frame == 0 || next_id == 0 || next_frame == 0) {
+        irq_restore(saved_daif);
+        return 0;
+    }
+
+    switched = nova_task_irq_handoff(current_id, frame, next_id, next_frame);
+    /* A no-peer result still consumes the expired quantum, per the ADR. */
+    current_quantum_ticks = 0U;
+    preemption_pending = 0;
+    if (switched) {
+        current_task_id = *next_id;
+        next_after_id = *next_id;
+    }
+    irq_restore(saved_daif);
+    return switched;
+}
+
 void nova_sched_clear_preemption(void) {
     current_quantum_ticks = 0U;
     preemption_pending = 0;
