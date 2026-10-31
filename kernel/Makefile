@@ -3,7 +3,7 @@ LD_LLD ?= ld.lld
 
 TARGET := --target=aarch64-none-elf
 CFLAGS := $(TARGET) -ffreestanding -fno-stack-protector -fno-pic \
-          -fno-builtin -nostdlib -O2 -Wall -Wextra -Werror -Ikernel/include
+          -fno-builtin -nostdlib -O2 -Wall -Wextra -Werror -Iinclude
 ASFLAGS := $(TARGET) -ffreestanding -fno-pic
 LDFLAGS := -m aarch64elf -T linker.ld -nostdlib
 
