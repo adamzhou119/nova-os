@@ -69,6 +69,19 @@ int main(void) {
     assert(info.irq_frame->x[21] != 0U);
     assert(info.irq_frame->elr_el1 == (uintptr_t)nova_task_start_trampoline);
     assert(info.irq_frame->spsr_el1 == 0x5U);
+    /* IRQ entry may replace the initial frame with a live frame on this stack. */
+    {
+        struct nova_irq_frame *live_frame =
+            (struct nova_irq_frame *)(info.kernel_stack_top - 2U * sizeof(struct nova_irq_frame));
+        assert(nova_task_set_irq_frame(first, live_frame));
+        assert(nova_task_get(first, &info) && info.irq_frame == live_frame);
+        assert(!nova_task_set_irq_frame(first,
+            (struct nova_irq_frame *)(info.kernel_stack_base - 16U)));
+        assert(!nova_task_set_irq_frame(first,
+            (struct nova_irq_frame *)((uintptr_t)live_frame + 8U)));
+        assert(nova_task_set_irq_frame(first,
+            (struct nova_irq_frame *)(info.kernel_stack_top - sizeof(struct nova_irq_frame))));
+    }
     assert(task_context->x19_x30[0] == (uintptr_t)dummy_entry);
     assert(task_context->x19_x30[1] == (uintptr_t)&argument);
     assert(task_context->x19_x30[2] != 0U);
