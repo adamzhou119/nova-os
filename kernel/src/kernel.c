@@ -87,7 +87,7 @@ static void exception_report_at_level(uint64_t level, uint64_t esr,
                                        uint64_t far, uint64_t spsr) {
     uart_write("EXCEPTION: EL");
     uart_putc((char)('0' + level));
-    uart_write(" vector captured.\\n");
+    uart_write(" vector captured.\n");
     uart_write("Exception kind: ");
     uart_write(nova_exception_kind(vector));
     uart_putc('\n');
