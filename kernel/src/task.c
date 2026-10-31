@@ -157,23 +157,20 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame) {
     struct nova_task_info *current = find_task(current_id);
     struct nova_task_info *selected;
-    struct nova_irq_frame *previous_frame;
-    enum nova_task_resume_kind previous_resume_kind;
+    struct nova_irq_frame *selected_irq_frame;
     uint32_t selected_id;
 
     if (current == 0 || current->state != NOVA_TASK_RUNNING ||
         next_id == 0 || next_frame == 0 || frame == 0)
         return 0;
-    previous_frame = current->irq_frame;
-    previous_resume_kind = current->resume_kind;
     if (!nova_task_save_irq_context(current_id, frame)) return 0;
 
     if (!nova_task_next_irq_ready(current_id, &selected_id) ||
         selected_id == current_id) {
         /* ERET resumes this task immediately; this frame is not resumable later. */
         current->state = NOVA_TASK_RUNNING;
-        current->irq_frame = previous_frame;
-        current->resume_kind = previous_resume_kind;
+        current->irq_frame = 0;
+        current->resume_kind = NOVA_TASK_RESUME_ACTIVE;
         *next_id = current_id;
         *next_frame = frame;
         return 0;
@@ -185,16 +182,19 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
          selected->resume_kind != NOVA_TASK_RESUME_IRQ) ||
         selected->irq_frame == 0) {
         current->state = NOVA_TASK_RUNNING;
-        current->irq_frame = previous_frame;
-        current->resume_kind = previous_resume_kind;
+        current->irq_frame = 0;
+        current->resume_kind = NOVA_TASK_RESUME_ACTIVE;
         *next_id = current_id;
         *next_frame = frame;
         return 0;
     }
 
+    selected_irq_frame = selected->irq_frame;
     selected->state = NOVA_TASK_RUNNING;
+    selected->irq_frame = 0;
+    selected->resume_kind = NOVA_TASK_RESUME_ACTIVE;
     *next_id = selected_id;
-    *next_frame = selected->irq_frame;
+    *next_frame = selected_irq_frame;
     return 1;
 }
 
@@ -202,7 +202,8 @@ int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind)
     struct nova_task_info *task = find_task(task_id);
     if (task == 0 ||
         (kind != NOVA_TASK_RESUME_COOPERATIVE &&
-         kind != NOVA_TASK_RESUME_IRQ))
+         kind != NOVA_TASK_RESUME_IRQ &&
+         kind != NOVA_TASK_RESUME_ACTIVE))
         return 0;
     /*
      * FIRST_RUN is creation-only. A cooperative context becomes resumable
@@ -212,7 +213,9 @@ int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind)
     if (kind == NOVA_TASK_RESUME_COOPERATIVE &&
         task->state != NOVA_TASK_READY && task->state != NOVA_TASK_BLOCKED)
         return 0;
-    if (kind == NOVA_TASK_RESUME_IRQ && task->state != NOVA_TASK_RUNNING)
+    if ((kind == NOVA_TASK_RESUME_IRQ ||
+         kind == NOVA_TASK_RESUME_ACTIVE) &&
+        task->state != NOVA_TASK_RUNNING)
         return 0;
     task->resume_kind = kind;
     return 1;
