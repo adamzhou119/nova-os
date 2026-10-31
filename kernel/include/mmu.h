@@ -14,6 +14,7 @@ int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid);
 uintptr_t nova_mmu_kernel_root(void);
 int nova_mmu_user_map_page(uintptr_t root_physical, uint16_t asid, uintptr_t virtual_address, uintptr_t physical_address, unsigned int flags);
 int nova_mmu_user_unmap_page(uintptr_t root_physical, uint16_t asid, uintptr_t virtual_address);
+int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid, uintptr_t virtual_address, unsigned int flags);
 int nova_mmu_verify_user_access(uintptr_t virtual_address, int write);
 
 /* Verify that an EL1 stage-1 address translation preserves the address. */
