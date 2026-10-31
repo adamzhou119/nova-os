@@ -6,6 +6,8 @@
 
 #include "vm.h"
 
+extern void nova_task_start_trampoline(void);
+
 #define NOVA_TASK_STACK_SIZE 4096U
 
 static struct nova_task_info tasks[NOVA_TASK_MAX];
