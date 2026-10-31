@@ -32,22 +32,29 @@ Exit criteria: repeatable QEMU boot with captured evidence and no reliance on un
 
 Status: in progress.
 
-Implemented and QEMU-tested:
+Implemented and runtime-verified on QEMU virt:
 - [x] Add a 2 KiB-aligned EL1 exception vector table.
 - [x] Install the EL1 vector table when the boot path reports EL1.
-- [x] Capture `ESR_EL1` and `ELR_EL1` in a terminal diagnostic handler.
-- [x] Build a separate controlled-`SVC` test image and verify the synchronous exception path in CI.
+- [x] Capture synchronous exception diagnostics including ESR_EL1, ELR_EL1, FAR_EL1, and SPSR_EL1.
+- [x] Capture and restore the complete integer IRQ frame (x0-x30, ELR_EL1, SPSR_EL1).
+- [x] Add a controlled SVC exception image and verify the synchronous exception path in CI.
+- [x] Parse FDT RAM and reserved ranges and build a firmware-backed physical page allocator.
+- [x] Add a bounded kernel virtual-page allocator, 4 KiB map/unmap, permission checks, alias W^X tracking, and frame pinning.
+- [x] Add EL1 generic timer and QEMU virt GICv2 timer-PPI handling.
+- [x] Add task lifecycle management, one-page kernel stacks, and deferred ZOMBIE reclamation on the scheduler stack.
+- [x] Add cooperative task switching and timer-driven IRQ preemption with distinct FIRST_RUN, COOPERATIVE, IRQ, and ACTIVE resume paths.
+- [x] Validate mixed cooperative/IRQ scheduling and repeated timer preemption between two CPU-bound tasks that never call Yield or Block.
+- [x] Add host-side allocator, task, scheduler, and IRQ-dispatcher tests.
 
 Remaining:
-- [ ] Distinguish synchronous exceptions, IRQ, FIQ, and SError with typed handlers.
-- [ ] Capture a complete exception register frame and document its layout.
+- [ ] Distinguish synchronous exceptions, IRQ, FIQ, and SError with typed handlers and documented recovery policy.
 - [ ] Define an explicit EL2 boot/transition policy and EL2 vector handling.
-- [ ] Define a platform memory map and physical memory allocator.
-- [ ] Establish timer and interrupt-controller handling.
-- [ ] Introduce a minimal scheduler only after interrupt and timer foundations are tested.
-- [ ] Add host-side tests for portable components where practical.
+- [ ] Pin and document the supported QEMU/toolchain matrix.
+- [ ] Generalize device-memory mappings and page-table construction from FDT data.
+- [ ] Define per-task address-space and user-mode context requirements before introducing unprivileged tasks.
+- [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
-Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform.
+Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
 
 ## Milestone 3 — System service model
 
