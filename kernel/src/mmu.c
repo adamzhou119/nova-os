@@ -263,6 +263,8 @@ int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
         physical_address < NOVA_MMU_RAM_BASE ||
         physical_address >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
         (flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0 ||
+        (flags & (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) ==
+            (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE) ||
         !dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
 
     slot = &level3_ram_tables[l2_index][l3_index];
@@ -294,6 +296,8 @@ int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
     uint64_t *slot;
     uint64_t descriptor;
     if ((flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0 ||
+        (flags & (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) ==
+            (NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE) ||
         !dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
     slot = &level3_ram_tables[l2_index][l3_index];
     if ((*slot & DESC_VALID) == 0) return 0;
