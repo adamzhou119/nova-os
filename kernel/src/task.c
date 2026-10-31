@@ -202,8 +202,11 @@ int nova_task_set_exit_code(uint32_t task_id, int exit_code) {
 int nova_task_destroy(uint32_t task_id) {
     struct nova_task_info *task = find_task(task_id);
     uintptr_t stack;
-    if (task == 0 || (task->state != NOVA_TASK_READY &&
-                      task->state != NOVA_TASK_ZOMBIE)) return 0;
+    if (task == 0 ||
+        (task->state != NOVA_TASK_ZOMBIE &&
+         !(task->state == NOVA_TASK_READY &&
+           task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN)))
+        return 0;
     stack = task->kernel_stack_base;
     if (!nova_vmap_free_page((void *)stack)) return 0;
     task->id = 0;
