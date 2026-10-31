@@ -1,6 +1,7 @@
 #include "task.h"
 
 #include "context.h"
+#include "interrupt.h"
 
 #include <stddef.h>
 
@@ -40,6 +41,20 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
+    tasks[i].irq_frame = (struct nova_irq_frame *)(tasks[i].kernel_stack_top -
+                                                    sizeof(struct nova_irq_frame));
+    {
+        size_t reg;
+        for (reg = 0; reg < 31U; ++reg) tasks[i].irq_frame->x[reg] = 0U;
+        tasks[i].irq_frame->x[0] = (uintptr_t)argument;
+        tasks[i].irq_frame->x[19] = (uintptr_t)entry;
+        tasks[i].irq_frame->x[20] = (uintptr_t)argument;
+        tasks[i].irq_frame->x[21] = (uintptr_t)&tasks[i];
+        tasks[i].irq_frame->x[30] = 0U;
+        tasks[i].irq_frame->elr_el1 = (uintptr_t)nova_task_start_trampoline;
+        tasks[i].irq_frame->spsr_el1 = 0x5U; /* EL1h, IRQ/FIQ/SError/Debug unmasked */
+        tasks[i].irq_frame->reserved = 0U;
+    }
     if (!nova_arch_context_init(&tasks[i].context,
                                 tasks[i].kernel_stack_top,
                                 (uintptr_t)nova_task_start_trampoline,
@@ -92,6 +107,7 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     for (i = 0; i < 12U; ++i)
         info->context.x19_x30[i] = task->context.x19_x30[i];
     info->context.sp = task->context.sp;
+    info->irq_frame = task->irq_frame;
     return 1;
 }
 
@@ -147,6 +163,7 @@ int nova_task_destroy(uint32_t task_id) {
         size_t i;
         for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0;
         task->context.sp = 0;
+        task->irq_frame = 0;
     }
     return 1;
 }
