@@ -26,11 +26,17 @@ SECTIONS
         __bss_end = .;
     }
 
-    /* A 1 MiB bootstrap heap in QEMU RAM; not a physical RAM discovery map. */
     .heap (NOLOAD) : ALIGN(4096) {
         __heap_start = .;
         . += 0x100000;
         __heap_end = .;
+    }
+
+    /* Fixed QEMU prototype pool; replace with firmware memory discovery. */
+    .page_pool (NOLOAD) : ALIGN(4096) {
+        __page_pool_start = .;
+        . += 0x400000;
+        __page_pool_end = .;
     }
 
     /DISCARD/ : {
