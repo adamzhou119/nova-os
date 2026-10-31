@@ -153,11 +153,11 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
             if (fdt_string_equals(strings, strings_size, name_offset, "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells > 2U) return -13;
+                if (cells > 4U) return -13;
                 address_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "#size-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells > 2U) return -14;
+                if (cells > 4U) return -14;
                 size_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "device_type") &&
                        length >= 7U && data[0] == 'm' && data[1] == 'e' &&
