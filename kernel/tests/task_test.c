@@ -24,6 +24,12 @@ int nova_vmap_free_page(void *address) {
     ++freed_stacks;
     return 1;
 }
+void *nova_vmap_alloc_guarded_page(unsigned int flags) {
+    return nova_vmap_alloc_page(flags);
+}
+int nova_vmap_free_guarded_page(void *address) {
+    return nova_vmap_free_page(address);
+}
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
