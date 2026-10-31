@@ -13,7 +13,7 @@ Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 - A bitmap-backed 4 KiB page allocator with allocation, free, double-free rejection, invalid-alignment rejection, and reuse checks.
 - A firmware-backed physical page map built from FDT RAM regions, excluding the kernel image, DTB blob, and firmware-reserved ranges.
 - QEMU checks for normal boot, heap/page allocator behavior, cooperative two-task scheduling, and a controlled EL1 `SVC #0` exception.
-- An EL1 physical generic-timer driver reads the architectural counter/frequency and supports one-shot deadlines. QEMU virt GICv2 support now routes the physical timer PPI through an EL1 IRQ vector that saves/restores all general-purpose registers, acknowledges/EOIs the interrupt, rearms the timer, and returns with `eret`. This validates IRQ delivery and tick accounting; the scheduler is not yet switched from IRQ context, so timer-driven preemption is not implemented.
+- An EL1 physical generic-timer driver reads the architectural counter/frequency and supports one-shot deadlines. The MMU maps the GICv2 distributor/CPU-interface window as Device memory. QEMU virt GICv2 support routes the physical timer PPI through an EL1 IRQ vector that saves/restores all general-purpose registers, acknowledges/EOIs the interrupt, rearms the timer, and returns with `eret`. This validates IRQ delivery and tick accounting; the scheduler is not yet switched from IRQ context, so timer-driven preemption is not implemented.
 
 ## Firmware-backed physical memory map
 
