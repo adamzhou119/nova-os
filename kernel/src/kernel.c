@@ -111,31 +111,68 @@ static int test_pages(void) {
     void *first;
     void *second;
     void *reused;
-    size_t initial = nova_page_total();
+    size_t initial;
 
     if (!nova_page_init((uintptr_t)__page_pool_start,
-                        (uintptr_t)__page_pool_end))
+                        (uintptr_t)__page_pool_end)) {
+        uart_write("Page test: initialization failed.\n");
         return 0;
+    }
 
+    initial = nova_page_total();
     first = nova_page_alloc();
     second = nova_page_alloc();
-    if (first == NULL || second == NULL || first == second ||
-        (((uintptr_t)first & (NOVA_PAGE_SIZE - 1U)) != 0) ||
-        (((uintptr_t)second & (NOVA_PAGE_SIZE - 1U)) != 0))
-        return 0;
+    uart_write("Page test first address: ");
+    uart_write_hex64((uintptr_t)first);
+    uart_write("Page test second address: ");
+    uart_write_hex64((uintptr_t)second);
 
-    if (!nova_page_free(first) || nova_page_free(first) ||
-        nova_page_free((void *)((uintptr_t)second + 1U)))
+    if (first == NULL || second == NULL) {
+        uart_write("Page test: allocation returned NULL.\n");
         return 0;
+    }
+    if (first == second) {
+        uart_write("Page test: duplicate allocation address.\n");
+        return 0;
+    }
+    if ((((uintptr_t)first & (NOVA_PAGE_SIZE - 1U)) != 0) ||
+        (((uintptr_t)second & (NOVA_PAGE_SIZE - 1U)) != 0)) {
+        uart_write("Page test: returned address is not page aligned.\n");
+        return 0;
+    }
+
+    if (!nova_page_free(first)) {
+        uart_write("Page test: first free failed.\n");
+        return 0;
+    }
+    if (nova_page_free(first)) {
+        uart_write("Page test: double free was accepted.\n");
+        return 0;
+    }
+    if (nova_page_free((void *)((uintptr_t)second + 1U))) {
+        uart_write("Page test: unaligned free was accepted.\n");
+        return 0;
+    }
 
     reused = nova_page_alloc();
-    if (reused != first || nova_page_available() != initial - 2U)
+    uart_write("Page test reused address: ");
+    uart_write_hex64((uintptr_t)reused);
+    if (reused != first || nova_page_available() != initial - 2U) {
+        uart_write("Page test: freed page was not reused correctly.\n");
         return 0;
+    }
 
-    if (!nova_page_free(second) || !nova_page_free(reused))
+    if (!nova_page_free(second) || !nova_page_free(reused)) {
+        uart_write("Page test: final free failed.\n");
         return 0;
+    }
 
-    return nova_page_available() == initial;
+    if (nova_page_available() != initial) {
+        uart_write("Page test: free-page count did not recover.\n");
+        return 0;
+    }
+    uart_write("Page allocator checks passed individually.\n");
+    return 1;
 }
 
 void kernel_main(uint64_t current_el) {
