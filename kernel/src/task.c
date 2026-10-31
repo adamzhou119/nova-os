@@ -134,6 +134,25 @@ int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame)
     return 1;
 }
 
+int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame) {
+    struct nova_task_info *task = find_task(task_id);
+    uintptr_t address = (uintptr_t)frame;
+
+    /*
+     * Publish the exception frame and READY state as one task-table update.
+     * The IRQ caller must already have local IRQ delivery masked.
+     */
+    if (task == 0 || task->state != NOVA_TASK_RUNNING || frame == 0 ||
+        (address & 15U) != 0U ||
+        address < task->kernel_stack_base ||
+        address > task->kernel_stack_top - sizeof(*frame))
+        return 0;
+    task->irq_frame = frame;
+    task->resume_kind = NOVA_TASK_RESUME_IRQ;
+    task->state = NOVA_TASK_READY;
+    return 1;
+}
+
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind) {
     struct nova_task_info *task = find_task(task_id);
     if (task == 0 ||
