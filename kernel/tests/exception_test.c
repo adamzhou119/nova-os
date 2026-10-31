@@ -13,6 +13,7 @@ int main(void) {
     assert(strcmp(nova_exception_kind(5U), "IRQ") == 0);
     assert(strcmp(nova_exception_kind(10U), "FIQ") == 0);
     assert(strcmp(nova_exception_kind(15U), "SError") == 0);
+    assert(strcmp(nova_exception_kind(16U), "Unknown vector") == 0);
 
     assert(strcmp(nova_exception_class_name(esr_for_ec(0x15U)),
                   "AArch64 SVC") == 0);
