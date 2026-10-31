@@ -23,7 +23,8 @@ int nova_address_space_create(uintptr_t root_physical, uint16_t asid,
     size_t i;
     if (root_physical == 0U ||
         (root_physical & (NOVA_ADDRESS_SPACE_PAGE_SIZE - 1U)) != 0U ||
-        asid == 0U || address_space_id == 0 || next_address_space_id == 0U)
+        asid == 0U || asid > NOVA_ADDRESS_SPACE_MAX_ASID ||
+        address_space_id == 0 || next_address_space_id == 0U)
         return 0;
 
     for (i = 0; i < NOVA_ADDRESS_SPACE_MAX; ++i) {
