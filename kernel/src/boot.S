@@ -67,6 +67,10 @@ _start:
     ldr     x1, =exception_vectors_el1
     msr     VBAR_EL1, x1
     isb
+#ifdef NOVA_TEST_EL2_VECTOR
+    /* Deliberately execute an undefined instruction to test VBAR_EL2. */
+    .inst   0x00000000
+#endif
     ldr     x1, =_stack_top
     msr     SP_EL1, x1
     movz    x1, #0x0800
