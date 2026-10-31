@@ -110,3 +110,15 @@ int nova_mmu_verify_identity(uintptr_t address) {
     return (par & DESC_ADDR_MASK) ==
            ((uint64_t)address & DESC_ADDR_MASK);
 }
+
+int nova_mmu_verify_unmapped(uintptr_t address) {
+    uint64_t par;
+    __asm__ volatile(
+        "at s1e1r, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
+        : "=r"(par)
+        : "r"((uint64_t)address)
+        : "memory");
+    return (par & 1U) != 0;
+}
