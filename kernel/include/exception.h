@@ -9,4 +9,12 @@ const char *nova_exception_kind(uint64_t vector_slot);
 /* Human-readable ESR_EL1.EC decoding; unknown values remain explicit. */
 const char *nova_exception_class_name(uint64_t esr_el1);
 
+/* Abort syndrome helpers; return false/neutral for non-abort exception classes. */
+int nova_exception_is_instruction_abort(uint64_t esr);
+int nova_exception_is_data_abort(uint64_t esr);
+int nova_exception_is_write_abort(uint64_t esr);
+int nova_exception_fault_address_valid(uint64_t esr);
+int nova_exception_is_stage1_page_walk(uint64_t esr);
+const char *nova_abort_fault_status_name(uint64_t esr);
+
 #endif
