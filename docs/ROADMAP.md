@@ -63,8 +63,9 @@ Remaining:
 - [x] Implement per-address-space 4 KiB EL0 page map/unmap, in-place permission changes with break-before-make, user read/write translation checks, ASID-scoped TLB invalidation, and page-table/frame pinning.
 - [x] Verify EL0 read-only enforcement and reject writable/executable aliases across address spaces in QEMU.
 - [x] Switch TTBR0 and maintain address-space active references during cooperative task dispatch/return.
-- [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path, while QEMU separately verifies private mappings and permissions.
-- [ ] Add atomic cross-address-space IRQ-frame/TTBR handoff; until then, timer preemption is deliberately deferred when a different address space is selected.
+- [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path.
+- [x] Implement atomic cross-address-space IRQ-frame/TTBR handoff with destination activation, TTBR0 switch, active-reference transfer, and rollback; host scheduler tests cover the handoff.
+- [ ] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU.
 - [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
