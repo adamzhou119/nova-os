@@ -35,6 +35,8 @@ host-test: | $(BUILD)
 	$(BUILD)/page-allocator-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c -o $(BUILD)/task-test
 	$(BUILD)/task-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/interrupt_test.c src/interrupt.c -o $(BUILD)/interrupt-test
+	$(BUILD)/interrupt-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf
 
