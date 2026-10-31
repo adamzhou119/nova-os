@@ -6,6 +6,7 @@
 #include "memory.h"
 #include "fdt.h"
 #include "mmu.h"
+#include "vm.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -343,6 +344,55 @@ static int test_dynamic_virtual_pages(void) {
     return 1;
 }
 
+
+static int test_virtual_page_allocator(void) {
+    const uint64_t first_value = 0x564D415050414745ULL;
+    const uint64_t second_value = 0x564D5345434F4E44ULL;
+    void *first = nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE);
+    void *second = nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE);
+    void *reused;
+    uintptr_t physical_address;
+
+    if (first == NULL || second == NULL || first == second) {
+        if (first != NULL) (void)nova_vmap_free_page(first);
+        if (second != NULL) (void)nova_vmap_free_page(second);
+        return 0;
+    }
+
+    *(volatile uint64_t *)first = first_value;
+    *(volatile uint64_t *)second = second_value;
+    if (*(volatile uint64_t *)first != first_value ||
+        *(volatile uint64_t *)second != second_value ||
+        !nova_mmu_translate((uintptr_t)first, &physical_address) ||
+        physical_address < 0x40000000U || physical_address >= 0x48000000U) {
+        (void)nova_vmap_free_page(first);
+        (void)nova_vmap_free_page(second);
+        return 0;
+    }
+
+    if (!nova_vmap_free_page(first) || nova_vmap_free_page(first) ||
+        nova_vmap_free_page((void *)((uintptr_t)second + 1U))) {
+        (void)nova_vmap_free_page(second);
+        return 0;
+    }
+
+    /* First-fit allocation should reuse the released virtual slot. */
+    reused = nova_vmap_alloc_page(0U);
+    if (reused != first ||
+        !nova_mmu_verify_write_protected((uintptr_t)reused) ||
+        !nova_mmu_verify_execute_never((uintptr_t)reused)) {
+        if (reused != NULL) (void)nova_vmap_free_page(reused);
+        (void)nova_vmap_free_page(second);
+        return 0;
+    }
+
+    if (!nova_vmap_free_page(second) || !nova_vmap_free_page(reused))
+        return 0;
+    if (nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE |
+                             NOVA_MMU_MAP_EXECUTABLE) != NULL) return 0;
+    return 1;
+}
+
 void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
@@ -428,6 +478,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("MMU dynamic map/unmap and permission tests passed.\n");
         } else {
             uart_write("ERROR: MMU dynamic virtual page test failed.\n");
+        }
+        if (test_virtual_page_allocator()) {
+            uart_write("Kernel virtual page allocator tests passed.\n");
+        } else {
+            uart_write("ERROR: kernel virtual page allocator test failed.\n");
         }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
