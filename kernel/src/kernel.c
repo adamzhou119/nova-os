@@ -4,6 +4,7 @@
  */
 #include <stdint.h>
 #include "memory.h"
+#include "fdt.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -15,6 +16,7 @@ extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
 static volatile uint64_t bss_probe;
+static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
 
 static void uart_putc(char c) {
     while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
@@ -175,10 +177,26 @@ static int test_pages(void) {
     return 1;
 }
 
-void kernel_main(uint64_t current_el) {
+void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
+    int memory_regions;
+    uint64_t total_ram = 0;
+    size_t region_index;
     uart_write("Welcome to Nova OS\n");
     uart_write("AArch64 kernel prototype is running.\n");
     uart_write_current_el(current_el);
+
+    memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
+                                             NOVA_FDT_MAX_MEMORY_REGIONS);
+    if (memory_regions > 0) {
+        for (region_index = 0; region_index < (size_t)memory_regions; ++region_index)
+            total_ram += detected_memory[region_index].size;
+        uart_write("FDT memory map parsed. Regions: ");
+        uart_write_hex64((uint64_t)memory_regions);
+        uart_write("FDT total RAM bytes: ");
+        uart_write_hex64(total_ram);
+    } else {
+        uart_write("WARNING: FDT memory map unavailable.\n");
+    }
 
     if (bss_probe == 0) uart_write("BSS zero initialization verified.\n");
     else uart_write("ERROR: BSS zero initialization failed.\n");
