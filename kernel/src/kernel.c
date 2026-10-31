@@ -67,7 +67,8 @@ static const char *exception_vector_name(uint64_t vector) {
 }
 
 /* Called from the non-returning assembly exception entry. */
-void exception_report(uint64_t esr, uint64_t elr, uint64_t vector) {
+void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
+                      uint64_t far, uint64_t spsr) {
     uart_write("EXCEPTION: EL1 vector captured.\n");
     uart_write("Vector: ");
     uart_write(exception_vector_name(vector));
@@ -76,8 +77,16 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector) {
     uart_write_hex64(vector);
     uart_write("ESR_EL1: ");
     uart_write_hex64(esr);
+    uart_write("ESR exception class: ");
+    uart_write_hex64((esr >> 26) & 0x3fU);
+    uart_write("ESR instruction-specific syndrome: ");
+    uart_write_hex64(esr & 0x01ffffffU);
     uart_write("ELR_EL1: ");
     uart_write_hex64(elr);
+    uart_write("FAR_EL1: ");
+    uart_write_hex64(far);
+    uart_write("SPSR_EL1: ");
+    uart_write_hex64(spsr);
     uart_write("System halted for diagnosis.\n");
 
     for (;;) {
