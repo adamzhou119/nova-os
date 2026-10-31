@@ -116,10 +116,11 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,secure=on,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,gic-version=2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
           status=$?
           set -e
           cat el2-boot.log
+          cat el2-qemu-trace.log
           grep -q "Welcome to Nova OS" el2-boot.log
           grep -q "CurrentEL: EL1" el2-boot.log
           grep -q "EL2-to-EL1 transition passed." el2-boot.log
