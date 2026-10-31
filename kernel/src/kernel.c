@@ -185,6 +185,12 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write("AArch64 kernel prototype is running.\n");
     uart_write_current_el(current_el);
 
+    uart_write("FDT pointer: ");
+    uart_write_hex64((uint64_t)dtb_address);
+    if (dtb_address != 0) {
+        uart_write("FDT raw header word: ");
+        uart_write_hex64(*(volatile const uint32_t *)dtb_address);
+    }
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
                                              NOVA_FDT_MAX_MEMORY_REGIONS);
     if (memory_regions > 0) {
