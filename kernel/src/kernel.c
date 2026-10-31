@@ -82,9 +82,12 @@ static const char *exception_vector_name(uint64_t vector) {
     }
 }
 
-void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
-                      uint64_t far, uint64_t spsr) {
-    uart_write("EXCEPTION: EL1 vector captured.\n");
+static void exception_report_at_level(uint64_t level, uint64_t esr,
+                                       uint64_t elr, uint64_t vector,
+                                       uint64_t far, uint64_t spsr) {
+    uart_write("EXCEPTION: EL");
+    uart_putc((char)('0' + level));
+    uart_write(" vector captured.\\n");
     uart_write("Exception kind: ");
     uart_write(nova_exception_kind(vector));
     uart_putc('\n');
@@ -110,6 +113,17 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
     uart_write_hex64(spsr);
     uart_write("System halted for diagnosis.\n");
     for (;;) __asm__ volatile("wfe");
+
+}
+
+void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
+                      uint64_t far, uint64_t spsr) {
+    exception_report_at_level(1U, esr, elr, vector, far, spsr);
+}
+
+void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
+                          uint64_t far, uint64_t spsr) {
+    exception_report_at_level(2U, esr, elr, vector, far, spsr);
 }
 
 static int test_heap(void) {
