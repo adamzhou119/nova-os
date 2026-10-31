@@ -49,3 +49,9 @@ The normal image exercises heap allocation and both page allocator paths. The te
 ## Scheduler quantum accounting
 
 Timer IRQs also feed a five-tick (50 ms at 100 Hz) round-robin quantum counter. The scheduler raises a deferred preemption-pending flag when a running task exhausts its quantum; this stage only validates accounting and does not yet switch task contexts from IRQ context.
+
+### IRQ exception-frame integrity
+
+- The EL1 SPx IRQ vector no longer overwrites x16 to carry a diagnostic vector number; the interrupted x16 value is preserved.
+- IRQ entry now saves and restores x0-x30, ELR_EL1, and SPSR_EL1 in a 272-byte, 16-byte-aligned frame.
+- This hardens exception return and establishes the register frame needed for a later IRQ-driven task switch. The dispatcher still returns to the interrupted task; task switching is not enabled by this change.
