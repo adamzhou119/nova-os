@@ -30,7 +30,7 @@ uint64_t nova_timer_now(void) {
 }
 
 int nova_timer_arm(uint64_t delta_ticks) {
-    uint32_t control = NOVA_TIMER_CTL_IMASK;
+    uint64_t control = NOVA_TIMER_CTL_IMASK;
     if (timer_frequency == 0U || delta_ticks == 0U ||
         delta_ticks > NOVA_TIMER_MAX_DELTA) return 0;
     __asm__ volatile("msr cntp_ctl_el0, %0\n\tisb" :: "r"(control) : "memory");
