@@ -829,16 +829,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         uint32_t guard_task;
         struct nova_task_info guard_info;
         volatile uint64_t guard_value;
-        uart_write("Triggering controlled task stack guard fault test.\\n");
+        uart_write("Triggering controlled task stack guard fault test.\n");
         if (!nova_task_create(test_task_entry, 0, &guard_task) ||
             !nova_task_get(guard_task, &guard_info)) {
-            uart_write("ERROR: task stack guard setup failed.\\n");
+            uart_write("ERROR: task stack guard setup failed.\n");
             for (;;) __asm__ volatile("wfe");
         }
         guard_value = *(volatile uint64_t *)(guard_info.kernel_stack_base -
                                               NOVA_PAGE_SIZE);
         (void)guard_value;
-        uart_write("ERROR: task stack guard access unexpectedly succeeded.\\n");
+        uart_write("ERROR: task stack guard access unexpectedly succeeded.\n");
     }
 #endif
 
