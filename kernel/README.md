@@ -9,7 +9,7 @@ Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 - EL1 exception vectors and terminal fault diagnostics.
 - PL011 UART output.
 - A 1 MiB fixed bootstrap heap with checked aligned monotonic allocation.
-- A bounded Flattened Device Tree (FDT) parser that discovers RAM regions on QEMU virt.\n- A 4 MiB fixed page pool with a bitmap-backed 4 KiB page allocator,
+- A bounded Flattened Device Tree (FDT) parser that discovers RAM regions and parses the header memreserve map plus `/reserved-memory` child ranges.\n- A 4 MiB fixed page pool with a bitmap-backed 4 KiB page allocator,
   allocation, free, double-free rejection, invalid-alignment rejection, and
   page reuse checks.
 - QEMU checks for normal boot, heap/page allocator behavior, and a controlled
