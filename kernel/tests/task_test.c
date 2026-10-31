@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "task.h"
+#include "context.h"
 #include "vm.h"
 
 static uintptr_t next_stack = 0x48000000U;
@@ -24,7 +25,14 @@ static void dummy_entry(void *argument) { (void)argument; }
 int main(void) {
     uint32_t first, second;
     struct nova_task_info info;
+    struct nova_cpu_context context;
     int argument = 42;
+    assert(!nova_arch_context_init(&context, 0x1000U, 0x2000U, 1U, 2U));
+    assert(!nova_arch_context_init(&context, 0x1001U, 0x2000U, 1U, 2U));
+    assert(nova_arch_context_init(&context, 0x3000U, 0x2000U, 1U, 2U));
+    assert(context.sp == 0x3000U);
+    assert(context.x19_x30[0] == 1U && context.x19_x30[1] == 2U);
+    assert(context.x19_x30[11] == 0x2000U);
     assert(!nova_task_create(0, &argument, &first));
     assert(!nova_task_create(dummy_entry, &argument, 0));
     assert(nova_task_create(dummy_entry, &argument, &first));
