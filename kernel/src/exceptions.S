@@ -37,7 +37,7 @@ exception_vectors_el1:
     VECTOR 6
     VECTOR 7
     USER_SYNC_VECTOR
-    VECTOR 9
+    IRQ_VECTOR
     VECTOR 10
     VECTOR 11
     VECTOR 12
