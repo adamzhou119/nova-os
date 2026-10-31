@@ -5,6 +5,7 @@
 #include "task.h"
 #include "context.h"
 #include "vm.h"
+#include "address_space.h"
 
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
@@ -33,7 +34,8 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second;
+    uint32_t first, second, address_space_id;
+    struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
     struct nova_cpu_context *task_context;
@@ -49,6 +51,15 @@ int main(void) {
     assert(nova_task_create(dummy_entry, &argument, &first));
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
+    assert(nova_address_space_create(0x40008000U, 1U, &address_space_id));
+    assert(nova_task_set_address_space(first, address_space_id));
+    assert(!nova_task_set_address_space(first, 999U));
+    assert(nova_address_space_get(address_space_id, &address_space_info));
+    assert(address_space_info.references == 2U);
+    assert(nova_address_space_release(address_space_id));
+    assert(nova_task_get(first, &info));
+    assert(info.address_space_id == address_space_id);
+    assert(!nova_task_set_address_space(first, 0U));
     assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_FIRST_RUN));
 
     /* Ready selection must be round-robin by task ID and skip blocked tasks. */
@@ -202,6 +213,7 @@ int main(void) {
     assert(nova_task_transition(first, NOVA_TASK_ZOMBIE));
     assert(nova_task_get(first, &info) && info.exit_code == -7);
     assert(nova_task_destroy(first));
+    assert(!nova_address_space_get(address_space_id, &address_space_info));
     assert(!nova_task_get(first, &info));
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
