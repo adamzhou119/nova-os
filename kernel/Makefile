@@ -29,6 +29,7 @@ TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-fault-test.o
 STACK_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-stack-fault-test.o
 EL2_TEST_KERNEL_OBJECT := $(BUILD)/kernel-el2-test.o
+EL2_VECTOR_BOOT_OBJECT := $(BUILD)/boot-el2-vector.o
 EL3_TEST_BOOT_OBJECT := $(BUILD)/el3-test-boot.o
 
 .PHONY: all test host-test clean
@@ -48,13 +49,16 @@ host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c -o $(BUILD)/scheduler-test
 	$(BUILD)/scheduler-test
 
-test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/el3-test-boot.elf
+test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/el3-test-boot.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
 $(BOOT_OBJECT): src/boot.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
+
+$(EL2_VECTOR_BOOT_OBJECT): src/boot.S | $(BUILD)
+	$(CLANG) $(ASFLAGS) -DNOVA_TEST_EL2_VECTOR -c $< -o $@
 
 $(EXCEPTION_OBJECT): src/exceptions.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
@@ -133,6 +137,9 @@ $(BUILD)/nova-stack-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(STACK_F
 
 $(BUILD)/nova-el2-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) linker-el2-test.ld
 	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) -o $@
+$(BUILD)/nova-el2-vector-test.elf: $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) linker-el2-test.ld
+	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) -o $@
+
 
 clean:
 	rm -rf $(BUILD)
