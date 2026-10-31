@@ -181,8 +181,20 @@ int nova_sched_block_current(void) {
 }
 
 int nova_sched_unblock(uint32_t task_id) {
+    struct nova_task_info info;
     uintptr_t saved_daif = irq_save_disable();
-    int result = nova_task_transition(task_id, NOVA_TASK_READY);
+    int result = 0;
+
+    /*
+     * An IRQ-preempted waiter is already READY when another task attempts
+     * to wake it. Treat that wakeup as successful and idempotent.
+     */
+    if (nova_task_get(task_id, &info)) {
+        if (info.state == NOVA_TASK_READY)
+            result = 1;
+        else if (info.state == NOVA_TASK_BLOCKED)
+            result = nova_task_transition(task_id, NOVA_TASK_READY);
+    }
     irq_restore(saved_daif);
     return result;
 }
