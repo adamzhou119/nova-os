@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+struct nova_irq_frame;
+
 /*
  * EL0 resumable trap frame. Keep this layout synchronized with the
  * lower-EL exception entry/return assembly before enabling user execution.
@@ -29,5 +31,10 @@ _Static_assert(__builtin_offsetof(struct nova_user_trap_frame, esr_el1) == 272U,
                "user trap ESR offset mismatch");
 _Static_assert(__builtin_offsetof(struct nova_user_trap_frame, far_el1) == 280U,
                "user trap FAR offset mismatch");
+
+/* Build the first ERET frame for a mapped EL0 entry and user stack. */
+int nova_user_irq_frame_init(struct nova_irq_frame *frame,
+                             uintptr_t user_entry, uintptr_t user_stack_top,
+                             uintptr_t argument0);
 
 #endif
