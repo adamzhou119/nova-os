@@ -1,9 +1,12 @@
 CLANG ?= clang
 LD_LLD ?= ld.lld
+
 TARGET := --target=aarch64-none-elf
-CFLAGS := $(TARGET) -ffreestanding -fno-stack-protector -fno-pic -fno-builtin -nostdlib -O2 -Wall -Wextra
+CFLAGS := $(TARGET) -ffreestanding -fno-stack-protector -fno-pic \
+          -fno-builtin -nostdlib -O2 -Wall -Wextra
 ASFLAGS := $(TARGET) -ffreestanding -fno-pic
 LDFLAGS := -m aarch64elf -T linker.ld -nostdlib
+
 BUILD := build
 OBJECTS := $(BUILD)/boot.o $(BUILD)/kernel.o
 

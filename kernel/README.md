@@ -1,33 +1,50 @@
 # AArch64 Kernel Starter
 
-Experimental bare-metal starter targeting QEMU's AArch64 `virt` machine.
+This directory contains an experimental bare-metal starter targeting QEMU's AArch64 `virt` machine.
 
-## Scope
+## Current scope
+
 - AArch64 entry assembly.
-- Minimal C kernel entry.
-- PL011 UART output.
-- Linker script and Makefile.
+- A small C kernel entry point.
+- PL011 UART text output.
+- A linker script and a minimal Makefile.
 
-This is a bring-up scaffold, not a complete kernel. It has not yet been runtime-verified in QEMU in this repository.
+This is a bring-up scaffold only. It is not a complete kernel and has not yet been runtime-verified in QEMU in this repository.
 
 ## Requirements
-- Clang with AArch64 bare-metal target support.
+
+- An AArch64 bare-metal-capable Clang toolchain.
 - LLD.
 - QEMU system emulator for AArch64 (`qemu-system-aarch64`).
 
 Tool versions and a reproducible container/CI environment still need to be pinned.
 
 ## Build
-From this directory: `make`. Expected output: `build/nova.elf`.
 
-## Experimental run command
+From this directory:
+
 ```sh
-qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova.elf
+make
 ```
 
-Boot behavior must be checked against the installed QEMU version. If the guest does not reach UART output, inspect ELF entry/load address, exception level, and boot protocol.
+The expected output is `build/nova.elf`.
 
-## Intended serial smoke-test message
+## Run
+
+A typical QEMU invocation for the current experimental setup is:
+
+```sh
+qemu-system-aarch64 \
+  -machine virt \
+  -cpu cortex-a57 \
+  -nographic \
+  -kernel build/nova.elf
+```
+
+Boot behavior must be verified against the installed QEMU version. If QEMU reports an unsupported image or the guest does not reach UART output, inspect the ELF entry point, load address, exception level, and boot protocol rather than assuming success.
+
+## Expected serial message
+
 `Welcome to Nova OS`
 
-This is the intended message, not evidence of a completed runtime test.
+This is the intended smoke-test message, not a claim that the runtime test has already passed.

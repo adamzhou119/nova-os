@@ -9,8 +9,13 @@ SECTIONS
         *(.text .text.*)
     }
 
-    .rodata : ALIGN(4096) { *(.rodata .rodata.*) }
-    .data : ALIGN(4096) { *(.data .data.*) }
+    .rodata : ALIGN(4096) {
+        *(.rodata .rodata.*)
+    }
+
+    .data : ALIGN(4096) {
+        *(.data .data.*)
+    }
 
     .bss : ALIGN(4096) {
         __bss_start = .;
@@ -20,5 +25,9 @@ SECTIONS
         __bss_end = .;
     }
 
-    /DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) }
+    /DISCARD/ : {
+        *(.comment)
+        *(.note*)
+        *(.eh_frame*)
+    }
 }
