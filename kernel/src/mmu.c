@@ -296,6 +296,8 @@ int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
     frame_index = physical_frame_index(physical_address);
     if ((writable && executable_aliases[frame_index] != 0) ||
         (executable && writable_aliases[frame_index] != 0)) return 0;
+    /* Pin before publishing the PTE: free() must reject mapped frames. */
+    if (!nova_page_pin((const void *)physical_address)) return 0;
 
     descriptor = ((uint64_t)physical_address & DESC_ADDR_MASK) |
                  DESC_VALID | DESC_PAGE | DESC_ATTR(1) |
@@ -324,7 +326,7 @@ int nova_mmu_unmap_page(uintptr_t virtual_address) {
         --executable_aliases[frame_index];
     *slot = 0;
     invalidate_stage1_page(virtual_address);
-    return 1;
+    return nova_page_unpin((const void *)physical_address);
 }
 
 int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
