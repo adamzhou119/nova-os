@@ -310,6 +310,22 @@ int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
     return 1;
 }
 
+int nova_mmu_translate(uintptr_t virtual_address,
+                       uintptr_t *physical_address) {
+    uint64_t par;
+    if (physical_address == NULL) return 0;
+    __asm__ volatile(
+        "at s1e1r, %1\n"
+        "isb\n"
+        "mrs %0, par_el1\n"
+        : "=r"(par) : "r"((uint64_t)virtual_address) : "memory");
+    if ((par & 1U) != 0) return 0;
+    *physical_address = (uintptr_t)((par & DESC_ADDR_MASK) |
+                                    ((uint64_t)virtual_address &
+                                     (NOVA_MMU_PAGE_SIZE - 1U)));
+    return 1;
+}
+
 int nova_mmu_verify_translation(uintptr_t virtual_address,
                                 uintptr_t physical_address) {
     uint64_t par;
