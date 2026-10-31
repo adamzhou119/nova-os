@@ -131,7 +131,7 @@ exception_vector_panic:
 .global exception_vectors_el2
 .type exception_vectors_el2, %object
 .macro VECTOR_EL2 slot
-    mov     x16, #\\slot
+    mov     x16, #\slot
     b       exception_vector_panic_el2
     .space  120
 .endm
