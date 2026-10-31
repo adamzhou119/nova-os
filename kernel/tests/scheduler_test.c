@@ -262,7 +262,7 @@ int main(void) {
     assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(user_task));
     assert(nova_address_space_get(user_space_id, &space));
-    assert(space.references == 3U && space.active_cpus == 0U);
+    assert(space.references == 2U && space.active_cpus == 0U);
 
     assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
