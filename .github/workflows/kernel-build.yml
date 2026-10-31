@@ -26,7 +26,7 @@ jobs:
         run: |
           make -C kernel clean all test
 
-      - name: Run host-side allocator and task lifecycle tests
+      - name: Run host-side allocator, task lifecycle, and IRQ dispatcher tests
         run: |
           make -C kernel host-test
 
