@@ -334,3 +334,13 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
     }
     return -19;
 }
+
+
+size_t nova_fdt_total_size(uintptr_t dtb_address) {
+    const uint8_t *base = (const uint8_t *)dtb_address;
+    uint32_t total;
+    if (dtb_address == 0 || read_be32(base) != FDT_MAGIC) return 0;
+    total = read_be32(base + 4U);
+    if (total < FDT_HEADER_SIZE) return 0;
+    return (size_t)total;
+}
