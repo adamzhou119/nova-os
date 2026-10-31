@@ -59,7 +59,6 @@ int main(void) {
     assert(nova_address_space_release(address_space_id));
     assert(nova_task_get(first, &info));
     assert(info.address_space_id == address_space_id);
-    assert(!nova_task_set_address_space(first, 0U));
     assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_FIRST_RUN));
 
     /* Ready selection must be round-robin by task ID and skip blocked tasks. */
@@ -112,6 +111,7 @@ int main(void) {
     assert(!nova_task_transition(first, NOVA_TASK_BLOCKED));
     /* IRQ frames are a distinct resume path, never a cooperative context. */
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+    assert(!nova_task_set_address_space(first, 0U));
     assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
     /* Invalid frame publication must leave ownership and state untouched. */
     assert(!nova_task_save_irq_context(first,
