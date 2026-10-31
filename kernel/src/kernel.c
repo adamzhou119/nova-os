@@ -13,6 +13,7 @@
 #include "timer.h"
 #include "gic.h"
 #include "interrupt.h"
+#include "exception.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -84,6 +85,9 @@ static const char *exception_vector_name(uint64_t vector) {
 void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
                       uint64_t far, uint64_t spsr) {
     uart_write("EXCEPTION: EL1 vector captured.\n");
+    uart_write("Exception kind: ");
+    uart_write(nova_exception_kind(vector));
+    uart_putc('\n');
     uart_write("Vector: ");
     uart_write(exception_vector_name(vector));
     uart_putc('\n');
@@ -93,6 +97,9 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
     uart_write_hex64(esr);
     uart_write("ESR exception class: ");
     uart_write_hex64((esr >> 26) & 0x3fU);
+    uart_write("ESR exception description: ");
+    uart_write(nova_exception_class_name(esr));
+    uart_putc('\n');
     uart_write("ESR instruction-specific syndrome: ");
     uart_write_hex64(esr & 0x01ffffffU);
     uart_write("ELR_EL1: ");
