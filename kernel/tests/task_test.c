@@ -101,7 +101,7 @@ int main(void) {
     {
         uint32_t selected = 0U;
         assert(nova_task_next_ready(0U, &selected) && selected == first);
-        assert(!nova_task_next_cooperative_ready(0U, &selected));
+        assert(nova_task_next_cooperative_ready(0U, &selected) && selected == second);
         assert(nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
         assert(nova_task_next_cooperative_ready(0U, &selected) && selected == first);
     }
