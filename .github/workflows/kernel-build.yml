@@ -54,7 +54,7 @@ jobs:
           grep -q "FDT reserved ranges parsed:" qemu.log
           grep -q "Physical page allocator tests passed." qemu.log
           grep -q "Firmware RAM page allocator tests passed." qemu.log
-          grep -q "Page pool available:" qemu.log
+          grep -q "Current page map available:" qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
       - name: QEMU controlled exception test
