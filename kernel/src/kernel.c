@@ -621,7 +621,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     if (nova_mmu_enable()) {
         uart_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
         if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
-            nova_mmu_verify_identity((uintptr_t)UART0_BASE)) {
+            nova_mmu_verify_identity((uintptr_t)UART0_BASE) &&
+            nova_mmu_verify_identity(0x08000000U) &&
+            nova_mmu_verify_identity(0x08010000U)) {
             uart_write("MMU identity translation tests passed.\n");
         } else {
             uart_write("ERROR: MMU identity translation test failed.\n");
