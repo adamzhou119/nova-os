@@ -1,65 +1,74 @@
 # ADR 0007: Scheduler Execution State and IRQ-Safe Handoff
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-31
 - Scope: Single-core AArch64 EL1 scheduler handoff
 
 ## Context
 
-The IRQ frame ABI and per-task IRQ-frame bookkeeping are now present and tested. Actual timer preemption is still disabled. The cooperative scheduler has a separate AAPCS64 context for the scheduler loop and each task, while a timer interrupt captures a full exception frame on the currently active stack.
-
-The scheduler currently uses `scheduler_active` and `current_task_id` to decide whether timer ticks should count toward a task quantum. Those two fields alone do not express every transition boundary. In particular, a timer IRQ can arrive after a cooperative context switch has returned to the scheduler context but before the scheduler loop clears `current_task_id`. Treating that interval as task execution could incorrectly save a scheduler-stack IRQ frame as if it belonged to a task.
+A timer IRQ can arrive while a task is running, while the scheduler is active, or around a cooperative context switch. A boolean scheduler-active flag and a nonzero current-task ID are insufficient to distinguish those ownership states. In particular, the scheduler must never attach an IRQ frame captured on the scheduler stack to a task.
 
 ## Decision
 
-Do not enable timer-driven context switching until scheduler execution ownership is explicit and all ownership changes are atomic with respect to local IRQ delivery.
+The scheduler publishes an explicit execution phase:
 
-Introduce an explicit execution phase with at least these states:
+- `INACTIVE`: the scheduler has not started or has fully returned.
+- `SCHEDULER`: the CPU is executing scheduler code on the scheduler stack.
+- `TASK`: the CPU is executing a task and `current_task_id` identifies its RUNNING TCB.
 
-- `INACTIVE`: scheduler has not started or has fully returned.
-- `SCHEDULER`: CPU is executing the scheduler loop on `scheduler_context`.
-- `TASK`: CPU is executing a task context and `current_task_id` identifies its RUNNING TCB.
+Timer-driven handoff is permitted only in TASK phase with a nonzero current task and an expired quantum.
 
-The IRQ dispatcher may request a task switch only when the phase is `TASK`, the current ID resolves to a RUNNING task, and the interrupt is the configured physical timer interrupt.
+### Cooperative task-to-scheduler handoff
 
-### Cooperative handoff
+1. Save DAIF and mask local IRQ delivery.
+2. Validate the current task and its context.
+3. Publish the next task state and COOPERATIVE resume kind when Yield/Block is requested.
+4. Reset quantum accounting and publish SCHEDULER phase before switching stacks.
+5. Switch to the shared scheduler context.
+6. When the same task is later resumed, restore its saved DAIF state before returning to task code.
 
-The task-to-scheduler handoff must be a short local-IRQ critical section:
+### Scheduler-to-task dispatch
 
-1. Save the current DAIF state and mask IRQ delivery.
-2. Publish the phase as `SCHEDULER` before switching stacks.
-3. Perform the cooperative context switch.
-4. When the task is later resumed, restore the saved DAIF state before returning to task code.
+The scheduler chooses READY tasks in round-robin task-ID order. It transitions the selected task to RUNNING and publishes its ID and TASK phase while local IRQ delivery is masked.
 
-The scheduler loop must publish `TASK` and the selected task ID as one protected transition before switching into a task. It must publish `SCHEDULER` before processing the task's return to the scheduler context. The implementation must not assume C statement ordering alone provides interrupt atomicity.
+Dispatch follows the resume-kind invariant:
 
-The exact assembly/C boundary for preserving DAIF must be chosen so the saved mask state belongs to the resumed context, not accidentally to whichever context happened to execute the restore instruction.
+- FIRST_RUN/COOPERATIVE use the AAPCS64 context-switch path.
+- IRQ uses the dedicated exception-frame restore path and ERET.
+- A saved IRQ frame is validated and consumed once before the restore routine is entered.
+
+When a task returns to the scheduler, cleanup uses the authoritative current-task ID. A ZOMBIE stack is freed only after the CPU has returned to the scheduler stack. The scheduler continuation is shared across tasks; it must never rely on a suspended C local containing the ID of the task originally dispatched.
 
 ### IRQ handoff
 
-Once the phase and ownership invariants are enforced, the timer IRQ path may:
+The timer IRQ dispatcher performs timer accounting and rearms the timer, then completes the GIC interrupt with EOI. It requests scheduling only for timer interrupt ID 30. The scheduler's IRQ-masked handoff:
 
-1. Save the incoming frame pointer only to the current RUNNING task.
-2. Mark that task READY when another READY task is selected.
-3. Select a READY task and validate that its saved frame belongs to its mapped stack.
-4. Mark the selected task RUNNING, publish its ID and TASK phase, reset the quantum, and return its frame pointer.
-5. If no different task is ready, retain the current task and reset its quantum without changing frame ownership.
+1. Saves the incoming frame only to the current RUNNING task.
+2. Marks the outgoing task READY/IRQ.
+3. Selects another READY FIRST_RUN/IRQ task.
+4. Marks the selected task RUNNING/ACTIVE and clears its consumed frame pointer.
+5. Updates current-task ownership and returns the selected frame pointer to exception assembly.
 
-The dispatcher must never use a cooperative `nova_cpu_context` as an IRQ return frame.
+If no alternative task exists, the current task remains RUNNING and the original frame is returned unchanged. IRQ scheduling is rejected while the scheduler is INACTIVE or in SCHEDULER phase.
 
-### Task exit and reclamation
+### Wakeup semantics
 
-A returning task is marked ZOMBIE before handoff. Its stack remains allocated until execution is safely on the scheduler stack. Destruction and stack reclamation must occur only from a context that is not using the target task's stack.
+Waking a BLOCKED task changes it to READY. Waking an already READY task is an idempotent success: an IRQ may have made the task READY immediately before another task issues the wakeup. RUNNING, ZOMBIE, and UNUSED tasks are not made READY by this operation.
 
-## Required tests before enabling preemption
+## Validation
 
-- Host-test phase transitions and rejection of IRQ scheduling while phase is INACTIVE or SCHEDULER.
-- Host-test that a scheduler-stack frame cannot be recorded as a task frame.
-- Host-test round-robin selection and no-alternative-ready behavior, including frame ownership.
-- QEMU two-task CPU-bound test: neither task calls Yield, and both make progress through timer-driven frame switches.
-- QEMU task-exit test proving a ZOMBIE task is never selected and its stack is reclaimed only from scheduler context.
-- Full existing CI suite, including exception, MMU-fault, and ELF checks.
+Automated host and QEMU tests cover:
 
-## Consequences
+- Rejection of IRQ handoff while scheduler ownership is INACTIVE or SCHEDULER.
+- Rejection of malformed frames and preservation of the quantum when no valid handoff can occur.
+- Round-robin frame selection, no-alternative-ready behavior, and one-time frame consumption.
+- An IRQ-resumed task yielding/blocking back to the shared scheduler continuation, followed by restoration of the previously interrupted task.
+- Deferred task reclamation on the scheduler stack.
+- Two CPU-bound tasks making progress through repeated timer preemption without calling Yield or Block.
+- Full build, host tests, ELF checks, QEMU boot, synchronous exception, and MMU fault CI.
 
-This design intentionally adds a small amount of explicit scheduler state before enabling preemption. It avoids relying on timing-sensitive assumptions around a cooperative context switch. The first implementation remains single-core, integer-register-only, and QEMU virt/GICv2-specific.
+Latest recorded full CI success: workflow run 41197964595, commit 0ea1fca.
+
+## Consequences and limits
+
+The design is intentionally single-core. It does not yet provide SMP synchronization, FIQ/SError scheduling, user-mode task contexts, per-task address spaces, or FP/SIMD state preservation. The timer and GIC implementation is currently validated on QEMU virt with GICv2.
