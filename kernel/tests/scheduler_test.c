@@ -11,6 +11,8 @@ static size_t next_stack;
 static unsigned int switch_depth;
 static uint32_t observed_task;
 
+void nova_task_start_trampoline(void) {}
+
 void *nova_vmap_alloc_page(unsigned int flags) {
     (void)flags;
     if (next_stack >= NOVA_TASK_MAX) return 0;
