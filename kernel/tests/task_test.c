@@ -116,7 +116,28 @@ int main(void) {
         assert(nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
         assert(nova_task_next_cooperative_ready(0U, &selected) && selected == first);
         assert(nova_task_next_irq_ready(0U, &selected) && selected == second);
-        assert(!nova_task_destroy(first));
+            /* Atomic IRQ handoff rotates only between IRQ-returnable frames. */
+        {
+            struct nova_irq_frame *chosen_frame = 0;
+            uint32_t chosen_id = 0U;
+            assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+            assert(nova_task_irq_handoff(first, info.irq_frame,
+                                         &chosen_id, &chosen_frame));
+            assert(chosen_id == second && chosen_frame != 0);
+            assert(nova_task_get(first, &info) &&
+                   info.state == NOVA_TASK_READY &&
+                   info.resume_kind == NOVA_TASK_RESUME_IRQ);
+            assert(nova_task_get(second, &info) &&
+                   info.state == NOVA_TASK_RUNNING);
+            assert(nova_task_irq_handoff(second, info.irq_frame,
+                                         &chosen_id, &chosen_frame));
+            assert(chosen_id == first && chosen_frame != 0);
+            assert(nova_task_get(second, &info) &&
+                   info.state == NOVA_TASK_READY);
+            assert(nova_task_get(first, &info) &&
+                   info.state == NOVA_TASK_RUNNING);
+        }
+    assert(!nova_task_destroy(first));
     }
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(!nova_task_destroy(first));
