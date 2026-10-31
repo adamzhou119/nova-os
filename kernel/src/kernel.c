@@ -495,5 +495,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     }
 #endif
 
+#ifdef NOVA_TEST_MMU_FAULT
+    if (current_el == 1) {
+        volatile uint64_t fault_value;
+        uart_write("Triggering controlled MMU translation fault test.\n");
+        fault_value = *(volatile uint64_t *)0x1000U;
+        (void)fault_value;
+        uart_write("ERROR: unmapped MMU read unexpectedly succeeded.\n");
+    }
+#endif
+
     for (;;) __asm__ volatile("wfe");
 }
