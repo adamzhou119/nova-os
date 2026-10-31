@@ -23,16 +23,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang lld make qemu-system-arm
 
-      - name: Build AArch64 kernel
-        run: make -C kernel clean all
+      - name: Build AArch64 kernel and diagnostic test image
+        run: |
+          make -C kernel clean all test
 
-      - name: Inspect ELF
+      - name: Inspect ELF images
         run: |
           file kernel/build/nova.elf
+          file kernel/build/nova-test.elf
           readelf -h kernel/build/nova.elf
-          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|_start'
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|_start|exception_vectors_el1'
 
-      - name: QEMU serial smoke test
+      - name: QEMU serial boot smoke test
         shell: bash
         run: |
           set +e
@@ -56,4 +58,34 @@ jobs:
             echo "BSS initialization probe failed or was not observed."
             exit 1
           fi
-          echo "Nova OS boot, exception-level, and BSS checks passed."
+          echo "Nova OS normal boot checks passed."
+
+      - name: QEMU controlled exception test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 \
+            -machine virt \
+            -cpu cortex-a57 \
+            -nographic \
+            -kernel kernel/build/nova-test.elf > exception.log 2>&1
+          status=$?
+          set -e
+          cat exception.log
+          if ! grep -q "Triggering controlled SVC exception test." exception.log; then
+            echo "Controlled exception was not triggered (QEMU exit: $status)."
+            exit 1
+          fi
+          if ! grep -q "EXCEPTION: EL1 vector captured." exception.log; then
+            echo "EL1 exception vector did not capture the exception."
+            exit 1
+          fi
+          if ! grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log; then
+            echo "ESR_EL1 diagnostic was not printed."
+            exit 1
+          fi
+          if ! grep -Eq "ELR_EL1: 0x[0-9A-F]{16}" exception.log; then
+            echo "ELR_EL1 diagnostic was not printed."
+            exit 1
+          fi
+          echo "Nova OS controlled EL1 exception test passed."
