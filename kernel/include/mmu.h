@@ -19,6 +19,8 @@ int nova_mmu_unmap_page(uintptr_t virtual_address);
 int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags);
 int nova_mmu_verify_translation(uintptr_t virtual_address,
                                 uintptr_t physical_address);
+int nova_mmu_translate(uintptr_t virtual_address,
+                       uintptr_t *physical_address);
 
 /* Verify that an address outside the prototype map faults translation. */
 int nova_mmu_verify_unmapped(uintptr_t address);
