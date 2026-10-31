@@ -45,7 +45,7 @@ host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c -o $(BUILD)/scheduler-test
 	$(BUILD)/scheduler-test
 
-test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/el3-test-boot.bin
+test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/el3-test-boot.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -111,7 +111,7 @@ $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
 
 $(BUILD)/el3-test-boot.bin: $(EL3_TEST_BOOT_OBJECT) el3_test_boot.ld
-	$(LD_LLD) -m aarch64elf -T el3_test_boot.ld --oformat=binary -nostdlib $< -o $@
+	$(LD_LLD) -m aarch64elf -T el3_test_boot.ld -nostdlib $< -o $@
 
 $(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) -o $@
