@@ -10,6 +10,7 @@
 #include "task.h"
 #include "context.h"
 #include "scheduler.h"
+#include "timer.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -496,6 +497,31 @@ static int test_cooperative_scheduler(void) {
     return 1;
 }
 
+static int test_generic_timer(void) {
+    uint64_t first, second, frequency, delay;
+    uint32_t guard = 0U;
+    if (!nova_timer_init()) return 0;
+    frequency = nova_timer_frequency();
+    if (frequency == 0U) return 0;
+    first = nova_timer_now();
+    while (guard++ < 10000U) __asm__ volatile("nop");
+    second = nova_timer_now();
+    if (second <= first) return 0;
+    delay = frequency / 1000U;
+    if (delay == 0U) delay = 1U;
+    if (delay > 0x7fffffffULL) delay = 0x7fffffffULL;
+    if (!nova_timer_arm(delay)) return 0;
+    guard = 0U;
+    while (!nova_timer_expired() && guard++ < 50000000U)
+        __asm__ volatile("nop");
+    if (!nova_timer_expired()) {
+        nova_timer_stop();
+        return 0;
+    }
+    nova_timer_stop();
+    return 1;
+}
+
 static int test_task_lifecycle(void) {
     uint32_t first, second;
     struct nova_task_info info;
@@ -621,6 +647,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("Kernel task lifecycle tests passed.\n");
         } else {
             uart_write("ERROR: kernel task lifecycle test failed.\n");
+        }
+        if (test_generic_timer()) {
+            uart_write("EL1 generic physical timer tests passed.\\n");
+        } else {
+            uart_write("ERROR: EL1 generic physical timer test failed.\\n");
         }
         if (test_cooperative_scheduler()) {
             uart_write("Kernel cooperative scheduler tests passed.\n");
