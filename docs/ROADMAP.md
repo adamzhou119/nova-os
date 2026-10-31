@@ -59,7 +59,9 @@ Remaining:
       exception-frame, and isolation requirements (ADR 0010).
 - [x] Add address-space metadata, unique live-ASID checks, reference counting,
       active-use protection, and task ownership/lifetime tests.
-- [ ] Implement private address-space page tables and ASID-aware switching.
+- [x] Implement private address-space page-table roots and ASID-aware TTBR0_EL1 switching; QEMU verifies shared privileged mappings and separate roots.
+- [x] Implement per-address-space 4 KiB EL0 page map/unmap, user read/write permission translation checks, ASID-scoped TLB invalidation, and page-table/frame pinning.
+- [ ] Expand negative permission/W^X alias tests and integrate address-space ownership into scheduler dispatch and IRQ handoff.
 - [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
