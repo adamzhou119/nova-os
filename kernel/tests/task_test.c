@@ -6,16 +6,18 @@
 #include "context.h"
 #include "vm.h"
 
-static uintptr_t next_stack = 0x48000000U;
+static _Alignas(16) unsigned char stack_pool[16][4096];
+static size_t next_stack;
 static int freed_stacks;
 
 void nova_task_start_trampoline(void) {}
 
 void *nova_vmap_alloc_page(unsigned int flags) {
-    uintptr_t result = next_stack;
+    void *result;
     (void)flags;
-    next_stack += 4096U;
-    return (void *)result;
+    if (next_stack >= 16U) return 0;
+    result = stack_pool[next_stack++];
+    return result;
 }
 int nova_vmap_free_page(void *address) {
     (void)address;
