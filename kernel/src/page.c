@@ -7,6 +7,7 @@
 
 static uint64_t page_bitmap[NOVA_PAGE_BITMAP_WORDS];
 static uintptr_t page_addresses[NOVA_PAGE_MAX_COUNT];
+static uint32_t page_pin_counts[NOVA_PAGE_MAX_COUNT];
 static size_t page_count;
 static size_t page_free_count;
 static int page_ready;
@@ -14,6 +15,7 @@ static int page_ready;
 static void page_reset(void) {
     size_t i;
     for (i = 0; i < NOVA_PAGE_BITMAP_WORDS; ++i) page_bitmap[i] = 0;
+    for (i = 0; i < NOVA_PAGE_MAX_COUNT; ++i) page_pin_counts[i] = 0;
     page_count = 0;
     page_free_count = 0;
     page_ready = 0;
@@ -129,7 +131,7 @@ int nova_page_free(void *page) {
     word = index / NOVA_PAGE_WORD_BITS;
     bit = index % NOVA_PAGE_WORD_BITS;
     mask = (uint64_t)1U << bit;
-    if ((page_bitmap[word] & mask) == 0) return 0;
+    if ((page_bitmap[word] & mask) == 0 || page_pin_counts[index] != 0) return 0;
     page_bitmap[word] &= ~mask;
     ++page_free_count;
     return 1;
@@ -152,4 +154,41 @@ int nova_page_is_allocated(const void *page) {
     bit = index % NOVA_PAGE_WORD_BITS;
     mask = (uint64_t)1U << bit;
     return (page_bitmap[word] & mask) != 0;
+}
+
+
+static size_t page_find_index(const void *page) {
+    size_t index;
+    uintptr_t address = (uintptr_t)page;
+    if (!page_ready || page == NULL ||
+        (address & (NOVA_PAGE_SIZE - 1U)) != 0) return page_count;
+    for (index = 0; index < page_count; ++index)
+        if (page_addresses[index] == address) return index;
+    return page_count;
+}
+
+int nova_page_pin(const void *page) {
+    size_t index = page_find_index(page);
+    size_t word, bit;
+    uint64_t mask;
+    if (index == page_count) return 0;
+    word = index / NOVA_PAGE_WORD_BITS;
+    bit = index % NOVA_PAGE_WORD_BITS;
+    mask = (uint64_t)1U << bit;
+    if ((page_bitmap[word] & mask) == 0 || page_pin_counts[index] == UINT32_MAX)
+        return 0;
+    ++page_pin_counts[index];
+    return 1;
+}
+
+int nova_page_unpin(const void *page) {
+    size_t index = page_find_index(page);
+    if (index == page_count || page_pin_counts[index] == 0) return 0;
+    --page_pin_counts[index];
+    return 1;
+}
+
+size_t nova_page_pin_count(const void *page) {
+    size_t index = page_find_index(page);
+    return index == page_count ? 0U : (size_t)page_pin_counts[index];
 }
