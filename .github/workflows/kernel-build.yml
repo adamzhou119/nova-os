@@ -50,14 +50,8 @@ jobs:
             echo "Expected serial banner was not observed (QEMU exit: $status)."
             exit 1
           fi
-          if ! grep -Eq "CurrentEL: EL[0-3]" qemu.log; then
-            echo "Current exception level was not reported."
-            exit 1
-          fi
-          if ! grep -q "BSS zero initialization verified." qemu.log; then
-            echo "BSS initialization probe failed or was not observed."
-            exit 1
-          fi
+          grep -Eq "CurrentEL: EL[0-3]" qemu.log
+          grep -q "BSS zero initialization verified." qemu.log
           echo "Nova OS normal boot checks passed."
 
       - name: QEMU controlled exception test
@@ -72,24 +66,13 @@ jobs:
           status=$?
           set -e
           cat exception.log
-          if ! grep -q "Triggering controlled SVC exception test." exception.log; then
-            echo "Controlled exception was not triggered (QEMU exit: $status)."
-            exit 1
-          fi
-          if ! grep -q "EXCEPTION: EL1 vector captured." exception.log; then
-            echo "EL1 exception vector did not capture the exception."
-            exit 1
-          fi
-          if ! grep -q "Vector: Current EL SPx synchronous" exception.log; then
-            echo "The synchronous EL1 SPx vector was not identified."
-            exit 1
-          fi
-          if ! grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log; then
-            echo "ESR_EL1 diagnostic was not printed."
-            exit 1
-          fi
-          if ! grep -Eq "ELR_EL1: 0x[0-9A-F]{16}" exception.log; then
-            echo "ELR_EL1 diagnostic was not printed."
-            exit 1
-          fi
-          echo "Nova OS controlled EL1 exception test passed."
+          grep -q "Triggering controlled SVC exception test." exception.log
+          grep -q "EXCEPTION: EL1 vector captured." exception.log
+          grep -q "Vector: Current EL SPx synchronous" exception.log
+          grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ESR exception class: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ESR instruction-specific syndrome: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ELR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "FAR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "SPSR_EL1: 0x[0-9A-F]{16}" exception.log
+          echo "Nova OS expanded EL1 exception diagnostics passed."
