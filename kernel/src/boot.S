@@ -61,6 +61,12 @@ _start:
     mov     x1, #3
     msr     CNTHCTL_EL2, x1
     msr     CNTVOFF_EL2, xzr
+    /* Install diagnostic vectors at EL2 and target EL1 before ERET. */
+    ldr     x1, =exception_vectors_el2
+    msr     VBAR_EL2, x1
+    ldr     x1, =exception_vectors_el1
+    msr     VBAR_EL1, x1
+    isb
     ldr     x1, =_stack_top
     msr     SP_EL1, x1
     movz    x1, #0x0800
