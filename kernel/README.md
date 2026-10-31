@@ -6,23 +6,25 @@ Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 
 - AArch64 primary-core entry and secondary-core parking.
 - Explicit `.bss` zeroing and current exception-level reporting.
-- EL1 exception vectors and terminal fault diagnostics (`ESR_EL1`, `ELR_EL1`,
-  `FAR_EL1`, `SPSR_EL1`).
+- EL1 exception vectors and terminal fault diagnostics.
 - PL011 UART output.
-- A 1 MiB linker-reserved bootstrap heap and a checked, aligned monotonic
-  allocator (`nova_alloc`).
-- QEMU checks for normal boot, heap alignment/allocation/exhaustion, and a
-  controlled EL1 `SVC #0` exception.
+- A 1 MiB fixed bootstrap heap with checked aligned monotonic allocation.
+- A 4 MiB fixed page pool with a bitmap-backed 4 KiB page allocator,
+  allocation, free, double-free rejection, invalid-alignment rejection, and
+  page reuse checks.
+- QEMU checks for normal boot, heap/page allocator behavior, and a controlled
+  EL1 `SVC #0` exception.
 
 ## Important limitations
 
-The heap is a fixed region reserved by this QEMU prototype's linker script;
-it is not discovered from firmware or a board memory map. The allocator is
-monotonic: there is no free operation, page allocator, MMU, paging, or SMP
-locking. Do not use it concurrently from secondary CPUs. The exception handler
-is terminal and does not preserve/restore the complete register context.
-Interrupt controller, scheduler, drivers, networking, storage, and app runtime
-are not implemented. This is not yet a complete kernel or phone OS.
+The heap and page pool are fixed linker reservations for the QEMU prototype;
+they are not discovered from firmware or a board memory map. The page allocator
+is single-core only, has no locking, and is not yet connected to an MMU or
+virtual-memory subsystem. There is no paging, page-table management, reclaim,
+or memory protection. The exception handler is terminal and does not preserve
+or restore the complete register context. Interrupt controller, scheduler,
+drivers, networking, storage, and app runtime are not implemented. This is
+not yet a complete kernel or phone OS.
 
 ## Build and run
 
@@ -32,5 +34,5 @@ qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova.
 qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova-test.elf
 ```
 
-The normal image reports heap test results. The test image additionally
+The normal image tests heap and physical page allocation. The test image also
 triggers an EL1 synchronous exception and prints diagnostic registers.
