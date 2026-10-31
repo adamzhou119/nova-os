@@ -32,7 +32,7 @@ static void irq_restore(uintptr_t daif) {
 }
 
 static int find_next_ready(uint32_t *task_id) {
-    return nova_task_next_ready(next_after_id, task_id);
+    return nova_task_next_cooperative_ready(next_after_id, task_id);
 }
 
 static int switch_to_scheduler(enum nova_task_state next_state, int change_state) {
@@ -47,6 +47,11 @@ static int switch_to_scheduler(enum nova_task_state next_state, int change_state
     task_context = nova_task_context(id);
     if (task_context == 0 ||
         (change_state && !nova_task_transition(id, next_state))) {
+        irq_restore(saved_daif);
+        return 0;
+    }
+    if (change_state &&
+        !nova_task_set_resume_kind(id, NOVA_TASK_RESUME_COOPERATIVE)) {
         irq_restore(saved_daif);
         return 0;
     }
