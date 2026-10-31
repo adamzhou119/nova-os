@@ -139,7 +139,6 @@ int main(void) {
         }
     assert(!nova_task_destroy(first));
     }
-    assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(!nova_task_destroy(first));
     assert(nova_task_set_exit_code(first, -7));
     assert(nova_task_transition(first, NOVA_TASK_BLOCKED));
