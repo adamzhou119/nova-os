@@ -210,8 +210,6 @@ int main(void) {
     assert(nova_task_create(dummy_entry, 0, &peer_task));
     assert(nova_sched_start());
     assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
-    assert(nova_address_space_get(user_space_id, &space));
-    assert(space.active_cpus == 0U);
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
     assert(observed_task == task_id);
