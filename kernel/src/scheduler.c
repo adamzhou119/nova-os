@@ -6,9 +6,9 @@
 #define NOVA_SCHED_QUANTUM_TICKS 5U
 
 static struct nova_cpu_context scheduler_context;
-static uint32_t current_task_id;
+static volatile uint32_t current_task_id;
 static uint32_t next_after_id;
-static enum nova_sched_phase execution_phase = NOVA_SCHED_INACTIVE;
+static volatile enum nova_sched_phase execution_phase = NOVA_SCHED_INACTIVE;
 static volatile uint32_t current_quantum_ticks;
 static volatile int preemption_pending;
 
