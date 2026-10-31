@@ -26,6 +26,13 @@ SECTIONS
         __bss_end = .;
     }
 
+    /* A 1 MiB bootstrap heap in QEMU RAM; not a physical RAM discovery map. */
+    .heap (NOLOAD) : ALIGN(4096) {
+        __heap_start = .;
+        . += 0x100000;
+        __heap_end = .;
+    }
+
     /DISCARD/ : {
         *(.comment)
         *(.note*)
