@@ -39,3 +39,37 @@ nova_task_start_trampoline:
     wfe
     b       1b
 .size nova_task_start_trampoline, . - nova_task_start_trampoline
+
+/*
+ * Restore a complete IRQ frame selected by the scheduler.
+ * x0 points at the 272-byte frame on the selected task's kernel stack.
+ * The frame carries the interrupted ELR/SPSR; ERET restores the task's
+ * original PSTATE and execution point. This routine does not return.
+ */
+.global nova_arch_irq_resume
+.type nova_arch_irq_resume, %function
+nova_arch_irq_resume:
+    mov     sp, x0
+    ldr     x16, [sp, #256]
+    msr     SPSR_EL1, x16
+    ldr     x16, [sp, #248]
+    msr     ELR_EL1, x16
+    ldp x2, x3, [sp, #16]
+    ldp x4, x5, [sp, #32]
+    ldp x6, x7, [sp, #48]
+    ldp x8, x9, [sp, #64]
+    ldp x10, x11, [sp, #80]
+    ldp x12, x13, [sp, #96]
+    ldp x14, x15, [sp, #112]
+    ldp x16, x17, [sp, #128]
+    ldp x18, x19, [sp, #144]
+    ldp x20, x21, [sp, #160]
+    ldp x22, x23, [sp, #176]
+    ldp x24, x25, [sp, #192]
+    ldp x26, x27, [sp, #208]
+    ldp x28, x29, [sp, #224]
+    ldr x30, [sp, #240]
+    ldp x0, x1, [sp, #0]
+    add     sp, sp, #272
+    eret
+.size nova_arch_irq_resume, . - nova_arch_irq_resume
