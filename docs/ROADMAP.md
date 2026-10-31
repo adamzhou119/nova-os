@@ -41,7 +41,7 @@ Implemented and runtime-verified on QEMU virt:
 - [x] Parse FDT RAM and reserved ranges and build a firmware-backed physical page allocator.
 - [x] Add a bounded kernel virtual-page allocator, 4 KiB map/unmap, permission checks, alias W^X tracking, and frame pinning.
 - [x] Add EL1 generic timer and QEMU virt GICv2 timer-PPI handling.
-- [x] Add task lifecycle management, one-page kernel stacks, and deferred ZOMBIE reclamation on the scheduler stack.
+- [x] Add task lifecycle management, guarded one-page kernel stacks, and deferred ZOMBIE reclamation on the scheduler stack.
 - [x] Add cooperative task switching and timer-driven IRQ preemption with distinct FIRST_RUN, COOPERATIVE, IRQ, and ACTIVE resume paths.
 - [x] Validate mixed cooperative/IRQ scheduling and repeated timer preemption between two CPU-bound tasks that never call Yield or Block.
 - [x] Add host-side allocator, task, scheduler, and IRQ-dispatcher tests.
