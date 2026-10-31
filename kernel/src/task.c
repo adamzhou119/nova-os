@@ -1,5 +1,7 @@
 #include "task.h"
 
+#include "context.h"
+
 #include <stddef.h>
 
 #include "vm.h"
@@ -36,6 +38,16 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
+    if (!nova_arch_context_init(&tasks[i].context,
+                                tasks[i].kernel_stack_top,
+                                (uintptr_t)nova_task_start_trampoline,
+                                (uintptr_t)entry, (uintptr_t)argument)) {
+        (void)nova_vmap_free_page(stack);
+        tasks[i].id = 0;
+        tasks[i].state = NOVA_TASK_UNUSED;
+        return 0;
+    }
+    tasks[i].context.x19_x30[2] = (uintptr_t)&tasks[i];
     *task_id = id;
     return 1;
 }
@@ -71,6 +83,16 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     return 1;
 }
 
+struct nova_cpu_context *nova_task_context(uint32_t task_id) {
+    struct nova_task_info *task = find_task(task_id);
+    return task == 0 ? 0 : &task->context;
+}
+
+void nova_task_mark_zombie(struct nova_task_info *task) {
+    if (task != 0 && task->state == NOVA_TASK_RUNNING)
+        task->state = NOVA_TASK_ZOMBIE;
+}
+
 int nova_task_set_exit_code(uint32_t task_id, int exit_code) {
     struct nova_task_info *task = find_task(task_id);
     if (task == 0 || task->state != NOVA_TASK_RUNNING) return 0;
@@ -92,5 +114,10 @@ int nova_task_destroy(uint32_t task_id) {
     task->kernel_stack_base = 0;
     task->kernel_stack_top = 0;
     task->exit_code = 0;
+    {
+        size_t i;
+        for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0;
+        task->context.sp = 0;
+    }
     return 1;
 }
