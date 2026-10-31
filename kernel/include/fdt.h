@@ -11,7 +11,7 @@ struct nova_memory_region {
     uint64_t size;
 };
 
-/* Returns the number of memory regions, or -1 for an invalid/unsupported DTB. */
+/* Returns the number of memory regions, or a negative error code. */
 int nova_fdt_memory_regions(uintptr_t dtb_address,
                             struct nova_memory_region *regions,
                             size_t capacity);
