@@ -27,6 +27,13 @@ int nova_timer_arm_irq(uint64_t delta) {
     return 1;
 }
 void nova_sched_timer_tick(void) { ++scheduler_tick_count; }
+int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
+                           struct nova_irq_frame **next_frame) {
+    (void)frame;
+    (void)next_id;
+    (void)next_frame;
+    return 0;
+}
 
 int main(void) {
     struct nova_irq_frame frame = {0};
