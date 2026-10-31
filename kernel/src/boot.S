@@ -7,23 +7,39 @@
 .type _start, %function
 
 _start:
+    /* Establish a private stack for the primary CPU. */
     ldr     x0, =_stack_top
     mov     sp, x0
 
-    /* Park secondary CPUs until SMP support is implemented. */
+    /*
+     * Clear .bss before entering C. The stack is inside .bss, but no stack
+     * memory is used between setting SP and completing this loop.
+     */
+    ldr     x1, =__bss_start
+    ldr     x2, =__bss_end
+1:
+    cmp     x1, x2
+    b.hs    2f
+    str     xzr, [x1], #8
+    b       1b
+2:
+    dsb     sy
+    isb
+
+    /* Park secondary CPUs until per-CPU stacks and SMP support exist. */
     mrs     x0, mpidr_el1
     and     x0, x0, #0xff
-    cbz     x0, 1f
-0:
+    cbz     x0, 3f
+4:
     wfe
-    b       0b
+    b       4b
 
-1:
+3:
     bl      kernel_main
 
-2:
+5:
     wfe
-    b       2b
+    b       5b
 
 .size _start, . - _start
 
