@@ -15,6 +15,7 @@ static uint32_t peer_task;
 static int irq_resume_mock;
 static uint32_t user_task;
 static uint32_t user_space_id;
+static uint32_t peer_space_id;
 static int user_space_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
@@ -65,6 +66,22 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         unsigned int i;
         assert(nova_sched_execution_phase() == NOVA_SCHED_TASK);
         observed_task = nova_sched_current();
+        assert(nova_task_get(observed_task, &current_info));
+        if (current_info.address_space_id == user_space_id) {
+            struct nova_address_space_info active_space;
+            assert(nova_address_space_get(user_space_id, &active_space));
+            assert(mock_ttbr_root == active_space.root_physical);
+            assert(mock_ttbr_asid == active_space.asid);
+            assert(active_space.active_cpus == 1U);
+        } else if (current_info.address_space_id == peer_space_id) {
+            struct nova_address_space_info active_space;
+            assert(nova_address_space_get(peer_space_id, &active_space));
+            assert(mock_ttbr_root == active_space.root_physical);
+            assert(mock_ttbr_asid == active_space.asid);
+            assert(active_space.active_cpus == 1U);
+        } else {
+            assert(0 && "unexpected task address space");
+        }
         assert(observed_task != 0U);
         assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
         if (observed_task == user_task) {
@@ -93,6 +110,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
                                           (struct nova_irq_frame *)(current_info.kernel_stack_top -
                                               sizeof(struct nova_irq_frame)),
                                           &selected_id, &selected_frame));
+            assert(mock_ttbr_root == 0x3000U && mock_ttbr_asid == 8U);
             assert(selected_id == peer_task);
             assert(selected_frame == peer_info.irq_frame);
             assert(nova_sched_current() == peer_task);
@@ -111,6 +129,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
                                           (struct nova_irq_frame *)(peer_info.kernel_stack_top -
                                               sizeof(struct nova_irq_frame)),
                                           &selected_id, &selected_frame));
+            assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
             assert(selected_id == observed_task);
             assert(selected_frame == current_info.irq_frame);
             assert(nova_sched_current() == observed_task);
@@ -155,6 +174,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
                 (struct nova_irq_frame *)(current_info.kernel_stack_top -
                     sizeof(struct nova_irq_frame)),
                 &selected_id, &selected_frame));
+            assert(mock_ttbr_root == 0x3000U && mock_ttbr_asid == 8U);
             assert(selected_id == peer_task);
             assert(nova_sched_current() == peer_task);
         }
@@ -207,14 +227,17 @@ int main(void) {
     }
 
     assert(nova_address_space_create(0x2000U, 7U, &user_space_id));
+    assert(nova_address_space_create(0x3000U, 8U, &peer_space_id));
     assert(nova_task_create(dummy_entry, 0, &task_id));
     assert(nova_task_create(dummy_entry, 0, &peer_task));
     assert(nova_task_set_address_space(task_id, user_space_id));
-    assert(nova_task_set_address_space(peer_task, user_space_id));
+    assert(nova_task_set_address_space(peer_task, peer_space_id));
     assert(nova_sched_start());
     assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
     assert(nova_address_space_get(user_space_id, &space));
-    assert(space.references == 3U && space.active_cpus == 0U);
+    assert(space.references == 2U && space.active_cpus == 0U);
+    assert(nova_address_space_get(peer_space_id, &space));
+    assert(space.references == 2U && space.active_cpus == 0U);
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
     assert(observed_task == task_id);
@@ -230,7 +253,9 @@ int main(void) {
     assert(nova_sched_start());
     assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
     assert(nova_address_space_get(user_space_id, &space));
-    assert(space.references == 4U && space.active_cpus == 0U);
+    assert(space.references == 3U && space.active_cpus == 0U);
+    assert(nova_address_space_get(peer_space_id, &space));
+    assert(space.references == 2U && space.active_cpus == 0U);
     assert(nova_task_get(user_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
     assert(nova_task_transition(user_task, NOVA_TASK_READY));
@@ -250,7 +275,10 @@ int main(void) {
     assert(nova_task_destroy(peer_task));
     assert(nova_address_space_get(user_space_id, &space));
     assert(space.references == 1U && space.active_cpus == 0U);
+    assert(nova_address_space_get(peer_space_id, &space));
+    assert(space.references == 1U && space.active_cpus == 0U);
     assert(nova_address_space_release(user_space_id));
+    assert(nova_address_space_release(peer_space_id));
     puts("Scheduler phase, shared-address-space IRQ handoff, and cooperative tests passed.");
     return 0;
 }
