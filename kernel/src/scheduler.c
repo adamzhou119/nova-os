@@ -108,11 +108,19 @@ int nova_sched_start(void) {
 
         execution_phase = NOVA_SCHED_SCHEDULER;
         {
-            struct nova_task_info finished;
-            if (nova_task_get(next, &finished) &&
-                finished.state == NOVA_TASK_ZOMBIE) {
+            /*
+             * An IRQ handoff may have resumed a different task before that
+             * task yielded/exited to this shared scheduler continuation.
+             * Reap the task that actually returned, not the stale 'next'
+             * value from the original dispatch.
+             */
+            uint32_t returned_id = current_task_id;
+            struct nova_task_info returned_task;
+            if (returned_id != 0U &&
+                nova_task_get(returned_id, &returned_task) &&
+                returned_task.state == NOVA_TASK_ZOMBIE) {
                 /* Reap only after execution has returned to the scheduler stack. */
-                (void)nova_task_destroy(next);
+                (void)nova_task_destroy(returned_id);
             }
         }
         current_task_id = 0U;
