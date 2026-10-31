@@ -56,7 +56,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
         tasks[i].irq_frame->reserved = 0U;
     }
     if (!nova_arch_context_init(&tasks[i].context,
-                                tasks[i].kernel_stack_top,
+                                (uintptr_t)tasks[i].irq_frame,
                                 (uintptr_t)nova_task_start_trampoline,
                                 (uintptr_t)entry, (uintptr_t)argument)) {
         (void)nova_vmap_free_page(stack);
