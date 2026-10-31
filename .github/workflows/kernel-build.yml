@@ -37,6 +37,7 @@ jobs:
           file kernel/build/nova-fault-test.elf
           file kernel/build/nova-stack-fault-test.elf
           file kernel/build/nova-el2-test.elf
+          file kernel/build/nova-el2-vector-test.elf
           file kernel/build/el3-test-boot.elf
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
@@ -145,6 +146,26 @@ jobs:
           grep -q "CurrentEL: EL1" el2-boot.log
           grep -q "EL2-to-EL1 transition passed." el2-boot.log
           echo "Nova OS EL2-to-EL1 boot transition passed."
+
+      - name: QEMU EL2 exception vector test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-vector-test.elf > el2-vector.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat el2-vector.log
+          grep -q "EXCEPTION: EL2 vector captured." el2-vector.log
+          grep -q "Exception kind: Synchronous" el2-vector.log
+          grep -q "Vector: Current EL SPx synchronous" el2-vector.log
+          grep -Eq "ESR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          grep -Eq "ELR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          grep -Eq "SPSR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          echo "Nova OS EL2 exception vector diagnostics passed."
 
       - name: QEMU task stack guard fault test
         shell: bash
