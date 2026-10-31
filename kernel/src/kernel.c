@@ -528,6 +528,72 @@ static int test_cooperative_scheduler(void) {
     return 1;
 }
 
+static volatile uint64_t cpu_bound_start_tick;
+static volatile uint64_t cpu_bound_progress_a;
+static volatile uint64_t cpu_bound_progress_b;
+static volatile uint32_t cpu_bound_b_started;
+static volatile uint32_t cpu_bound_a_resumed;
+static volatile uint32_t cpu_bound_b_resumed;
+
+static void cpu_bound_task_a(void *argument) {
+    uint64_t deadline = cpu_bound_start_tick + 20U;
+    (void)argument;
+    if (!nova_timer_start_irq(nova_timer_frequency() / 100U)) return;
+    while (nova_irq_tick_count() < deadline) {
+        ++cpu_bound_progress_a;
+        if (cpu_bound_b_started) cpu_bound_a_resumed = 1U;
+        __asm__ volatile("nop");
+    }
+}
+
+static void cpu_bound_task_b(void *argument) {
+    uint64_t deadline = cpu_bound_start_tick + 20U;
+    (void)argument;
+    cpu_bound_b_started = 1U;
+    while (nova_irq_tick_count() < deadline) {
+        ++cpu_bound_progress_b;
+        if (cpu_bound_a_resumed) cpu_bound_b_resumed = 1U;
+        __asm__ volatile("nop");
+    }
+    nova_timer_stop();
+}
+
+static int test_irq_preemptive_scheduler(void) {
+    uint32_t first, second;
+    struct nova_task_info info;
+
+    cpu_bound_start_tick = nova_irq_tick_count();
+    cpu_bound_progress_a = 0U;
+    cpu_bound_progress_b = 0U;
+    cpu_bound_b_started = 0U;
+    cpu_bound_a_resumed = 0U;
+    cpu_bound_b_resumed = 0U;
+
+    if (!nova_task_create(cpu_bound_task_a, 0, &first) ||
+        !nova_task_create(cpu_bound_task_b, 0, &second))
+        return 0;
+    if (!nova_sched_start()) {
+        nova_timer_stop();
+        return 0;
+    }
+
+    /*
+     * Neither entry calls Yield or Block. B can start only after A's first
+     * timer preemption; A's post-B progress proves A was resumed; B's
+     * post-A progress proves a second timer handoff resumed B.
+     */
+    if (cpu_bound_progress_a == 0U || cpu_bound_progress_b == 0U ||
+        !cpu_bound_b_started || !cpu_bound_a_resumed ||
+        !cpu_bound_b_resumed ||
+        nova_irq_tick_count() - cpu_bound_start_tick < 20U ||
+        nova_sched_current() != 0U ||
+        nova_task_get(first, &info) || nova_task_get(second, &info)) {
+        nova_timer_stop();
+        return 0;
+    }
+    return 1;
+}
+
 static int test_generic_timer(void) {
     uint64_t first, second, frequency, delay;
     uint32_t guard = 0U;
@@ -718,6 +784,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("Kernel cooperative scheduler tests passed.\n");
         } else {
             uart_write("ERROR: kernel cooperative scheduler test failed.\n");
+        }
+        if (test_irq_preemptive_scheduler()) {
+            uart_write("Kernel CPU-bound IRQ preemption tests passed.\n");
+        } else {
+            uart_write("ERROR: kernel CPU-bound IRQ preemption test failed.\n");
         }
         if (test_arch_context_switch()) {
             uart_write("AArch64 cooperative context switch test passed.\n");
