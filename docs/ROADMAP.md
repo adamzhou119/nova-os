@@ -22,18 +22,30 @@ Status: in progress.
 - [x] Verify PL011 UART output in QEMU.
 - [x] Add ELF header and linker-symbol inspection to CI.
 - [x] Add a runtime probe for zero-initialized `.bss`.
+- [x] Report the current exception level over UART.
 - [ ] Pin and document a supported QEMU/toolchain version set.
-- [ ] Capture a passing CI run for the latest secondary-CPU-safe startup sequence.
+- [ ] Validate the boot contract against a second virtual platform or a documented physical development board.
 
 Exit criteria: repeatable QEMU boot with captured evidence and no reliance on undocumented local state. The current prototype remains QEMU-specific.
 
 ## Milestone 2 — Kernel foundations
 
-- Define a platform memory map and physical memory allocator.
-- Add exception vectors and basic fault diagnostics.
-- Establish timer and interrupt handling.
-- Introduce a minimal scheduler only after interrupt and timer foundations are tested.
-- Add host-side tests for portable components where practical.
+Status: in progress.
+
+Implemented and QEMU-tested:
+- [x] Add a 2 KiB-aligned EL1 exception vector table.
+- [x] Install the EL1 vector table when the boot path reports EL1.
+- [x] Capture `ESR_EL1` and `ELR_EL1` in a terminal diagnostic handler.
+- [x] Build a separate controlled-`SVC` test image and verify the synchronous exception path in CI.
+
+Remaining:
+- [ ] Distinguish synchronous exceptions, IRQ, FIQ, and SError with typed handlers.
+- [ ] Capture a complete exception register frame and document its layout.
+- [ ] Define an explicit EL2 boot/transition policy and EL2 vector handling.
+- [ ] Define a platform memory map and physical memory allocator.
+- [ ] Establish timer and interrupt-controller handling.
+- [ ] Introduce a minimal scheduler only after interrupt and timer foundations are tested.
+- [ ] Add host-side tests for portable components where practical.
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform.
 
