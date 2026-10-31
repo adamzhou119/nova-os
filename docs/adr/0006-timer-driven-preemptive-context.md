@@ -76,3 +76,17 @@ Calling the existing `nova_arch_context_switch()` directly from the C IRQ dispat
 - Run the complete existing host suite, ELF inspection, QEMU boot smoke test, controlled exception test, and MMU fault test in CI.
 
 Preemption must remain disabled until all required QEMU and CI checks pass.
+
+## Scheduler continuation invariant
+
+The initial scheduler implementation has one saved cooperative scheduler context. An IRQ-selected task may later call yield, block, or exit and return through that same saved scheduler continuation. Therefore the continuation must not assume that the task which originally entered it is the task that most recently returned.
+
+Before IRQ frame switching can be integrated, the scheduler dispatch loop must:
+
+- Treat the scheduler continuation as a shared dispatch point, and identify the returning task from the authoritative current-task ID rather than a task ID kept in a suspended C local.
+- Reap only the task that actually returned to the scheduler and only after execution is on the scheduler stack.
+- Select the next READY task by resume kind: FIRST_RUN and IRQ tasks must enter through the exception-frame restore path; COOPERATIVE tasks must enter through the AAPCS64 context-switch path.
+- Preserve a single, well-defined scheduler-stack continuation when tasks alternate between IRQ-frame entry and cooperative yield/exit.
+- Keep the current-task ID, task states, and selected frame ownership consistent before an exception return or cooperative context switch.
+
+A unit test must model a task entered from an IRQ frame yielding back to the shared scheduler continuation, followed by resumption of the previously interrupted task. The QEMU CPU-bound-task test remains the acceptance test. This section is a design constraint, not evidence that the integration is implemented.
