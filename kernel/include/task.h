@@ -25,7 +25,9 @@ enum nova_task_state {
 enum nova_task_resume_kind {
     NOVA_TASK_RESUME_FIRST_RUN = 0,
     NOVA_TASK_RESUME_COOPERATIVE,
-    NOVA_TASK_RESUME_IRQ
+    NOVA_TASK_RESUME_IRQ,
+    /* The task is executing; any prior exception frame has been consumed. */
+    NOVA_TASK_RESUME_ACTIVE
 };
 
 struct nova_task_info {
