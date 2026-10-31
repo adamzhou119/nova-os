@@ -1,6 +1,6 @@
 /*
  * EL3 test firmware: enter non-secure EL2h and transfer control to the
- * kernel ELF at 0x40080000. The kernel is expected to drop to EL1h.
+ * kernel ELF at 0x40200000. The kernel is expected to drop to EL1h.
  */
 .section .text.boot, "ax"
 .global _el3_test_start
@@ -16,7 +16,7 @@ _el3_test_start:
     msr     SPSR_EL3, x1
     ldr     x1, =0x40080000
     msr     ELR_EL3, x1
-    ldr     x0, =0x41000000
+    ldr     x0, =0x40000000
     isb
     eret
 .size _el3_test_start, . - _el3_test_start
