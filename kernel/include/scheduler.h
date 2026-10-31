@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include "interrupt.h"
 
-/* Single-core scheduler: cooperative switches plus timer-driven IRQ frame handoff. */
+/* Single-core scheduler: cooperative switches plus timer-driven IRQ frame handoff.
+ * Tasks with private address spaces switch TTBR0 cooperatively; cross-space
+ * IRQ preemption is deferred until frame/TTBR handoff is atomic. */
 enum nova_sched_phase {
     NOVA_SCHED_INACTIVE = 0,
     NOVA_SCHED_SCHEDULER,
