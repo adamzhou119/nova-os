@@ -689,6 +689,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write("AArch64 kernel prototype is running.\n");
     uart_write_current_el(current_el);
 
+#ifdef NOVA_TEST_EL2_BOOT
+    if (current_el == 1U) {
+        uart_write("EL2-to-EL1 transition passed.\n");
+    } else {
+        uart_write("ERROR: EL2 boot did not enter EL1.\n");
+    }
+    for (;;) __asm__ volatile("wfe");
+#endif
+
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
                                              NOVA_FDT_MAX_MEMORY_REGIONS);
     if (memory_regions > 0) {
