@@ -212,7 +212,7 @@ static uint64_t *lookup_ram_page_descriptor(uintptr_t address) {
     size_t l2_index;
     size_t l3_index;
     if (address < NOVA_MMU_RAM_BASE ||
-        address >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE) return NULL;
+        address >= NOVA_MMU_DYNAMIC_VA_END) return NULL;
     offset = address - NOVA_MMU_RAM_BASE;
     l2_index = (size_t)(offset / NOVA_MMU_BLOCK_2M);
     l3_index = (size_t)((offset % NOVA_MMU_BLOCK_2M) / NOVA_MMU_PAGE_SIZE);
@@ -285,6 +285,23 @@ int nova_mmu_unmap_page(uintptr_t virtual_address) {
     slot = &level3_ram_tables[l2_index][l3_index];
     if ((*slot & DESC_VALID) == 0) return 0;
     *slot = 0;
+    invalidate_stage1_page(virtual_address);
+    return 1;
+}
+
+int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
+    size_t l2_index, l3_index;
+    uint64_t *slot;
+    uint64_t descriptor;
+    if ((flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0 ||
+        !dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
+    slot = &level3_ram_tables[l2_index][l3_index];
+    if ((*slot & DESC_VALID) == 0) return 0;
+    descriptor = *slot & ~(DESC_AP_MASK | DESC_PXN | DESC_UXN);
+    if ((flags & NOVA_MMU_MAP_WRITABLE) == 0) descriptor |= DESC_AP_RO;
+    if ((flags & NOVA_MMU_MAP_EXECUTABLE) == 0) descriptor |= DESC_PXN;
+    descriptor |= DESC_UXN;
+    *slot = descriptor;
     invalidate_stage1_page(virtual_address);
     return 1;
 }
