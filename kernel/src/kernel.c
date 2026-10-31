@@ -258,7 +258,7 @@ static int test_dynamic_virtual_pages(void) {
     physical_word = (volatile uint64_t *)physical_address;
     *physical_word = initial_value;
 
-    /* Reject malformed mappings and enforce write-xor-execute (W^X). */
+    /* Reject malformed mappings and enforce per-mapping write-xor-execute. */
     if (nova_mmu_map_page(alias + 1U, physical_address, 0U) ||
         nova_mmu_map_page(alias, physical_address + 1U, 0U) ||
         nova_mmu_map_page(alias, 0x48000000U, NOVA_MMU_MAP_WRITABLE) ||
