@@ -42,7 +42,8 @@ nova_task_start_trampoline:
 
 /*
  * Restore a complete IRQ frame selected by the scheduler.
- * x0 points at the 272-byte frame on the selected task's kernel stack.
+ * x0 points at the 272-byte frame on the selected task's kernel stack;
+ * SP_EL0 is restored as part of the task's user execution state.
  * The frame carries the interrupted ELR/SPSR; ERET restores the task's
  * original PSTATE and execution point. This routine does not return.
  */
@@ -54,6 +55,8 @@ nova_arch_irq_resume:
     msr     SPSR_EL1, x16
     ldr     x16, [sp, #248]
     msr     ELR_EL1, x16
+    ldr     x16, [sp, #264]
+    msr     SP_EL0, x16
     ldp x2, x3, [sp, #16]
     ldp x4, x5, [sp, #32]
     ldp x6, x7, [sp, #48]
