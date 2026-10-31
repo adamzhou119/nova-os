@@ -61,7 +61,9 @@ Remaining:
       active-use protection, and task ownership/lifetime tests.
 - [x] Implement private address-space page-table roots and ASID-aware TTBR0_EL1 switching; QEMU verifies shared privileged mappings and separate roots.
 - [x] Implement per-address-space 4 KiB EL0 page map/unmap, user read/write permission translation checks, ASID-scoped TLB invalidation, and page-table/frame pinning.
-- [ ] Expand negative permission/W^X alias tests and integrate address-space ownership into scheduler dispatch and IRQ handoff.
+- [x] Verify EL0 read-only enforcement and reject writable/executable aliases across address spaces in QEMU.
+- [x] Switch TTBR0 and maintain address-space active references during cooperative task dispatch/return.
+- [ ] Add atomic cross-address-space IRQ-frame/TTBR handoff; until then, timer preemption is deliberately deferred for non-kernel address-space tasks.
 - [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
