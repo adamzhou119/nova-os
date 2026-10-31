@@ -280,7 +280,7 @@ static int test_dynamic_virtual_pages(void) {
         return 0;
     }
 
-    /* Change the same mapping to writable/executable, then disable execution. */
+    /* Enable read-only execution, then switch to writable and execute-never. */
     if (!nova_mmu_protect_page(alias, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_verify_write_protected(alias) ||
         !nova_mmu_verify_executable(alias) ||
