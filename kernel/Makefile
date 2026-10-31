@@ -8,22 +8,36 @@ ASFLAGS := $(TARGET) -ffreestanding -fno-pic
 LDFLAGS := -m aarch64elf -T linker.ld -nostdlib
 
 BUILD := build
-OBJECTS := $(BUILD)/boot.o $(BUILD)/kernel.o
+BOOT_OBJECT := $(BUILD)/boot.o
+EXCEPTION_OBJECT := $(BUILD)/exceptions.o
+KERNEL_OBJECT := $(BUILD)/kernel.o
+TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 
-.PHONY: all clean
+.PHONY: all test clean
 all: $(BUILD)/nova.elf
+
+test: $(BUILD)/nova-test.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/boot.o: src/boot.S | $(BUILD)
+$(BOOT_OBJECT): src/boot.S | $(BUILD)
 	$(CLANG) $(ASFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: src/kernel.c | $(BUILD)
+$(EXCEPTION_OBJECT): src/exceptions.S | $(BUILD)
+	$(CLANG) $(ASFLAGS) -c $< -o $@
+
+$(KERNEL_OBJECT): src/kernel.c | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/nova.elf: $(OBJECTS) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(OBJECTS) -o $@
+$(TEST_KERNEL_OBJECT): src/kernel.c | $(BUILD)
+	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
+
+$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) -o $@
+
+$(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) -o $@
 
 clean:
 	rm -rf $(BUILD)
