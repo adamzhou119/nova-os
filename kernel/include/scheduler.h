@@ -2,6 +2,7 @@
 #define NOVA_SCHEDULER_H
 
 #include <stdint.h>
+#include "interrupt.h"
 
 /* Single-core cooperative scheduler. Timer preemption remains disabled. */
 enum nova_sched_phase {
@@ -18,6 +19,9 @@ enum nova_sched_phase nova_sched_execution_phase(void);
 /* Timer-driven quantum accounting; a pending request is not yet a context switch. */
 void nova_sched_timer_tick(void);
 int nova_sched_preemption_pending(void);
+/* IRQ-masked frame handoff; updates scheduler ownership with task selection. */
+int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
+                           struct nova_irq_frame **next_frame);
 void nova_sched_clear_preemption(void);
 /* Called only by the first-run trampoline after marking the task ZOMBIE. */
 void nova_sched_task_exit(void);
