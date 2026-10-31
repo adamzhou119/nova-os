@@ -66,7 +66,7 @@ Remaining:
 - [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path.
 - [x] Implement atomic cross-address-space IRQ-frame/TTBR handoff with destination activation, TTBR0 switch, active-reference transfer, and rollback; host scheduler tests cover the handoff.
 - [x] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU virt; the serial test confirms both tasks make progress across repeated TTBR0 handoffs.
-- [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
+- [ ] Implement an EL0 exception frame, SVC boundary, and fault containment (design contract proposed in ADR 0011; frame layout header and host test added, runtime entry not yet implemented).
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
