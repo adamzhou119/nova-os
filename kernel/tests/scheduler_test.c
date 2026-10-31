@@ -194,6 +194,7 @@ static void dummy_entry(void *argument) { (void)argument; }
 int main(void) {
     uint32_t task_id;
     struct nova_task_info info;
+    struct nova_address_space_info space;
 
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
@@ -226,7 +227,8 @@ int main(void) {
            info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
     assert(nova_task_get(user_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
-    assert(nova_address_space_get(user_space_id, (struct nova_address_space_info *)&info));
+    assert(nova_address_space_get(user_space_id, &space));
+    assert(space.references == 2U && space.active_cpus == 0U);
     assert(nova_task_transition(user_task, NOVA_TASK_READY));
     assert(nova_task_transition(user_task, NOVA_TASK_RUNNING));
     assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
