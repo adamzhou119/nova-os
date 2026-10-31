@@ -290,8 +290,10 @@ static int test_dynamic_virtual_pages(void) {
      */
     if (!nova_mmu_map_page(second_alias, physical_address,
                            NOVA_MMU_MAP_EXECUTABLE) ||
+        nova_page_pin_count(physical_page) != 2U ||
         nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
         !nova_mmu_unmap_page(second_alias) ||
+        nova_page_pin_count(physical_page) != 1U ||
         !nova_mmu_protect_page(alias, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_verify_write_protected(alias) ||
         !nova_mmu_verify_executable(alias) ||
