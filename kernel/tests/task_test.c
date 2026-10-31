@@ -106,6 +106,7 @@ int main(void) {
         assert(nova_task_next_cooperative_ready(0U, &selected) && selected == second);
         assert(nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
         assert(nova_task_next_cooperative_ready(0U, &selected) && selected == first);
+        assert(!nova_task_destroy(first));
     }
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(!nova_task_destroy(first));
