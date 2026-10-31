@@ -2,7 +2,7 @@
 
 ## Target
 
-The current prototype targets QEMU's AArch64 `virt` machine. It is an experimental bare-metal scaffold, not a phone image.
+The current prototype targets QEMU's AArch64 `virt` machine. It is an experimental bare-metal scaffold, not a phone image. See [the early boot contract](BOOT_PROTOCOL.md) for the current startup assumptions and limitations.
 
 ## Toolchain
 
@@ -33,10 +33,11 @@ Inspect it:
 
 ```sh
 file kernel/build/nova.elf
-llvm-readelf -h kernel/build/nova.elf
+readelf -h kernel/build/nova.elf
+readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|_start'
 ```
 
-The ELF machine should be AArch64. The entry point and load address must be consistent with the QEMU boot path.
+The ELF machine should be AArch64. The entry point and load address must be consistent with the QEMU boot path. The linker exports the `.bss` bounds used by the assembly startup routine.
 
 ## QEMU smoke test
 
@@ -53,9 +54,10 @@ The guest is expected to print:
 ```text
 Welcome to Nova OS
 AArch64 kernel prototype is running.
+BSS zero initialization verified.
 ```
 
-QEMU is expected to remain running because the prototype parks in a wait loop. A timeout exit is therefore normal after output is observed. A timeout alone is not proof of successful boot; verify the serial text.
+QEMU is expected to remain running because the prototype parks in a wait loop. A timeout exit is therefore normal after output is observed. A timeout alone is not proof of successful boot; verify the serial text, including the BSS probe result.
 
 ## Troubleshooting
 
