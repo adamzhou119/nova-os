@@ -368,6 +368,7 @@ static int test_virtual_page_allocator(void) {
     void *second = nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE);
     void *reused;
     uintptr_t physical_address;
+    uintptr_t first_physical_address;
 
     if (first == NULL || second == NULL || first == second) {
         if (first != NULL) (void)nova_vmap_free_page(first);
@@ -385,8 +386,18 @@ static int test_virtual_page_allocator(void) {
         (void)nova_vmap_free_page(second);
         return 0;
     }
+    first_physical_address = physical_address;
+    if (nova_page_pin_count((const void *)first_physical_address) != 1U ||
+        nova_page_free((void *)first_physical_address)) {
+        (void)nova_vmap_free_page(first);
+        (void)nova_vmap_free_page(second);
+        return 0;
+    }
 
-    if (!nova_vmap_free_page(first) || nova_vmap_free_page(first) ||
+    if (!nova_vmap_free_page(first) ||
+        nova_page_pin_count((const void *)first_physical_address) != 0U ||
+        nova_page_is_allocated((const void *)first_physical_address) ||
+        nova_vmap_free_page(first) ||
         nova_vmap_free_page((void *)((uintptr_t)second + 1U))) {
         (void)nova_vmap_free_page(second);
         return 0;
