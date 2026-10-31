@@ -35,6 +35,7 @@ jobs:
           file kernel/build/nova.elf
           file kernel/build/nova-test.elf
           file kernel/build/nova-fault-test.elf
+          file kernel/build/nova-stack-fault-test.elf
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
 
@@ -108,3 +109,18 @@ jobs:
           grep -q "ESR exception class: 0x0000000000000025" mmu-fault.log
           grep -q "FAR_EL1: 0x0000000000001000" mmu-fault.log
           echo "Nova OS unmapped-address data-abort handling passed."
+
+      - name: QEMU task stack guard fault test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-stack-fault-test.elf > stack-guard-fault.log 2>&1
+          status=$?
+          set -e
+          cat stack-guard-fault.log
+          grep -q "Triggering controlled task stack guard fault test." stack-guard-fault.log
+          grep -q "EXCEPTION: EL1 vector captured." stack-guard-fault.log
+          grep -q "Vector: Current EL SPx synchronous" stack-guard-fault.log
+          grep -q "ESR exception class: 0x0000000000000025" stack-guard-fault.log
+          grep -q "FAR_EL1: 0x0000000048000000" stack-guard-fault.log
+          echo "Nova OS unmapped task stack guard fault test passed."
