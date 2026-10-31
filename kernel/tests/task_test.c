@@ -27,7 +27,7 @@ int main(void) {
     struct nova_task_info info;
     struct nova_cpu_context context;
     int argument = 42;
-    assert(!nova_arch_context_init(&context, 0x1000U, 0x2000U, 1U, 2U));
+    assert(!nova_arch_context_init(&context, 0U, 0x2000U, 1U, 2U));
     assert(!nova_arch_context_init(&context, 0x1001U, 0x2000U, 1U, 2U));
     assert(nova_arch_context_init(&context, 0x3000U, 0x2000U, 1U, 2U));
     assert(context.sp == 0x3000U);
