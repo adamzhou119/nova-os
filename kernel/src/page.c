@@ -61,6 +61,12 @@ int nova_page_init_regions(const struct nova_memory_region *memory,
         }
     }
 
+    /* Validate every reservation even when it lies outside discovered RAM. */
+    for (q = 0; q < reserved_count; ++q) {
+        if (reserved[q].size != 0 &&
+            reserved[q].start > UINT64_MAX - reserved[q].size) return 0;
+    }
+
     for (r = 0; r < memory_count; ++r) {
         uint64_t raw_start = memory[r].start;
         uint64_t raw_end = raw_start + memory[r].size;
