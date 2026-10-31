@@ -15,6 +15,7 @@ static volatile uint32_t current_quantum_ticks;
 static volatile int preemption_pending;
 
 static uint32_t active_address_space_id;
+static void scheduler_wait_forever(void);
 __attribute__((weak)) uintptr_t nova_mmu_kernel_root(void) { return 0U; }
 __attribute__((weak)) int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
     (void)root; (void)asid; return 1;
@@ -351,7 +352,7 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
             struct nova_address_space_info old_space;
             if (!nova_address_space_get(current_info.address_space_id,
                                         &old_space))
-                for (;;) __asm__ volatile("wfe");
+                scheduler_wait_forever();
             old_root = old_space.root_physical;
             old_asid = old_space.asid;
         }
