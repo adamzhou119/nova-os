@@ -9,13 +9,17 @@ AArch64 `virt` machine.
 - Explicit `.bss` zero initialization before entering C.
 - Runtime reporting of the current exception level.
 - EL1 exception vector table installation.
-- Architectural EL1 vector-slot identification and terminal diagnostics for `ESR_EL1` and `ELR_EL1`.
+- Architectural EL1 vector-slot identification.
+- Terminal exception diagnostics for `ESR_EL1`, decoded exception class and
+  instruction-specific syndrome, `ELR_EL1`, `FAR_EL1`, and `SPSR_EL1`.
 - PL011 UART output.
 - Normal and controlled-exception test ELF images.
 
 This remains a bring-up scaffold, not a complete kernel or a phone operating
-system. The exception handler is terminal: it does not restore context or
-return from an exception. MMU, interrupt controller, scheduler, drivers,
+system. The exception handler is terminal: it does not save the complete
+register context, restore context, or return from an exception. The fault
+address register may not contain a meaningful address for exception classes
+that do not report one. MMU, interrupt controller, scheduler, drivers,
 networking, storage, and application runtime are not implemented.
 
 ## Requirements
@@ -63,8 +67,8 @@ qemu-system-aarch64 \
 ```
 
 The normal image prints the boot banner, detected exception level, and
-`.bss` probe result. The test image additionally prints EL1 exception
-syndrome and return-address diagnostics before halting.
+`.bss` probe result. The test image additionally prints EL1 syndrome,
+fault-address, saved-status, and return-address diagnostics before halting.
 
 Boot behavior is validated in GitHub Actions for the configured QEMU path.
 This does not establish compatibility with a physical phone or arbitrary
