@@ -42,6 +42,10 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             uint32_t selected_id = 0U;
             assert(nova_task_get(observed_task, &current_info));
             assert(nova_task_get(peer_task, &peer_info));
+            /* Reject a malformed IRQ frame without consuming the quantum. */
+            assert(!nova_sched_irq_handoff(0, &selected_id, &selected_frame));
+            assert(nova_sched_preemption_pending());
+            assert(nova_sched_current() == observed_task);
             assert(nova_sched_irq_handoff(current_info.irq_frame,
                                           &selected_id, &selected_frame));
             assert(selected_id == peer_task);
