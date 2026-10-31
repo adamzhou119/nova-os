@@ -48,8 +48,12 @@ jobs:
             echo "Expected serial banner was not observed (QEMU exit: $status)."
             exit 1
           fi
+          if ! grep -Eq "CurrentEL: EL[0-3]" qemu.log; then
+            echo "Current exception level was not reported."
+            exit 1
+          fi
           if ! grep -q "BSS zero initialization verified." qemu.log; then
             echo "BSS initialization probe failed or was not observed."
             exit 1
           fi
-          echo "Nova OS boot and BSS initialization checks passed."
+          echo "Nova OS boot, exception-level, and BSS checks passed."
