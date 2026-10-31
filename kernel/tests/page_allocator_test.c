@@ -47,6 +47,12 @@ int main(void) {
     if (!expect(nova_page_available() == 0U, "available count at exhaustion")) return 1;
     if (!expect(nova_page_is_allocated(pages[0]), "allocated-page query recognizes owned page")) return 1;
     if (!expect(!nova_page_is_allocated((void *)0x2000U), "allocated-page query rejects foreign page")) return 1;
+    if (!expect(nova_page_pin(pages[0]), "allocated page can be pinned")) return 1;
+    if (!expect(nova_page_pin_count(pages[0]) == 1U, "pin count increments")) return 1;
+    if (!expect(!nova_page_free(pages[0]), "pinned page cannot be freed")) return 1;
+    if (!expect(nova_page_unpin(pages[0]), "pinned page can be unpinned")) return 1;
+    if (!expect(nova_page_pin_count(pages[0]) == 0U, "pin count decrements")) return 1;
+    if (!expect(!nova_page_unpin(pages[0]), "unpin without pin must fail")) return 1;
     if (!expect(nova_page_free(pages[0]), "valid allocated page can be freed")) return 1;
     if (!expect(!nova_page_is_allocated(pages[0]), "allocated-page query clears after free")) return 1;
     if (!expect(!nova_page_free(pages[0]), "double free must be rejected")) return 1;
