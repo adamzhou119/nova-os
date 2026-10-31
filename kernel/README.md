@@ -1,37 +1,48 @@
 # AArch64 Kernel Starter
 
-This directory contains an experimental bare-metal starter targeting QEMU's AArch64 `virt` machine.
+This directory contains an experimental bare-metal kernel targeting QEMU's
+AArch64 `virt` machine.
 
 ## Current scope
 
-- AArch64 entry assembly.
-- A small C kernel entry point.
-- PL011 UART text output.
-- A linker script and a minimal Makefile.
+- AArch64 primary-core entry assembly and secondary-core parking.
+- Explicit `.bss` zero initialization before entering C.
+- Runtime reporting of the current exception level.
+- EL1 exception vector table installation.
+- Terminal EL1 exception diagnostics for `ESR_EL1` and `ELR_EL1`.
+- PL011 UART output.
+- Normal and controlled-exception test ELF images.
 
-This is a bring-up scaffold only. It is not a complete kernel and has not yet been runtime-verified in QEMU in this repository.
+This remains a bring-up scaffold, not a complete kernel or a phone operating
+system. The exception handler is terminal: it does not restore context or
+return from an exception. MMU, interrupt controller, scheduler, drivers,
+networking, storage, and application runtime are not implemented.
 
 ## Requirements
 
 - An AArch64 bare-metal-capable Clang toolchain.
 - LLD.
+- GNU Make.
 - QEMU system emulator for AArch64 (`qemu-system-aarch64`).
 
-Tool versions and a reproducible container/CI environment still need to be pinned.
+Tool versions and a reproducible container/CI environment still need to be
+pinned.
 
 ## Build
 
 From this directory:
 
 ```sh
-make
+make clean all test
 ```
 
-The expected output is `build/nova.elf`.
+Expected outputs:
 
-## Run
+- `build/nova.elf`: normal boot image.
+- `build/nova-test.elf`: image that deliberately executes `SVC #0` to test
+  the EL1 synchronous exception path.
 
-A typical QEMU invocation for the current experimental setup is:
+## Run the normal image
 
 ```sh
 qemu-system-aarch64 \
@@ -41,10 +52,20 @@ qemu-system-aarch64 \
   -kernel build/nova.elf
 ```
 
-Boot behavior must be verified against the installed QEMU version. If QEMU reports an unsupported image or the guest does not reach UART output, inspect the ELF entry point, load address, exception level, and boot protocol rather than assuming success.
+## Run the exception test image
 
-## Expected serial message
+```sh
+qemu-system-aarch64 \
+  -machine virt \
+  -cpu cortex-a57 \
+  -nographic \
+  -kernel build/nova-test.elf
+```
 
-`Welcome to Nova OS`
+The normal image prints the boot banner, detected exception level, and
+`.bss` probe result. The test image additionally prints EL1 exception
+syndrome and return-address diagnostics before halting.
 
-This is the intended smoke-test message, not a claim that the runtime test has already passed.
+Boot behavior is validated in GitHub Actions for the configured QEMU path.
+This does not establish compatibility with a physical phone or arbitrary
+boards.
