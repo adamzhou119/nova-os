@@ -36,3 +36,10 @@ qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic -kernel build/nova-
 
 The normal image tests heap and physical page allocation. The test image also
 triggers an EL1 synchronous exception and prints diagnostic registers.
+
+
+### Firmware-backed page map
+
+The kernel now builds a page-address map from FDT RAM regions. It excludes the FDT header memreserve entries, /reserved-memory child ranges, the complete linker-defined kernel reservation (including the bootstrap heap and legacy test pool), and the live DTB blob itself. The QEMU smoke test allocates and frees pages from this map and checks that returned pages do not overlap any reservation.
+
+This is an early single-core physical page allocator prototype: it uses a bounded static address index and bitmap, has no SMP locking, MMU mapping, reclaim, or hotplug support. The original fixed 4 MiB pool remains only for the bootstrap allocator regression test; the firmware-backed allocator is the active page map after that test.
