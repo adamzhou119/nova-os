@@ -45,9 +45,6 @@ _start:
     mrs     x0, CurrentEL
     lsr     x0, x0, #2
 
-    /* Pass the original DTB pointer in x1 to kernel_main. */
-    mov     x1, x20
-
     /* The current prototype installs vectors only when running at EL1. */
     cmp     x0, #1
     b.ne    6f
@@ -55,6 +52,8 @@ _start:
     msr     VBAR_EL1, x1
     isb
 6:
+    /* Pass the original DTB pointer after vector setup (which uses x1). */
+    mov     x1, x20
     bl      kernel_main
 
 5:
