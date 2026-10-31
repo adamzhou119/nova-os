@@ -69,7 +69,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
     size_t found = 0;
 
     if (dtb_address == 0 || regions == NULL || capacity == 0) return -1;
-    if (read_be32(base) != FDT_MAGIC) return -1;
+    if (read_be32(base) != FDT_MAGIC) return -2;
 
     total_size = read_be32(base + 4U);
     struct_offset = read_be32(base + 8U);
@@ -80,7 +80,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
     if (total_size < FDT_HEADER_SIZE ||
         struct_offset > total_size || struct_size > total_size - struct_offset ||
         strings_offset > total_size || strings_size > total_size - strings_offset)
-        return -1;
+        return -3;
 
     structure = base + struct_offset;
     strings = base + strings_offset;
@@ -92,13 +92,13 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
         if (token == FDT_BEGIN_NODE) {
             uint32_t name_start = cursor;
             uint32_t name_length;
-            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -1;
+            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
             while (cursor < struct_size && structure[cursor] != 0) ++cursor;
-            if (cursor >= struct_size) return -1;
+            if (cursor >= struct_size) return -5;
             name_length = cursor - name_start;
             ++cursor;
             cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -1;
+            if (cursor > struct_size) return -6;
 
             ++depth;
             address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
@@ -108,16 +108,16 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             reg_length[depth] = 0;
             (void)name_length;
         } else if (token == FDT_END_NODE) {
-            if (depth < 0) return -1;
+            if (depth < 0) return -7;
             if (memory_node[depth] && reg_data[depth] != NULL) {
                 uint32_t tuple_cells = address_cells[depth] + size_cells[depth];
                 uint32_t tuple_bytes;
                 uint32_t pos = 0;
                 if (address_cells[depth] == 0 || size_cells[depth] == 0 ||
-                    tuple_cells > 4U) return -1;
+                    tuple_cells > 4U) return -8;
                 tuple_bytes = tuple_cells * 4U;
                 if (reg_length[depth] == 0 ||
-                    reg_length[depth] % tuple_bytes != 0) return -1;
+                    reg_length[depth] % tuple_bytes != 0) return -9;
 
                 while (pos < reg_length[depth]) {
                     uint64_t start;
@@ -127,7 +127,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                         !read_cells(reg_data[depth] + pos +
                                     address_cells[depth] * 4U,
                                     size_cells[depth], &size))
-                        return -1;
+                        return -10;
                     if (size != 0 && start <= UINT64_MAX - size) {
                         if (found < capacity) {
                             regions[found].start = start;
@@ -143,21 +143,21 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             uint32_t length;
             uint32_t name_offset;
             const uint8_t *data;
-            if (depth < 0 || cursor + 8U > struct_size) return -1;
+            if (depth < 0 || cursor + 8U > struct_size) return -11;
             length = read_be32(structure + cursor);
             name_offset = read_be32(structure + cursor + 4U);
             cursor += 8U;
             if (length > struct_size - cursor || name_offset >= strings_size)
-                return -1;
+                return -12;
             data = structure + cursor;
 
             if (fdt_string_equals(strings, strings_size, name_offset, "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells > 2U) return -1;
+                if (cells > 2U) return -13;
                 address_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "#size-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
-                if (cells > 2U) return -1;
+                if (cells > 2U) return -14;
                 size_cells[depth] = cells;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "device_type") &&
                        length >= 7U && data[0] == 'm' && data[1] == 'e' &&
@@ -171,15 +171,15 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
             cursor += length;
             cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -1;
+            if (cursor > struct_size) return -15;
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
             return found > capacity ? -1 : (int)found;
         } else {
-            return -1;
+            return -16;
         }
     }
 
-    return -1;
+    return -17;
 }
