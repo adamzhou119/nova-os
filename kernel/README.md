@@ -30,7 +30,7 @@ The QEMU smoke test verifies stage-1 identity translations for a kernel code add
 
 ## Important limitations
 
-This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, dynamic MMU map/unmap API, reclaim, or hotplug support. The current page tables are a static QEMU-specific identity map, not a general FDT-driven virtual-memory subsystem. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
+This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, dynamic MMU map/unmap API, reclaim, or hotplug support. The RAM page tables reserve a virtual-only window from `0x48000000` to `0x80000000` for dynamic 4 KiB mappings. `nova_mmu_map_page` and `nova_mmu_unmap_page` validate alignment and RAM bounds, update leaf descriptors, and invalidate the affected EL1 TLB entry. Mapping flags currently support EL1 read-only/read-write and execute-never/executable choices; user access remains disabled. This is a uniprocessor prototype without SMP page-table locking, general physical-device mapping, page-table reclamation, or per-process address spaces. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
 
 ## Build and run
 
