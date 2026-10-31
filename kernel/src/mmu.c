@@ -37,8 +37,8 @@ static uint64_t level2_ram_table[NOVA_MMU_TABLE_ENTRIES]
 static uint64_t level3_ram_tables[NOVA_MMU_L3_TABLES][NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
 /* Track writable/executable aliases per physical frame to enforce global W^X. */
-static uint16_t writable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
-static uint16_t executable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
+static uint32_t writable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
+static uint32_t executable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
 
 extern char __text_start[];
 extern char __text_end[];
