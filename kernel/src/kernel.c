@@ -286,19 +286,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     uart_write_hex64(nova_page_available());
 
     if (nova_mmu_enable()) {
-        uart_write("EL1 MMU enabled with identity-mapped RAM and PL011.
-");
+        uart_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
         if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
             nova_mmu_verify_identity((uintptr_t)UART0_BASE)) {
-            uart_write("MMU identity translation tests passed.
-");
+            uart_write("MMU identity translation tests passed.\n");
         } else {
-            uart_write("ERROR: MMU identity translation test failed.
-");
+            uart_write("ERROR: MMU identity translation test failed.\n");
         }
     } else {
-        uart_write("ERROR: EL1 MMU initialization rejected current state.
-");
+        uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
     }
 
 #ifdef NOVA_TEST_EXCEPTION
