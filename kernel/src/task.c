@@ -157,6 +157,7 @@ int nova_task_take_irq_context(uint32_t task_id,
                                  struct nova_irq_frame **frame) {
     struct nova_task_info *task = find_task(task_id);
     struct nova_irq_frame *saved_frame;
+    uintptr_t address;
 
     if (task == 0 || frame == 0 || task->state != NOVA_TASK_READY ||
         task->resume_kind != NOVA_TASK_RESUME_IRQ ||
@@ -164,6 +165,11 @@ int nova_task_take_irq_context(uint32_t task_id,
         return 0;
 
     saved_frame = task->irq_frame;
+    address = (uintptr_t)saved_frame;
+    if ((address & 15U) != 0U ||
+        address < task->kernel_stack_base ||
+        address > task->kernel_stack_top - sizeof(*saved_frame))
+        return 0;
     task->state = NOVA_TASK_RUNNING;
     task->resume_kind = NOVA_TASK_RESUME_ACTIVE;
     task->irq_frame = 0;
