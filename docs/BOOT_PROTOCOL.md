@@ -23,7 +23,7 @@ specification.
 
 - All 16 architectural EL1 vector slots currently branch to one terminal
   diagnostic handler.
-- The handler reports `ESR_EL1` and `ELR_EL1` over UART, then halts.
+- Each vector slot passes its architectural slot index to a common terminal handler. The handler identifies the vector class and reports `ESR_EL1` and `ELR_EL1` over UART, then halts.
 - The current handler does not restore the interrupted context or return from
   exceptions. IRQ/FIQ routing and interrupt-controller integration are not
   implemented.
