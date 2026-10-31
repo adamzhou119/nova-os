@@ -11,6 +11,7 @@ static size_t next_stack;
 static unsigned int switch_depth;
 static uint32_t observed_task;
 static uint32_t peer_task;
+static int irq_resume_mock;
 
 void nova_task_start_trampoline(void) {}
 
@@ -30,6 +31,11 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
     struct nova_task_info current_info;
     (void)from;
     (void)to;
+    if (irq_resume_mock) {
+        assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
+        assert(nova_sched_current() == observed_task);
+        return;
+    }
     if (switch_depth == 0U) {
         unsigned int i;
         assert(nova_sched_execution_phase() == NOVA_SCHED_TASK);
@@ -131,6 +137,15 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
     }
 }
 
+void nova_arch_irq_resume(const struct nova_irq_frame *frame) {
+    assert(frame != 0);
+    assert(nova_sched_execution_phase() == NOVA_SCHED_TASK);
+    assert(nova_sched_current() == observed_task);
+    irq_resume_mock = 1;
+    assert(nova_sched_block_current());
+    irq_resume_mock = 0;
+}
+
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
@@ -157,13 +172,14 @@ int main(void) {
     assert(nova_sched_current() == 0U);
     assert(observed_task == task_id);
     assert(nova_task_get(task_id, &info));
-    assert(info.state == NOVA_TASK_READY &&
-           info.resume_kind == NOVA_TASK_RESUME_IRQ);
+    assert(info.state == NOVA_TASK_BLOCKED &&
+           info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
     assert(!nova_sched_preemption_pending());
     assert(nova_task_get(peer_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
 
+    assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
     assert(nova_task_transition(task_id, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(task_id));
