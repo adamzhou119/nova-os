@@ -17,6 +17,9 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                             struct nova_memory_region *regions,
                             size_t capacity);
 
+/* Returns validated DTB totalsize, or zero for an invalid header. */
+size_t nova_fdt_total_size(uintptr_t dtb_address);
+
 /* FDT header memreserve map plus /reserved-memory child reg entries. */
 int nova_fdt_reserved_regions(uintptr_t dtb_address,
                               struct nova_memory_region *regions,
