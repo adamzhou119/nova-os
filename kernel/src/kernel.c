@@ -817,23 +817,25 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("ERROR: MMU kernel permission test failed.\n");
         }
         {
-            uintptr_t private_root = 0U;
-            uint32_t private_space_id = 0U;
-            if (nova_mmu_address_space_create(&private_root) &&
-                nova_address_space_create(private_root, 1U, &private_space_id) &&
-                nova_mmu_switch_address_space(private_root, 1U) &&
-                nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
-                nova_mmu_verify_identity((uintptr_t)UART0_BASE) &&
-                nova_mmu_verify_unmapped(0x80000000U) &&
-                nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U) &&
-                nova_address_space_release(private_space_id) &&
-                nova_mmu_address_space_destroy(private_root)) {
-                uart_write("Private address-space root, privileged mapping sharing, ASID switch, and empty user-range tests passed.\\n");
-            } else {
-                /* Never continue under an unknown TTBR0 if a test step fails. */
-                (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
-                uart_write("ERROR: private address-space root/switch test failed.\\n");
-            }
+            uintptr_t root_a=0U,root_b=0U,frame_a,frame_b,translated=0U;
+            uint32_t id_a=0U,id_b=0U; const uintptr_t user_va=0x80000000U; int ok=0;
+            frame_a=(uintptr_t)nova_page_alloc(); frame_b=(uintptr_t)nova_page_alloc();
+            if(frame_a&&frame_b&&nova_mmu_address_space_create(&root_a)&&
+               nova_mmu_address_space_create(&root_b)&&
+               nova_address_space_create(root_a,1U,&id_a)&&nova_address_space_create(root_b,2U,&id_b)&&
+               nova_mmu_user_map_page(root_a,1U,user_va,frame_a,NOVA_MMU_MAP_WRITABLE)&&
+               nova_mmu_user_map_page(root_b,2U,user_va,frame_b,NOVA_MMU_MAP_WRITABLE)&&
+               nova_mmu_switch_address_space(root_a,1U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_a&&
+               nova_mmu_verify_user_access(user_va,0)&&nova_mmu_verify_user_access(user_va,1)&&
+               nova_mmu_switch_address_space(root_b,2U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_b&&
+               nova_mmu_verify_user_access(user_va,1)&&
+               nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
+               nova_address_space_release(id_a)&&nova_address_space_release(id_b)&&
+               nova_mmu_user_unmap_page(root_a,1U,user_va)&&nova_mmu_user_unmap_page(root_b,2U,user_va)&&
+               nova_mmu_address_space_destroy(root_a)&&nova_mmu_address_space_destroy(root_b)&&
+               nova_page_free((void*)frame_a)&&nova_page_free((void*)frame_b))ok=1;
+            if(ok)uart_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
+            else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);uart_write("ERROR: private user mapping/isolation test failed.\n");}
         }
         if (test_dynamic_virtual_pages()) {
             uart_write("MMU dynamic map/unmap and permission tests passed.\n");
