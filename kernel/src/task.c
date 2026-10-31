@@ -155,7 +155,7 @@ int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind)
 }
 
 static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
-                               int cooperative_only) {
+                               int resume_path) {
     struct nova_task_info *wrapped = 0;
     struct nova_task_info *next = 0;
     size_t i;
