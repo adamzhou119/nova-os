@@ -1,5 +1,7 @@
 #include "mmu.h"
 
+#include <stddef.h>
+
 #define NOVA_MMU_TABLE_ENTRIES 512U
 #define NOVA_MMU_PAGE_SIZE 4096U
 #define NOVA_MMU_BLOCK_1G 0x40000000ULL
