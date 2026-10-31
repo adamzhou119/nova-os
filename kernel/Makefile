@@ -21,8 +21,8 @@ TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 all: $(BUILD)/nova.elf
 
 host-test: | $(BUILD)
-\t$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
-\t$(BUILD)/page-allocator-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
+	$(BUILD)/page-allocator-test
 
 test: $(BUILD)/nova-test.elf
 
