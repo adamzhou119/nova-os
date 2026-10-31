@@ -262,11 +262,26 @@ static int test_dynamic_virtual_pages(void) {
     if (!nova_mmu_map_page(alias, physical_address, 0U) ||
         !nova_mmu_verify_translation(alias, physical_address) ||
         !nova_mmu_verify_write_protected(alias) ||
+        !nova_mmu_verify_execute_never(alias) ||
         nova_mmu_map_page(alias, physical_address, 0U)) {
         (void)nova_mmu_unmap_page(alias);
         (void)nova_page_free(physical_page);
         return 0;
     }
+
+    /* Change the same mapping to writable/executable, then disable execution. */
+    if (!nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE |
+                                     NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_verify_writable(alias) ||
+        !nova_mmu_verify_executable(alias) ||
+        !nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_verify_writable(alias) ||
+        !nova_mmu_verify_execute_never(alias)) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
     if (!nova_mmu_unmap_page(alias) ||
         !nova_mmu_verify_unmapped(alias) ||
         nova_mmu_unmap_page(alias)) {
