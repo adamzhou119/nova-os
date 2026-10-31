@@ -238,6 +238,69 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
     return 1;
 }
 
+
+static int test_dynamic_virtual_pages(void) {
+    const uintptr_t alias = 0x48000000U;
+    const uint64_t initial_value = 0x4E4F56414D4D5531ULL;
+    const uint64_t alias_value = 0x504147454D415031ULL;
+    void *physical_page = nova_page_alloc();
+    volatile uint64_t *physical_word;
+    volatile uint64_t *alias_word;
+    uintptr_t physical_address;
+
+    if (physical_page == NULL) return 0;
+    physical_address = (uintptr_t)physical_page;
+    if ((physical_address & (NOVA_PAGE_SIZE - 1U)) != 0) {
+        nova_page_free(physical_page);
+        return 0;
+    }
+
+    physical_word = (volatile uint64_t *)physical_address;
+    *physical_word = initial_value;
+
+    /* First map read-only and prove the write permission is denied. */
+    if (!nova_mmu_map_page(alias, physical_address, 0U) ||
+        !nova_mmu_verify_translation(alias, physical_address) ||
+        !nova_mmu_verify_write_protected(alias) ||
+        nova_mmu_map_page(alias, physical_address, 0U)) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+    if (!nova_mmu_unmap_page(alias) ||
+        !nova_mmu_verify_unmapped(alias) ||
+        nova_mmu_unmap_page(alias)) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
+    /* Re-map writable and verify alias reads/writes hit the same RAM page. */
+    if (!nova_mmu_map_page(alias, physical_address, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_verify_translation(alias, physical_address) ||
+        !nova_mmu_verify_writable(alias)) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+    alias_word = (volatile uint64_t *)alias;
+    if (*alias_word != initial_value) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+    *alias_word = alias_value;
+    if (*physical_word != alias_value) {
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
+    if (!nova_mmu_unmap_page(alias) || !nova_mmu_verify_unmapped(alias) ||
+        !nova_page_free(physical_page)) return 0;
+    return 1;
+}
+
 void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
@@ -318,6 +381,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("MMU kernel text/rodata/data permission tests passed.\n");
         } else {
             uart_write("ERROR: MMU kernel permission test failed.\n");
+        }
+        if (test_dynamic_virtual_pages()) {
+            uart_write("MMU dynamic map/unmap and permission tests passed.\n");
+        } else {
+            uart_write("ERROR: MMU dynamic virtual page test failed.\n");
         }
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
