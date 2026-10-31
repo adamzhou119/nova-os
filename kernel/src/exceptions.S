@@ -9,6 +9,12 @@
 .global exception_vectors_el1
 .type exception_vectors_el1, %object
 
+.macro IRQ_VECTOR slot
+    mov     x16, #\slot
+    b       exception_irq_entry
+    .space  120
+.endm
+
 .macro VECTOR slot
     mov     x16, #\slot
     b       exception_vector_panic
@@ -21,7 +27,7 @@ exception_vectors_el1:
     VECTOR 2
     VECTOR 3
     VECTOR 4
-    VECTOR 5
+    IRQ_VECTOR 5
     VECTOR 6
     VECTOR 7
     VECTOR 8
@@ -34,6 +40,49 @@ exception_vectors_el1:
     VECTOR 15
 
 .size exception_vectors_el1, . - exception_vectors_el1
+
+
+/* Current EL SPx IRQ: preserve all integer registers and return with eret. */
+.global exception_irq_entry
+.type exception_irq_entry, %function
+exception_irq_entry:
+    sub     sp, sp, #256
+    stp x0, x1, [sp, #0]
+    stp x2, x3, [sp, #16]
+    stp x4, x5, [sp, #32]
+    stp x6, x7, [sp, #48]
+    stp x8, x9, [sp, #64]
+    stp x10, x11, [sp, #80]
+    stp x12, x13, [sp, #96]
+    stp x14, x15, [sp, #112]
+    stp x16, x17, [sp, #128]
+    stp x18, x19, [sp, #144]
+    stp x20, x21, [sp, #160]
+    stp x22, x23, [sp, #176]
+    stp x24, x25, [sp, #192]
+    stp x26, x27, [sp, #208]
+    stp x28, x29, [sp, #224]
+    str x30, [sp, #240]
+    bl nova_irq_dispatch
+    ldr x30, [sp, #240]
+    ldp x28, x29, [sp, #224]
+    ldp x26, x27, [sp, #208]
+    ldp x24, x25, [sp, #192]
+    ldp x22, x23, [sp, #176]
+    ldp x20, x21, [sp, #160]
+    ldp x18, x19, [sp, #144]
+    ldp x16, x17, [sp, #128]
+    ldp x14, x15, [sp, #112]
+    ldp x12, x13, [sp, #96]
+    ldp x10, x11, [sp, #80]
+    ldp x8, x9, [sp, #64]
+    ldp x6, x7, [sp, #48]
+    ldp x4, x5, [sp, #32]
+    ldp x2, x3, [sp, #16]
+    ldp x0, x1, [sp, #0]
+    add sp, sp, #256
+    eret
+.size exception_irq_entry, . - exception_irq_entry
 
 .section .text, "ax"
 .global exception_vector_panic
