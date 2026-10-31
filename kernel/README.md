@@ -24,13 +24,13 @@ The firmware-backed map is the active page map after the legacy fixed-pool regre
 
 ## Early EL1 MMU bring-up
 
-The QEMU `virt` target now has an initial AArch64 stage-1 translation setup using a 4 KiB translation-table granule and a 39-bit TTBR0 virtual-address space. The prototype identity-maps the 1 GiB window beginning at `0x40000000` as Normal write-back memory and maps the 2 MiB PL011 UART window at `0x09000000` as Device-nGnRnE. It installs MAIR_EL1, TCR_EL1, and TTBR0_EL1, invalidates EL1 stage-1 TLB entries, then enables the EL1 MMU and data/instruction caches.
+The QEMU `virt` target now has an initial AArch64 stage-1 translation setup using a 4 KiB translation-table granule and a 39-bit TTBR0 virtual-address space. The prototype builds a three-level translation tree and identity-maps the complete 128 MiB QEMU RAM window beginning at `0x40000000` with 4 KiB Normal write-back leaf pages. It maps the 2 MiB PL011 UART window at `0x09000000` as Device-nGnRnE. It installs MAIR_EL1, TCR_EL1, and TTBR0_EL1, invalidates EL1 stage-1 TLB entries, then enables the EL1 MMU and data/instruction caches.
 
-The QEMU smoke test verifies stage-1 identity translations for a kernel code address and the UART address after enabling translation, and confirms that an unmapped low virtual address faults as expected. This mapping is intentionally board-specific and minimal: it is not yet a general FDT-driven page-table builder, does not provide per-page permissions or user address spaces, and does not implement TTBR1 high-half mappings or dynamic map/unmap operations.
+The QEMU smoke test verifies stage-1 identity translations for a kernel code address, the UART address, the first and last RAM pages, and adjacent 4 KiB page boundaries. It also confirms that unmapped low and end-of-RAM guard addresses fault as expected. This mapping is intentionally board-specific and minimal: it is not yet a general FDT-driven page-table builder, does not provide per-page permissions or user address spaces, and does not implement TTBR1 high-half mappings or dynamic map/unmap operations.
 
 ## Important limitations
 
-This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, MMU integration, virtual-memory mappings, reclaim, or hotplug support. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
+This is still an early single-core kernel prototype, not a complete operating system or phone OS. The page allocator has no SMP locking, dynamic MMU map/unmap API, reclaim, or hotplug support. The current page tables are a static QEMU-specific identity map, not a general FDT-driven virtual-memory subsystem. The exception handler is terminal and does not preserve or restore the complete register context. Interrupt-controller support, timer interrupts, scheduling, drivers, networking, storage, filesystem support, and the application/runtime layer are not implemented.
 
 ## Build and run
 
