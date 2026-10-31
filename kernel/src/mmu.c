@@ -483,3 +483,79 @@ int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid) {
         : : "r"(operand), "r"(ttbr) : "memory");
     return 1;
 }
+
+#define NOVA_USER_VA_BASE 0x80000000ULL
+#define NOVA_USER_VA_END  0xC0000000ULL
+#define DESC_AP_USER_RW  (1ULL << 6)
+#define DESC_AP_USER_RO  (3ULL << 6)
+static uint64_t *user_l2_for_root(uintptr_t root_physical) {
+    uint64_t *root = (uint64_t *)root_physical; size_t i;
+    if (root_physical == 0U || root_physical == (uintptr_t)level1_table ||
+        (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
+        !nova_page_is_allocated(root)) return NULL;
+    for (i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)
+        if (i!=2U && root[i]!=level1_table[i]) return NULL;
+    if ((root[2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE)) return NULL;
+    return (uint64_t *)(uintptr_t)(root[2]&DESC_ADDR_MASK);
+}
+static int user_va_indices(uintptr_t va,size_t *l2,size_t *l3) {
+    uintptr_t off;
+    if ((va&(NOVA_MMU_PAGE_SIZE-1U))!=0U || va<NOVA_USER_VA_BASE || va>=NOVA_USER_VA_END) return 0;
+    off=va-NOVA_USER_VA_BASE; *l2=(size_t)(off/NOVA_MMU_BLOCK_2M);
+    *l3=(size_t)((off%NOVA_MMU_BLOCK_2M)/NOVA_MMU_PAGE_SIZE);
+    return *l2<NOVA_MMU_TABLE_ENTRIES;
+}
+static void invalidate_user_page(uintptr_t va,uint16_t asid) {
+    uint64_t op=((uint64_t)asid<<48)|((uint64_t)va>>12);
+    __asm__ volatile("dsb ishst\ntlbi vae1is, %0\ndsb ish\nisb"::"r"(op):"memory");
+}
+int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
+                           uintptr_t pa,unsigned int flags) {
+    uint64_t *l2,*l3,*slot,desc; size_t i2,i3,fi;
+    int wr=(flags&NOVA_MMU_MAP_WRITABLE)!=0U, ex=(flags&NOVA_MMU_MAP_EXECUTABLE)!=0U;
+    if(asid==0U||asid>255U||(flags&~(NOVA_MMU_MAP_WRITABLE|NOVA_MMU_MAP_EXECUTABLE))!=0U||
+       (wr&&ex)||(pa&(NOVA_MMU_PAGE_SIZE-1U))!=0U||pa<NOVA_MMU_RAM_BASE||
+       pa>=NOVA_MMU_RAM_BASE+NOVA_MMU_RAM_SIZE||!nova_page_is_allocated((const void*)pa)||
+       !user_va_indices(va,&i2,&i3)) return 0;
+    l2=user_l2_for_root(root_physical); if(l2==NULL)return 0;
+    if((l2[i2]&DESC_VALID)==0U){
+        l3=(uint64_t*)nova_page_alloc(); if(l3==NULL)return 0; zero_table(l3);
+        if(!nova_page_pin(l3)){(void)nova_page_free(l3);return 0;}
+        l2[i2]=((uintptr_t)l3&DESC_ADDR_MASK)|DESC_VALID|DESC_TABLE;
+    } else {
+        if((l2[i2]&DESC_TABLE)==0U)return 0;
+        l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK);
+        if(!nova_page_is_allocated(l3))return 0;
+    }
+    slot=&l3[i3]; if((*slot&DESC_VALID)!=0U)return 0;
+    fi=physical_frame_index(pa);
+    if((wr&&executable_aliases[fi]!=0U)||(ex&&writable_aliases[fi]!=0U))return 0;
+    if(!nova_page_pin((const void*)pa))return 0;
+    desc=((uint64_t)pa&DESC_ADDR_MASK)|DESC_VALID|DESC_PAGE|DESC_ATTR(1)|
+         DESC_SH_INNER|DESC_AF|DESC_PXN|(wr?DESC_AP_USER_RW:DESC_AP_USER_RO);
+    if(!ex)desc|=DESC_UXN;
+    *slot=desc; if(wr)++writable_aliases[fi]; if(ex)++executable_aliases[fi];
+    invalidate_user_page(va,asid); return 1;
+}
+int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va) {
+    uint64_t *l2,*l3,*slot; uintptr_t pa; size_t i2,i3,i,fi; int empty=1;
+    if(asid==0U||asid>255U||!user_va_indices(va,&i2,&i3))return 0;
+    l2=user_l2_for_root(root_physical);
+    if(l2==NULL||(l2[i2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE))return 0;
+    l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK); if(!nova_page_is_allocated(l3))return 0;
+    slot=&l3[i3]; if((*slot&DESC_VALID)==0U)return 0;
+    pa=(uintptr_t)(*slot&DESC_ADDR_MASK); fi=physical_frame_index(pa);
+    if(descriptor_is_writable(*slot)&&writable_aliases[fi])--writable_aliases[fi];
+    if(descriptor_is_executable(*slot)&&executable_aliases[fi])--executable_aliases[fi];
+    *slot=0U; invalidate_user_page(va,asid);
+    if(!nova_page_unpin((const void*)pa))return 0;
+    for(i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)if(l3[i]!=0U){empty=0;break;}
+    if(empty){l2[i2]=0U;if(!nova_page_unpin(l3))return 0;return nova_page_free(l3);}
+    return 1;
+}
+int nova_mmu_verify_user_access(uintptr_t va,int write) {
+    uint64_t par; if(va<NOVA_USER_VA_BASE||va>=NOVA_USER_VA_END)return 0;
+    if(write)__asm__ volatile("at s1e0w, %1\nisb\nmrs %0, par_el1":"=r"(par):"r"((uint64_t)va):"memory");
+    else __asm__ volatile("at s1e0r, %1\nisb\nmrs %0, par_el1":"=r"(par):"r"((uint64_t)va):"memory");
+    return (par&1U)==0U;
+}
