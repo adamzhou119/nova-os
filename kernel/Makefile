@@ -12,6 +12,7 @@ BOOT_OBJECT := $(BUILD)/boot.o
 EXCEPTION_OBJECT := $(BUILD)/exceptions.o
 KERNEL_OBJECT := $(BUILD)/kernel.o
 MEMORY_OBJECT := $(BUILD)/memory.o
+PAGE_OBJECT := $(BUILD)/page.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 
 .PHONY: all test clean
@@ -34,14 +35,17 @@ $(KERNEL_OBJECT): src/kernel.c include/memory.h | $(BUILD)
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
+$(PAGE_OBJECT): src/page.c include/memory.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
 $(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
-$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) -o $@
+$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) -o $@
 
-$(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) -o $@
+$(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) -o $@
 
 clean:
 	rm -rf $(BUILD)
