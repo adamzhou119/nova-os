@@ -20,6 +20,7 @@ int nova_page_init_regions(const struct nova_memory_region *memory,
                            size_t reserved_count);
 void *nova_page_alloc(void);
 int nova_page_free(void *page);
+int nova_page_is_allocated(const void *page);
 size_t nova_page_total(void);
 size_t nova_page_available(void);
 
