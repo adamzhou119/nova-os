@@ -1,0 +1,50 @@
+name: Nova OS kernel build
+
+on:
+  push:
+    branches:
+      - main
+      - "bootstrap/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld make qemu-system-arm
+
+      - name: Build AArch64 kernel
+        run: make -C kernel clean all
+
+      - name: Inspect ELF
+        run: |
+          file kernel/build/nova.elf
+          llvm-readelf -h kernel/build/nova.elf
+
+      - name: QEMU serial smoke test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 \
+            -machine virt \
+            -cpu cortex-a57 \
+            -nographic \
+            -kernel kernel/build/nova.elf > qemu.log 2>&1
+          status=$?
+          set -e
+          cat qemu.log
+          if ! grep -q "Welcome to Nova OS" qemu.log; then
+            echo "Expected serial banner was not observed (QEMU exit: $status)."
+            exit 1
+          fi
+          echo "Nova OS serial banner observed."
