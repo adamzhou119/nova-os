@@ -15,6 +15,12 @@
     .space  124
 .endm
 
+/* Lower-EL AArch64 synchronous exceptions preserve every user GPR. */
+.macro USER_SYNC_VECTOR
+    b       exception_user_sync_entry
+    .space  124
+.endm
+
 .macro VECTOR slot
     mov     x16, #\slot
     b       exception_vector_panic
@@ -30,7 +36,7 @@ exception_vectors_el1:
     IRQ_VECTOR
     VECTOR 6
     VECTOR 7
-    VECTOR 8
+    USER_SYNC_VECTOR
     VECTOR 9
     VECTOR 10
     VECTOR 11
@@ -101,6 +107,49 @@ exception_irq_entry:
     add sp, sp, #272
     eret
 .size exception_irq_entry, . - exception_irq_entry
+
+
+/*
+ * Lower-EL AArch64 synchronous entry. SP_EL1 is the current task's
+ * privileged stack; preserve the complete user state before calling C.
+ * Frame offsets are defined by include/user_context.h (288 bytes).
+ */
+.global exception_user_sync_entry
+.type exception_user_sync_entry, %function
+exception_user_sync_entry:
+    sub     sp, sp, #288
+    stp x0, x1, [sp, #0]
+    stp x2, x3, [sp, #16]
+    stp x4, x5, [sp, #32]
+    stp x6, x7, [sp, #48]
+    stp x8, x9, [sp, #64]
+    stp x10, x11, [sp, #80]
+    stp x12, x13, [sp, #96]
+    stp x14, x15, [sp, #112]
+    stp x16, x17, [sp, #128]
+    stp x18, x19, [sp, #144]
+    stp x20, x21, [sp, #160]
+    stp x22, x23, [sp, #176]
+    stp x24, x25, [sp, #192]
+    stp x26, x27, [sp, #208]
+    stp x28, x29, [sp, #224]
+    str x30, [sp, #240]
+    mrs     x16, ELR_EL1
+    str     x16, [sp, #248]
+    mrs     x16, SPSR_EL1
+    str     x16, [sp, #256]
+    mrs     x16, SP_EL0
+    str     x16, [sp, #264]
+    mrs     x16, ESR_EL1
+    str     x16, [sp, #272]
+    mrs     x16, FAR_EL1
+    str     x16, [sp, #280]
+    mov     x0, sp
+    bl      nova_user_sync_dispatch
+1:
+    wfe
+    b       1b
+.size exception_user_sync_entry, . - exception_user_sync_entry
 
 .section .text, "ax"
 .global exception_vector_panic
