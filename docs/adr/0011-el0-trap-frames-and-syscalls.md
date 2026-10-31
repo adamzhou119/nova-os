@@ -100,3 +100,7 @@ This design does not define POSIX, ELF loading, dynamic linking, filesystems,
 signals, shared memory, SMP, or a general-purpose driver ABI. It does not
 claim EL0 support until the QEMU tests above pass. Hardware testing remains
 deferred.
+
+## Implementation status
+
+The initial 288-byte C frame and host layout test are present. The EL1 vector slot for lower-EL AArch64 synchronous exceptions now branches directly to a dedicated assembly entry, which saves x0-x30, ELR_EL1, SPSR_EL1, SP_EL0, ESR_EL1, and FAR_EL1 before calling C. The current C dispatcher is intentionally fail-closed and reports the captured exception; it does not yet dispatch SVC, return to EL0, or terminate a user task. Those behaviors remain unimplemented pending a user-task frame lifecycle and QEMU EL0 tests.
