@@ -31,10 +31,6 @@ static void irq_restore(uintptr_t daif) {
 #endif
 }
 
-static int find_next_ready(uint32_t *task_id) {
-    return nova_task_next_cooperative_ready(next_after_id, task_id);
-}
-
 static int switch_to_scheduler(enum nova_task_state next_state, int change_state) {
     struct nova_cpu_context *task_context;
     struct nova_task_info task_info;
@@ -84,27 +80,59 @@ int nova_sched_start(void) {
 
     execution_phase = NOVA_SCHED_SCHEDULER;
     current_task_id = 0U;
-    while (find_next_ready(&next)) {
-        struct nova_cpu_context *context = nova_task_context(next);
+    while (nova_task_next_ready(next_after_id, &next)) {
+        struct nova_task_info next_info;
         uintptr_t saved_daif;
-        if (context == 0) continue;
+
+        if (!nova_task_get(next, &next_info) ||
+            next_info.state != NOVA_TASK_READY)
+            continue;
 
         saved_daif = irq_save_disable();
-        if (!nova_task_transition(next, NOVA_TASK_RUNNING)) {
+        if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ) {
+            struct nova_irq_frame *frame = 0;
+            if (!nova_task_take_irq_context(next, &frame)) {
+                irq_restore(saved_daif);
+                continue;
+            }
+
+            current_task_id = next;
+            next_after_id = next;
+            current_quantum_ticks = 0U;
+            preemption_pending = 0;
+            execution_phase = NOVA_SCHED_TASK;
+
+            /*
+             * This restores the selected task's complete exception frame
+             * and ERETs. It does not return on hardware. If that task later
+             * yields, its saved cooperative context returns to the scheduler
+             * continuation established by the first context switch below.
+             */
+            nova_arch_irq_resume(frame);
+            /* Host-side scheduler tests provide a returning architecture shim. */
             irq_restore(saved_daif);
             continue;
         }
-        if (!nova_task_set_resume_kind(next, NOVA_TASK_RESUME_ACTIVE)) {
-            (void)nova_task_transition(next, NOVA_TASK_READY);
-            irq_restore(saved_daif);
-            continue;
+
+        {
+            struct nova_cpu_context *context = nova_task_context(next);
+            if (context == 0 ||
+                !nova_task_transition(next, NOVA_TASK_RUNNING)) {
+                irq_restore(saved_daif);
+                continue;
+            }
+            if (!nova_task_set_resume_kind(next, NOVA_TASK_RESUME_ACTIVE)) {
+                (void)nova_task_transition(next, NOVA_TASK_READY);
+                irq_restore(saved_daif);
+                continue;
+            }
+            current_task_id = next;
+            next_after_id = next;
+            current_quantum_ticks = 0U;
+            preemption_pending = 0;
+            execution_phase = NOVA_SCHED_TASK;
+            nova_arch_context_switch(&scheduler_context, context);
         }
-        current_task_id = next;
-        next_after_id = next;
-        current_quantum_ticks = 0U;
-        preemption_pending = 0;
-        execution_phase = NOVA_SCHED_TASK;
-        nova_arch_context_switch(&scheduler_context, context);
 
         execution_phase = NOVA_SCHED_SCHEDULER;
         {
