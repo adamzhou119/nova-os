@@ -8,8 +8,13 @@
 .type _el3_test_start, %function
 _el3_test_start:
     msr     DAIFSet, #0xf
+    ldr     x3, =0x09000000
+    mov     w4, #'E'
+    str     w4, [x3]
     mrs     x2, CurrentEL
     lsr     x2, x2, #2
+    add     w4, w2, #'0'
+    str     w4, [x3]
     cmp     x2, #3
     b.eq    1f
     cmp     x2, #2
