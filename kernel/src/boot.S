@@ -38,6 +38,9 @@ _start:
     dsb     sy
     isb
 
+    /* Pass the current exception level (CurrentEL[3:2]) to kernel_main. */
+    mrs     x0, CurrentEL
+    lsr     x0, x0, #2
     bl      kernel_main
 
 5:
