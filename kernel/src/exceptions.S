@@ -2,7 +2,7 @@
  * Nova OS — AArch64 EL1 exception vectors.
  *
  * IRQ entry preserves the complete integer register set plus ELR_EL1 and
- * SPSR_EL1. The 272-byte frame remains 16-byte aligned for the C dispatcher.
+ * SPSR_EL1 and SP_EL0. The 272-byte frame remains 16-byte aligned.
  */
 .section .text.vectors, "ax"
 .balign 2048
@@ -81,6 +81,8 @@ exception_irq_entry:
     str     x16, [sp, #248]
     mrs     x16, SPSR_EL1
     str     x16, [sp, #256]
+    mrs     x16, SP_EL0
+    str     x16, [sp, #264]
     mov     x0, sp
     bl      nova_irq_dispatch
     mov     sp, x0
@@ -88,6 +90,8 @@ exception_irq_entry:
     msr     SPSR_EL1, x16
     ldr     x16, [sp, #248]
     msr     ELR_EL1, x16
+    ldr     x16, [sp, #264]
+    msr     SP_EL0, x16
     ldr x30, [sp, #240]
     ldp x28, x29, [sp, #224]
     ldp x26, x27, [sp, #208]
