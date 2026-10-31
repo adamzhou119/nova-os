@@ -17,6 +17,7 @@ extern char __page_pool_start[];
 extern char __page_pool_end[];
 static volatile uint64_t bss_probe;
 static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
+static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];
 
 static void uart_putc(char c) {
     while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
@@ -172,6 +173,7 @@ static int test_pages(void) {
 
 void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
+    int reserved_regions;
     uint64_t total_ram = 0;
     size_t region_index;
     uart_write("Welcome to Nova OS\n");
