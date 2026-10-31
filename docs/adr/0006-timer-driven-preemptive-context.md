@@ -57,7 +57,7 @@ If there is no alternative IRQ-returnable task, the current frame is returned un
 
 The scheduler scans all READY tasks in round-robin order and dispatches by resume kind:
 
-- FIRST_RUN and COOPERATIVE tasks use their AAPCS64 context.
+- A task's initial scheduler dispatch uses its initialized AAPCS64 context to establish the shared scheduler continuation. If a FIRST_RUN peer is selected directly by an IRQ handoff, its synthetic initial exception frame is returned instead. COOPERATIVE tasks always use their saved AAPCS64 context.
 - IRQ tasks are atomically consumed by `nova_task_take_irq_context`, which validates stack ownership/alignment, changes READY/IRQ to RUNNING/ACTIVE, and clears the stored frame pointer.
 - `nova_arch_irq_resume` switches to the selected task stack, restores x0-x30, ELR_EL1, and SPSR_EL1, then executes ERET. It never returns through the normal C call path.
 
