@@ -3,26 +3,25 @@
  * PL011 UART output for the QEMU virt experimental target.
  */
 #include <stdint.h>
+#include "memory.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
 #define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
 #define UARTFR_TXFF      (1U << 5)
 
+extern char __heap_start[];
+extern char __heap_end[];
 static volatile uint64_t bss_probe;
 
 static void uart_putc(char c) {
-    while (UARTFR & UARTFR_TXFF) {
-        __asm__ volatile("nop");
-    }
+    while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
     UARTDR = (uint32_t)c;
 }
 
 static void uart_write(const char *s) {
     while (*s) {
-        if (*s == '\n') {
-            uart_putc('\r');
-        }
+        if (*s == '\n') uart_putc('\r');
         uart_putc(*s++);
     }
 }
@@ -30,11 +29,9 @@ static void uart_write(const char *s) {
 static void uart_write_hex64(uint64_t value) {
     static const char digits[] = "0123456789ABCDEF";
     int shift;
-
     uart_write("0x");
-    for (shift = 60; shift >= 0; shift -= 4) {
+    for (shift = 60; shift >= 0; shift -= 4)
         uart_putc(digits[(value >> shift) & 0x0fU]);
-    }
     uart_putc('\n');
 }
 
@@ -66,7 +63,6 @@ static const char *exception_vector_name(uint64_t vector) {
     }
 }
 
-/* Called from the non-returning assembly exception entry. */
 void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
                       uint64_t far, uint64_t spsr) {
     uart_write("EXCEPTION: EL1 vector captured.\n");
@@ -88,10 +84,37 @@ void exception_report(uint64_t esr, uint64_t elr, uint64_t vector,
     uart_write("SPSR_EL1: ");
     uart_write_hex64(spsr);
     uart_write("System halted for diagnosis.\n");
+    for (;;) __asm__ volatile("wfe");
+}
 
-    for (;;) {
-        __asm__ volatile("wfe");
+static void test_heap(void) {
+    void *small;
+    void *page;
+    void *too_large;
+
+    if (!nova_heap_init((uintptr_t)__heap_start, (uintptr_t)__heap_end)) {
+        uart_write("ERROR: heap initialization failed.\n");
+        return;
     }
+
+    small = nova_alloc(37, 16);
+    page = nova_alloc(4096, 4096);
+    too_large = nova_alloc(0x100000, 16);
+
+    if (small != NULL && page != NULL &&
+        (((uintptr_t)small & 15U) == 0) &&
+        (((uintptr_t)page & 4095U) == 0) &&
+        too_large == NULL &&
+        nova_heap_used() <= 0x100000U) {
+        uart_write("Heap allocator tests passed.\n");
+    } else {
+        uart_write("ERROR: heap allocator test failed.\n");
+    }
+
+    uart_write("Heap bytes used: ");
+    uart_write_hex64(nova_heap_used());
+    uart_write("Heap bytes available: ");
+    uart_write_hex64(nova_heap_available());
 }
 
 void kernel_main(uint64_t current_el) {
@@ -99,11 +122,10 @@ void kernel_main(uint64_t current_el) {
     uart_write("AArch64 kernel prototype is running.\n");
     uart_write_current_el(current_el);
 
-    if (bss_probe == 0) {
-        uart_write("BSS zero initialization verified.\n");
-    } else {
-        uart_write("ERROR: BSS zero initialization failed.\n");
-    }
+    if (bss_probe == 0) uart_write("BSS zero initialization verified.\n");
+    else uart_write("ERROR: BSS zero initialization failed.\n");
+
+    test_heap();
 
 #ifdef NOVA_TEST_EXCEPTION
     if (current_el == 1) {
@@ -112,7 +134,5 @@ void kernel_main(uint64_t current_el) {
     }
 #endif
 
-    for (;;) {
-        __asm__ volatile("wfe");
-    }
+    for (;;) __asm__ volatile("wfe");
 }
