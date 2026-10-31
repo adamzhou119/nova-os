@@ -64,6 +64,11 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(nova_task_get(observed_task, &current_info));
             assert(current_info.state == NOVA_TASK_READY &&
                    current_info.resume_kind == NOVA_TASK_RESUME_IRQ);
+            /* A waiter preempted into READY is already successfully awake. */
+            assert(nova_sched_unblock(observed_task));
+            assert(nova_task_get(observed_task, &current_info));
+            assert(current_info.state == NOVA_TASK_READY &&
+                   current_info.resume_kind == NOVA_TASK_RESUME_IRQ);
 
             for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
             assert(nova_sched_preemption_pending());
