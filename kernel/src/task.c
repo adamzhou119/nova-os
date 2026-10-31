@@ -153,6 +153,24 @@ int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame) {
     return 1;
 }
 
+int nova_task_take_irq_context(uint32_t task_id,
+                                 struct nova_irq_frame **frame) {
+    struct nova_task_info *task = find_task(task_id);
+    struct nova_irq_frame *saved_frame;
+
+    if (task == 0 || frame == 0 || task->state != NOVA_TASK_READY ||
+        task->resume_kind != NOVA_TASK_RESUME_IRQ ||
+        task->irq_frame == 0)
+        return 0;
+
+    saved_frame = task->irq_frame;
+    task->state = NOVA_TASK_RUNNING;
+    task->resume_kind = NOVA_TASK_RESUME_ACTIVE;
+    task->irq_frame = 0;
+    *frame = saved_frame;
+    return 1;
+}
+
 int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame) {
     struct nova_task_info *current = find_task(current_id);
