@@ -8,6 +8,10 @@
 .type _el3_test_start, %function
 _el3_test_start:
     msr     DAIFSet, #0xf
+    /* Secure test firmware owns a terminal EL3 exception vector table. */
+    ldr     x1, =el3_exception_vectors
+    msr     VBAR_EL3, x1
+    isb
     ldr     x3, =0x09000000
     mov     w4, #'E'
     str     w4, [x3]
@@ -48,3 +52,50 @@ _el3_test_start:
     ldr     x1, =0x40200000
     br      x1
 .size _el3_test_start, . - _el3_test_start
+
+/*
+ * The EL3 test firmware has no secure-monitor recovery services yet.
+ * Every vector enters a terminal halt rather than executing an undefined
+ * firmware path. The table is kept separate from the non-secure EL1 kernel.
+ */
+.section .text.vectors.el3, "ax"
+.balign 2048
+.global el3_exception_vectors
+.type el3_exception_vectors, %object
+.macro EL3_VECTOR slot
+    mov     x16, #\\slot
+    b       el3_exception_halt
+    .space  120
+.endm
+
+el3_exception_vectors:
+    EL3_VECTOR 0
+    EL3_VECTOR 1
+    EL3_VECTOR 2
+    EL3_VECTOR 3
+    EL3_VECTOR 4
+    EL3_VECTOR 5
+    EL3_VECTOR 6
+    EL3_VECTOR 7
+    EL3_VECTOR 8
+    EL3_VECTOR 9
+    EL3_VECTOR 10
+    EL3_VECTOR 11
+    EL3_VECTOR 12
+    EL3_VECTOR 13
+    EL3_VECTOR 14
+    EL3_VECTOR 15
+
+.if (. - el3_exception_vectors) != 2048
+    .error "EL3 exception vector table must contain exactly 16 x 128-byte slots"
+.endif
+.size el3_exception_vectors, . - el3_exception_vectors
+
+.section .text, "ax"
+.type el3_exception_halt, %function
+el3_exception_halt:
+    msr     DAIFSet, #0xf
+1:
+    wfe
+    b       1b
+.size el3_exception_halt, . - el3_exception_halt
