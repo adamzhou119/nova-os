@@ -274,6 +274,8 @@ static int test_dynamic_virtual_pages(void) {
     /* First map read-only and prove the write permission is denied. */
     if (!nova_mmu_map_page(alias, physical_address, 0U) ||
         !nova_mmu_verify_translation(alias, physical_address) ||
+        nova_page_pin_count(physical_page) != 1U ||
+        nova_page_free(physical_page) ||
         !nova_mmu_verify_write_protected(alias) ||
         !nova_mmu_verify_execute_never(alias) ||
         nova_mmu_map_page(alias, physical_address, 0U)) {
@@ -307,6 +309,7 @@ static int test_dynamic_virtual_pages(void) {
     }
 
     if (!nova_mmu_unmap_page(alias) ||
+        nova_page_pin_count(physical_page) != 0U ||
         !nova_mmu_verify_unmapped(alias) ||
         nova_mmu_unmap_page(alias)) {
         (void)nova_mmu_unmap_page(alias);
