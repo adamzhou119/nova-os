@@ -80,8 +80,18 @@ int nova_task_transition(uint32_t task_id, enum nova_task_state next_state) {
 
 int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     struct nova_task_info *task = find_task(task_id);
+    size_t i;
     if (task == 0 || info == 0) return 0;
-    *info = *task;
+    info->id = task->id;
+    info->state = task->state;
+    info->entry = task->entry;
+    info->argument = task->argument;
+    info->kernel_stack_base = task->kernel_stack_base;
+    info->kernel_stack_top = task->kernel_stack_top;
+    info->exit_code = task->exit_code;
+    for (i = 0; i < 12U; ++i)
+        info->context.x19_x30[i] = task->context.x19_x30[i];
+    info->context.sp = task->context.sp;
     return 1;
 }
 
