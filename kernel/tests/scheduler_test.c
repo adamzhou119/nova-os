@@ -10,6 +10,7 @@ static _Alignas(16) unsigned char stack_pool[NOVA_TASK_MAX][4096];
 static size_t next_stack;
 static unsigned int switch_depth;
 static uint32_t observed_task;
+static uint32_t peer_task;
 
 void nova_task_start_trampoline(void) {}
 
@@ -35,6 +36,29 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         assert(observed_task != 0U);
         for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
         assert(nova_sched_preemption_pending());
+        {
+            struct nova_task_info current_info, peer_info;
+            struct nova_irq_frame *selected_frame = 0;
+            uint32_t selected_id = 0U;
+            assert(nova_task_get(observed_task, &current_info));
+            assert(nova_task_get(peer_task, &peer_info));
+            assert(nova_sched_irq_handoff(current_info.irq_frame,
+                                          &selected_id, &selected_frame));
+            assert(selected_id == peer_task);
+            assert(selected_frame == peer_info.irq_frame);
+            assert(nova_sched_current() == peer_task);
+            assert(nova_task_get(observed_task, &current_info));
+            assert(current_info.state == NOVA_TASK_READY &&
+                   current_info.resume_kind == NOVA_TASK_RESUME_IRQ);
+
+            for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
+            assert(nova_sched_preemption_pending());
+            assert(nova_sched_irq_handoff(peer_info.irq_frame,
+                                          &selected_id, &selected_frame));
+            assert(selected_id == observed_task);
+            assert(selected_frame == current_info.irq_frame);
+            assert(nova_sched_current() == observed_task);
+        }
         ++switch_depth;
         assert(nova_sched_block_current());
         --switch_depth;
@@ -60,6 +84,7 @@ int main(void) {
     assert(!nova_sched_preemption_pending());
 
     assert(nova_task_create(dummy_entry, 0, &task_id));
+    assert(nova_task_create(dummy_entry, 0, &peer_task));
     assert(nova_sched_start());
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
@@ -67,11 +92,17 @@ int main(void) {
     assert(nova_task_get(task_id, &info));
     assert(info.state == NOVA_TASK_BLOCKED);
     assert(!nova_sched_preemption_pending());
+    assert(nova_task_get(peer_task, &info));
+    assert(info.state == NOVA_TASK_READY &&
+           info.resume_kind == NOVA_TASK_RESUME_IRQ);
 
     assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
     assert(nova_task_transition(task_id, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(task_id));
+    assert(nova_task_transition(peer_task, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(peer_task, NOVA_TASK_ZOMBIE));
+    assert(nova_task_destroy(peer_task));
     puts("Scheduler phase and cooperative handoff host tests passed.");
     return 0;
 }
