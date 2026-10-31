@@ -61,6 +61,7 @@ jobs:
           grep -q "Current page map available:" qemu.log
           grep -q "EL1 MMU enabled with identity-mapped RAM and PL011." qemu.log
           grep -q "MMU identity translation tests passed." qemu.log
+          grep -q "MMU 4 KiB RAM page boundary tests passed." qemu.log
           grep -q "MMU unmapped guard test passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
