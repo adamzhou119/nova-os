@@ -16,25 +16,18 @@
 .endm
 
 exception_vectors_el1:
-    /* Current EL with SP0: synchronous, IRQ, FIQ, SError. */
     VECTOR 0
     VECTOR 1
     VECTOR 2
     VECTOR 3
-
-    /* Current EL with SPx: synchronous, IRQ, FIQ, SError. */
     VECTOR 4
     VECTOR 5
     VECTOR 6
     VECTOR 7
-
-    /* Lower EL using AArch64: synchronous, IRQ, FIQ, SError. */
     VECTOR 8
     VECTOR 9
     VECTOR 10
     VECTOR 11
-
-    /* Lower EL using AArch32: synchronous, IRQ, FIQ, SError. */
     VECTOR 12
     VECTOR 13
     VECTOR 14
@@ -46,11 +39,13 @@ exception_vectors_el1:
 .global exception_vector_panic
 .type exception_vector_panic, %function
 exception_vector_panic:
-    /* No exception return yet; keep the stack 16-byte aligned. */
+    /* The handler is terminal; retain ABI stack alignment. */
     sub     sp, sp, #16
     mrs     x0, ESR_EL1
     mrs     x1, ELR_EL1
     mov     x2, x16
+    mrs     x3, FAR_EL1
+    mrs     x4, SPSR_EL1
     bl      exception_report
 
 1:
