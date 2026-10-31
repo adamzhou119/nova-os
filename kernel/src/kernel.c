@@ -568,11 +568,19 @@ static int test_task_lifecycle(void) {
         !nova_task_create(test_task_entry, 0, &second) || first == second)
         return 0;
     context = nova_task_context(first);
-    if (context == 0 || context->sp != (uintptr_t)0x48001000U ||
+    if (context == 0 || !nova_task_get(first, &info) ||
+        context->sp != (uintptr_t)info.irq_frame ||
         context->x19_x30[0] != (uintptr_t)test_task_entry ||
         context->x19_x30[1] != (uintptr_t)0x1234U ||
         context->x19_x30[2] == 0U || context->x19_x30[11] == 0U ||
-        !nova_task_get(first, &info) || info.state != NOVA_TASK_READY ||
+        info.irq_frame == 0 ||
+        info.irq_frame->x[0] != (uintptr_t)0x1234U ||
+        info.irq_frame->x[19] != (uintptr_t)test_task_entry ||
+        info.irq_frame->x[20] != (uintptr_t)0x1234U ||
+        info.irq_frame->x[21] == 0U ||
+        info.irq_frame->elr_el1 == 0U ||
+        info.irq_frame->spsr_el1 != 0x5U ||
+        info.state != NOVA_TASK_READY ||
         info.entry != test_task_entry || info.argument != (void *)0x1234U ||
         info.kernel_stack_top - info.kernel_stack_base != NOVA_PAGE_SIZE ||
         (info.kernel_stack_top & 15U) != 0U) return 0;
