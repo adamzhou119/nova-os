@@ -41,6 +41,20 @@ int main(void) {
     assert(nova_task_create(dummy_entry, &argument, &first));
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
+
+    /* Ready selection must be round-robin by task ID and skip blocked tasks. */
+    {
+        uint32_t selected = 0U;
+        assert(nova_task_next_ready(0U, &selected) && selected == first);
+        assert(nova_task_next_ready(first, &selected) && selected == second);
+        assert(nova_task_next_ready(second, &selected) && selected == first);
+        assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(first, NOVA_TASK_BLOCKED));
+        assert(nova_task_next_ready(0U, &selected) && selected == second);
+        assert(nova_task_transition(first, NOVA_TASK_READY));
+        assert(nova_task_next_ready(second, &selected) && selected == first);
+        assert(!nova_task_next_ready(0U, 0));
+    }
     assert(nova_task_get(first, &info));
     task_context = nova_task_context(first);
     assert(task_context != 0);
