@@ -533,7 +533,7 @@ static int test_timer_irq(void) {
     __asm__ volatile("msr daifclr, #2\n\tisb" ::: "memory");
     limit = nova_timer_now() + frequency;
     while (nova_irq_tick_count() < 3U && nova_timer_now() < limit)
-        __asm__ volatile("wfe");
+        __asm__ volatile("nop");
     __asm__ volatile("msr daifset, #2\n\tisb" ::: "memory");
     nova_timer_stop();
     return nova_irq_tick_count() >= 3U;
