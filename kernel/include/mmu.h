@@ -12,4 +12,10 @@ int nova_mmu_verify_identity(uintptr_t address);
 /* Verify that an address outside the prototype map faults translation. */
 int nova_mmu_verify_unmapped(uintptr_t address);
 
+/* Validate EL1 read/write and privileged instruction access permissions. */
+int nova_mmu_verify_writable(uintptr_t address);
+int nova_mmu_verify_write_protected(uintptr_t address);
+int nova_mmu_verify_executable(uintptr_t address);
+int nova_mmu_verify_execute_never(uintptr_t address);
+
 #endif
