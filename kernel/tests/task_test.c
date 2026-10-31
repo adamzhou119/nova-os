@@ -43,6 +43,7 @@ int main(void) {
     assert(nova_task_create(dummy_entry, &argument, &first));
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
+    assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_FIRST_RUN));
 
     /* Ready selection must be round-robin by task ID and skip blocked tasks. */
     {
@@ -94,6 +95,7 @@ int main(void) {
     assert(!nova_task_transition(first, NOVA_TASK_BLOCKED));
     /* IRQ frames are a distinct resume path, never a cooperative context. */
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
+    assert(!nova_task_set_resume_kind(first, NOVA_TASK_RESUME_COOPERATIVE));
     assert(nova_task_mark_irq_resumable(first, info.irq_frame));
     assert(nova_task_get(first, &info));
     assert(info.resume_kind == NOVA_TASK_RESUME_IRQ);
