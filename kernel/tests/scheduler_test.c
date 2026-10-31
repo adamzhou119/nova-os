@@ -101,6 +101,9 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(nova_task_get(observed_task, &current_info));
             assert(current_info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
             assert(nova_task_get(peer_task, &peer_info));
+            ((struct nova_irq_frame *)(current_info.kernel_stack_top -
+                sizeof(struct nova_irq_frame)))->sp_el0 = 0x70001000U;
+            peer_info.irq_frame->sp_el0 = 0x70002000U;
             /* Reject a malformed IRQ frame without consuming the quantum. */
             assert(!nova_sched_irq_handoff(0, &selected_id, &selected_frame));
             assert(nova_sched_preemption_pending());
@@ -112,6 +115,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(mock_ttbr_root == 0x3000U && mock_ttbr_asid == 8U);
             assert(selected_id == peer_task);
             assert(selected_frame == peer_info.irq_frame);
+            assert(selected_frame->sp_el0 == 0x70002000U);
             assert(nova_sched_current() == peer_task);
             assert(nova_task_get(observed_task, &current_info));
             assert(current_info.state == NOVA_TASK_READY &&
@@ -131,6 +135,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
             assert(selected_id == observed_task);
             assert(selected_frame == current_info.irq_frame);
+            assert(selected_frame->sp_el0 == 0x70001000U);
             assert(nova_sched_current() == observed_task);
 
             /* An expired quantum with no IRQ-resumable peer keeps this frame. */
