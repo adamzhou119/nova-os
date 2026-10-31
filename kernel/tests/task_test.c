@@ -136,6 +136,16 @@ int main(void) {
                    info.state == NOVA_TASK_READY);
             assert(nova_task_get(first, &info) &&
                    info.state == NOVA_TASK_RUNNING);
+
+            /* With no other IRQ-resumable READY task, keep the same task. */
+            assert(nova_task_transition(second, NOVA_TASK_RUNNING));
+            assert(nova_task_transition(second, NOVA_TASK_BLOCKED));
+            assert(!nova_task_irq_handoff(first, info.irq_frame,
+                                          &chosen_id, &chosen_frame));
+            assert(chosen_id == first && chosen_frame == info.irq_frame);
+            assert(nova_task_get(first, &info) &&
+                   info.state == NOVA_TASK_RUNNING);
+            assert(nova_task_transition(second, NOVA_TASK_READY));
         }
     assert(!nova_task_destroy(first));
     }
