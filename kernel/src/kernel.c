@@ -475,12 +475,12 @@ static void scheduler_task_a(void *argument) {
     start_ticks = nova_irq_tick_count();
     if (frequency != 0U &&
         nova_timer_start_irq(frequency / 100U)) {
-        __asm__ volatile("msr daifclr, #2\\n\\tisb" ::: "memory");
+        __asm__ volatile("msr daifclr, #2\n\tisb" ::: "memory");
         deadline = nova_timer_now() + frequency;
         while (nova_irq_tick_count() - start_ticks < 5U &&
                nova_timer_now() < deadline)
             __asm__ volatile("nop");
-        __asm__ volatile("msr daifset, #2\\n\\tisb" ::: "memory");
+        __asm__ volatile("msr daifset, #2\n\tisb" ::: "memory");
         nova_timer_stop();
         scheduler_quantum_observed =
             (nova_irq_tick_count() - start_ticks >= 5U) &&
