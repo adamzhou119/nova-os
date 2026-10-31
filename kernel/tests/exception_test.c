@@ -10,6 +10,8 @@
 #define ESR_WNR (1ULL << 6)
 #define ESR_S1PTW (1ULL << 7)
 #define ESR_FNV (1ULL << 10)
+#define SPSR_EL0T 0U
+#define SPSR_EL1H 5U
 
 int main(void) {
     uint64_t data_write = ESR_EC(0x24U) | ESR_FSC(0x0dU) | ESR_WNR;
@@ -32,6 +34,24 @@ int main(void) {
                   "AArch64 BRK instruction") == 0);
     assert(strcmp(nova_exception_class_name(ESR_EC(0x3fU)),
                   "Unrecognized exception class") == 0);
+
+    /* Only lower-EL synchronous exceptions are eligible for containment. */
+    assert(nova_exception_policy_for(8U, ESR_EC(0x15U), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_USER_SVC);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x24U), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_USER_FAULT);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x20U), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_USER_FAULT);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x3cU), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_USER_FAULT);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x25U), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_KERNEL_FATAL);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x15U), SPSR_EL1H) ==
+           NOVA_EXCEPTION_POLICY_KERNEL_FATAL);
+    assert(nova_exception_policy_for(5U, ESR_EC(0x24U), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_KERNEL_FATAL);
+    assert(nova_exception_policy_for(8U, ESR_EC(0x3fU), SPSR_EL0T) ==
+           NOVA_EXCEPTION_POLICY_KERNEL_FATAL);
 
     assert(nova_exception_is_data_abort(data_write));
     assert(!nova_exception_is_instruction_abort(data_write));
@@ -56,6 +76,6 @@ int main(void) {
     assert(strcmp(nova_abort_fault_status_name(ESR_EC(0x25U) | 0x3fU),
                   "Reserved or implementation-defined fault status") == 0);
 
-    puts("Exception classification and abort syndrome host tests passed.");
+    puts("Exception classification, recovery policy, and abort syndrome tests passed.");
     return 0;
 }
