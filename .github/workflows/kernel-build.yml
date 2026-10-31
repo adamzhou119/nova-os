@@ -69,6 +69,7 @@ jobs:
           grep -q "Kernel virtual page allocator tests passed." qemu.log
           grep -q "Kernel task lifecycle tests passed." qemu.log
           grep -q "AArch64 cooperative context switch test passed." qemu.log
+          grep -q "Kernel cooperative scheduler tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
       - name: QEMU controlled exception test
