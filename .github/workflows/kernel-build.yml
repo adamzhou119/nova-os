@@ -59,6 +59,8 @@ jobs:
           grep -q "Physical page allocator tests passed." qemu.log
           grep -q "Firmware RAM page allocator tests passed." qemu.log
           grep -q "Current page map available:" qemu.log
+          grep -q "EL1 MMU enabled with identity-mapped RAM and PL011." qemu.log
+          grep -q "MMU identity translation tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
       - name: QEMU controlled exception test
