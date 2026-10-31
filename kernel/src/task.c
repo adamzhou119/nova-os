@@ -36,6 +36,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     id = next_task_id++;
     tasks[i].id = id;
     tasks[i].state = NOVA_TASK_READY;
+    tasks[i].resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     tasks[i].entry = entry;
     tasks[i].argument = argument;
     tasks[i].kernel_stack_base = (uintptr_t)stack;
@@ -52,7 +53,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
         tasks[i].irq_frame->x[21] = (uintptr_t)&tasks[i];
         tasks[i].irq_frame->x[30] = 0U;
         tasks[i].irq_frame->elr_el1 = (uintptr_t)nova_task_start_trampoline;
-        tasks[i].irq_frame->spsr_el1 = 0x5U; /* EL1h, IRQ/FIQ/SError/Debug unmasked */
+        tasks[i].irq_frame->spsr_el1 = 0x5U;
         tasks[i].irq_frame->reserved = 0U;
     }
     if (!nova_arch_context_init(&tasks[i].context,
@@ -99,6 +100,7 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     if (task == 0 || info == 0) return 0;
     info->id = task->id;
     info->state = task->state;
+    info->resume_kind = task->resume_kind;
     info->entry = task->entry;
     info->argument = task->argument;
     info->kernel_stack_base = task->kernel_stack_base;
@@ -123,13 +125,40 @@ int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame) {
     return 1;
 }
 
-int nova_task_next_ready(uint32_t after_id, uint32_t *task_id) {
+int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame) {
+    struct nova_task_info *task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_RUNNING ||
+        !nova_task_set_irq_frame(task_id, frame))
+        return 0;
+    task->resume_kind = NOVA_TASK_RESUME_IRQ;
+    return 1;
+}
+
+int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind) {
+    struct nova_task_info *task = find_task(task_id);
+    if (task == 0 || (kind != NOVA_TASK_RESUME_FIRST_RUN &&
+                      kind != NOVA_TASK_RESUME_COOPERATIVE &&
+                      kind != NOVA_TASK_RESUME_IRQ))
+        return 0;
+    if (kind == NOVA_TASK_RESUME_FIRST_RUN &&
+        task->state != NOVA_TASK_READY)
+        return 0;
+    if (kind == NOVA_TASK_RESUME_IRQ && task->state != NOVA_TASK_RUNNING)
+        return 0;
+    task->resume_kind = kind;
+    return 1;
+}
+
+static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
+                               int cooperative_only) {
     struct nova_task_info *wrapped = 0;
     struct nova_task_info *next = 0;
     size_t i;
     if (task_id == 0) return 0;
     for (i = 0; i < NOVA_TASK_MAX; ++i) {
-        if (tasks[i].state != NOVA_TASK_READY) continue;
+        if (tasks[i].state != NOVA_TASK_READY ||
+            (cooperative_only && tasks[i].resume_kind == NOVA_TASK_RESUME_IRQ))
+            continue;
         if (wrapped == 0 || tasks[i].id < wrapped->id) wrapped = &tasks[i];
         if (tasks[i].id > after_id &&
             (next == 0 || tasks[i].id < next->id)) next = &tasks[i];
@@ -138,6 +167,14 @@ int nova_task_next_ready(uint32_t after_id, uint32_t *task_id) {
     if (next == 0) return 0;
     *task_id = next->id;
     return 1;
+}
+
+int nova_task_next_ready(uint32_t after_id, uint32_t *task_id) {
+    return next_ready_matching(after_id, task_id, 0);
+}
+
+int nova_task_next_cooperative_ready(uint32_t after_id, uint32_t *task_id) {
+    return next_ready_matching(after_id, task_id, 1);
 }
 
 struct nova_cpu_context *nova_task_context(uint32_t task_id) {
@@ -166,6 +203,7 @@ int nova_task_destroy(uint32_t task_id) {
     if (!nova_vmap_free_page((void *)stack)) return 0;
     task->id = 0;
     task->state = NOVA_TASK_UNUSED;
+    task->resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     task->entry = 0;
     task->argument = 0;
     task->kernel_stack_base = 0;
