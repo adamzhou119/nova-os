@@ -30,6 +30,7 @@ jobs:
         run: |
           file kernel/build/nova.elf
           readelf -h kernel/build/nova.elf
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|_start'
 
       - name: QEMU serial smoke test
         shell: bash
@@ -47,4 +48,8 @@ jobs:
             echo "Expected serial banner was not observed (QEMU exit: $status)."
             exit 1
           fi
-          echo "Nova OS serial banner observed."
+          if ! grep -q "BSS zero initialization verified." qemu.log; then
+            echo "BSS initialization probe failed or was not observed."
+            exit 1
+          fi
+          echo "Nova OS boot and BSS initialization checks passed."
