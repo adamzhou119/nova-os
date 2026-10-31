@@ -14,6 +14,7 @@
 #include "gic.h"
 #include "interrupt.h"
 #include "exception.h"
+#include "address_space.h"
 
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
@@ -814,6 +815,25 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("MMU kernel text/rodata/data permission tests passed.\n");
         } else {
             uart_write("ERROR: MMU kernel permission test failed.\n");
+        }
+        {
+            uintptr_t private_root = 0U;
+            uint32_t private_space_id = 0U;
+            if (nova_mmu_address_space_create(&private_root) &&
+                nova_address_space_create(private_root, 1U, &private_space_id) &&
+                nova_mmu_switch_address_space(private_root, 1U) &&
+                nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
+                nova_mmu_verify_identity((uintptr_t)UART0_BASE) &&
+                nova_mmu_verify_unmapped(0x80000000U) &&
+                nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U) &&
+                nova_address_space_release(private_space_id) &&
+                nova_mmu_address_space_destroy(private_root)) {
+                uart_write("Private address-space root, privileged mapping sharing, ASID switch, and empty user-range tests passed.\\n");
+            } else {
+                /* Never continue under an unknown TTBR0 if a test step fails. */
+                (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
+                uart_write("ERROR: private address-space root/switch test failed.\\n");
+            }
         }
         if (test_dynamic_virtual_pages()) {
             uart_write("MMU dynamic map/unmap and permission tests passed.\n");
