@@ -46,6 +46,7 @@ jobs:
           grep -Eq "CurrentEL: EL[0-3]" qemu.log
           grep -q "BSS zero initialization verified." qemu.log
           grep -q "Heap allocator tests passed." qemu.log
+          grep -q "FDT memory map parsed." qemu.log
           grep -q "Physical page allocator tests passed." qemu.log
           grep -q "Page pool available:" qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
