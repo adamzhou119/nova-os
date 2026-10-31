@@ -37,6 +37,8 @@ host-test: | $(BUILD)
 	$(BUILD)/task-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/interrupt_test.c src/interrupt.c -o $(BUILD)/interrupt-test
 	$(BUILD)/interrupt-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c -o $(BUILD)/scheduler-test
+	$(BUILD)/scheduler-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf
 
