@@ -300,6 +300,7 @@ static int test_dynamic_virtual_pages(void) {
         !nova_mmu_protect_page(alias, NOVA_MMU_MAP_WRITABLE) ||
         !nova_mmu_verify_writable(alias) ||
         !nova_mmu_verify_execute_never(alias)) {
+        (void)nova_mmu_unmap_page(second_alias);
         (void)nova_mmu_unmap_page(alias);
         (void)nova_page_free(physical_page);
         return 0;
