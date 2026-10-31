@@ -2,6 +2,7 @@
 #define NOVA_TASK_H
 
 #include <stdint.h>
+#include "context.h"
 
 #define NOVA_TASK_MAX 16U
 
@@ -23,6 +24,7 @@ struct nova_task_info {
     uintptr_t kernel_stack_base;
     uintptr_t kernel_stack_top;
     int exit_code;
+    struct nova_cpu_context context;
 };
 
 /* Creates a task control block and one mapped kernel stack page. */
@@ -30,6 +32,8 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
 /* State changes are validated; this does not yet perform a CPU context switch. */
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state);
 int nova_task_get(uint32_t task_id, struct nova_task_info *info);
+struct nova_cpu_context *nova_task_context(uint32_t task_id);
+void nova_task_mark_zombie(struct nova_task_info *task);
 int nova_task_set_exit_code(uint32_t task_id, int exit_code);
 /* Only READY (never dispatched) and ZOMBIE tasks may be destroyed. */
 int nova_task_destroy(uint32_t task_id);
