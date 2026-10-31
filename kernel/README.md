@@ -50,6 +50,10 @@ The normal image exercises heap allocation and both page allocator paths. The te
 
 Timer IRQs feed a five-tick (50 ms at 100 Hz) round-robin quantum counter while a task is running. When the quantum expires, the IRQ dispatcher saves the interrupted task's frame and returns a selected task frame. QEMU validates both a mixed cooperative/IRQ handoff and repeated preemption between two CPU-bound tasks that never call Yield or Block.
 
+### Guarded task stacks
+
+Each task receives one mapped 4 KiB kernel stack page with an unmapped guard page immediately below it. The virtual allocator reserves both slots as a pair so ordinary page allocations cannot consume the guard. Task destruction releases the mapping and guard reservation together. Host tests cover allocation/free ownership and reuse; a dedicated QEMU image reads the guard address and CI verifies the resulting EL1 data abort and FAR_EL1.
+
 ### IRQ exception-frame integrity
 
 - The EL1 SPx IRQ vector no longer overwrites x16 to carry a diagnostic vector number; the interrupted x16 value is preserved.
