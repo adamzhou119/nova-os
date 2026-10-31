@@ -202,22 +202,26 @@ int nova_mmu_verify_write_protected(uintptr_t address) {
     return (par & 1U) != 0;
 }
 
+static uint64_t *lookup_ram_page_descriptor(uintptr_t address) {
+    uintptr_t offset;
+    size_t l2_index;
+    size_t l3_index;
+    if (address < NOVA_MMU_RAM_BASE ||
+        address >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE) return NULL;
+    offset = address - NOVA_MMU_RAM_BASE;
+    l2_index = (size_t)(offset / NOVA_MMU_BLOCK_2M);
+    l3_index = (size_t)((offset % NOVA_MMU_BLOCK_2M) / NOVA_MMU_PAGE_SIZE);
+    return &level3_ram_tables[l2_index][l3_index];
+}
+
 int nova_mmu_verify_executable(uintptr_t address) {
-    uint64_t par;
-    __asm__ volatile(
-        "at s1e1p, %1\n"
-        "isb\n"
-        "mrs %0, par_el1\n"
-        : "=r"(par) : "r"((uint64_t)address) : "memory");
-    return (par & 1U) == 0;
+    uint64_t *descriptor = lookup_ram_page_descriptor(address);
+    return descriptor != NULL && (*descriptor & DESC_VALID) != 0 &&
+           (*descriptor & DESC_PXN) == 0;
 }
 
 int nova_mmu_verify_execute_never(uintptr_t address) {
-    uint64_t par;
-    __asm__ volatile(
-        "at s1e1p, %1\n"
-        "isb\n"
-        "mrs %0, par_el1\n"
-        : "=r"(par) : "r"((uint64_t)address) : "memory");
-    return (par & 1U) != 0;
+    uint64_t *descriptor = lookup_ram_page_descriptor(address);
+    return descriptor != NULL && (*descriptor & DESC_VALID) != 0 &&
+           (*descriptor & DESC_PXN) != 0;
 }
