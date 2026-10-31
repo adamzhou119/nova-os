@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+struct nova_irq_frame;
+
 /* AAPCS64 context: x19..x30 at offsets 0..88; SP at offset 96. */
 struct nova_cpu_context {
     uintptr_t x19_x30[12];
