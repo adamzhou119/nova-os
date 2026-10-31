@@ -467,10 +467,25 @@ static int scheduler_quantum_observed;
 
 static void scheduler_task_a(void *argument) {
     (void)argument;
-    uint32_t tick;
+    uint64_t start_ticks;
+    uint64_t deadline;
+    uint64_t frequency;
     scheduler_order[scheduler_order_count++] = 1U;
-    for (tick = 0U; tick < 5U; ++tick) nova_sched_timer_tick();
-    scheduler_quantum_observed = nova_sched_preemption_pending();
+    frequency = nova_timer_frequency();
+    start_ticks = nova_irq_tick_count();
+    if (frequency != 0U &&
+        nova_timer_start_irq(frequency / 100U)) {
+        __asm__ volatile("msr daifclr, #2\\n\\tisb" ::: "memory");
+        deadline = nova_timer_now() + frequency;
+        while (nova_irq_tick_count() - start_ticks < 5U &&
+               nova_timer_now() < deadline)
+            __asm__ volatile("nop");
+        __asm__ volatile("msr daifset, #2\\n\\tisb" ::: "memory");
+        nova_timer_stop();
+        scheduler_quantum_observed =
+            (nova_irq_tick_count() - start_ticks >= 5U) &&
+            nova_sched_preemption_pending();
+    }
     nova_sched_clear_preemption();
     (void)nova_sched_block_current();
     scheduler_order[scheduler_order_count++] = 3U;
