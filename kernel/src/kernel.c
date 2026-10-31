@@ -293,7 +293,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         } else {
             uart_write("ERROR: MMU identity translation test failed.\n");
         }
-        if (nova_mmu_verify_unmapped(0x1000U)) {
+        if (nova_mmu_verify_identity(0x40000000U) &&
+            nova_mmu_verify_identity(0x40000fffU) &&
+            nova_mmu_verify_identity(0x40001000U) &&
+            nova_mmu_verify_identity(0x47ffffffU)) {
+            uart_write("MMU 4 KiB RAM page boundary tests passed.\n");
+        } else {
+            uart_write("ERROR: MMU 4 KiB RAM page boundary test failed.\n");
+        }
+        if (nova_mmu_verify_unmapped(0x1000U) &&
+            nova_mmu_verify_unmapped(0x48000000U)) {
             uart_write("MMU unmapped guard test passed.\n");
         } else {
             uart_write("ERROR: MMU unmapped guard address unexpectedly translated.\n");
