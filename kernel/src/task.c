@@ -31,7 +31,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     for (i = 0; i < NOVA_TASK_MAX; ++i)
         if (tasks[i].state == NOVA_TASK_UNUSED) break;
     if (i == NOVA_TASK_MAX) return 0;
-    stack = nova_vmap_alloc_page(NOVA_MMU_MAP_WRITABLE);
+    stack = nova_vmap_alloc_guarded_page(NOVA_MMU_MAP_WRITABLE);
     if (stack == 0) return 0;
     id = next_task_id++;
     tasks[i].id = id;
@@ -60,7 +60,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
                                 (uintptr_t)tasks[i].irq_frame,
                                 (uintptr_t)nova_task_start_trampoline,
                                 (uintptr_t)entry, (uintptr_t)argument)) {
-        (void)nova_vmap_free_page(stack);
+        (void)nova_vmap_free_guarded_page(stack);
         tasks[i].id = 0;
         tasks[i].state = NOVA_TASK_UNUSED;
         return 0;
@@ -306,7 +306,7 @@ int nova_task_destroy(uint32_t task_id) {
            task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN)))
         return 0;
     stack = task->kernel_stack_base;
-    if (!nova_vmap_free_page((void *)stack)) return 0;
+    if (!nova_vmap_free_guarded_page((void *)stack)) return 0;
     task->id = 0;
     task->state = NOVA_TASK_UNUSED;
     task->resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
