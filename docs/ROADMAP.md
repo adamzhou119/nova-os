@@ -55,7 +55,10 @@ Remaining:
       handoff contract.
 - [ ] Pin and document the supported QEMU/toolchain matrix.
 - [ ] Generalize device-memory mappings and page-table construction from FDT data.
-- [ ] Define per-task address-space and user-mode context requirements before introducing unprivileged tasks.
+- [x] Define per-task address-space ownership, mapping, permission, ASID,
+      exception-frame, and isolation requirements (ADR 0010).
+- [ ] Implement private address-space page tables and ASID-aware switching.
+- [ ] Add an EL0 exception frame, SVC boundary, and fault containment.
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
