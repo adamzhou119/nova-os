@@ -16,6 +16,8 @@
 #define DESC_ATTR(n)     ((uint64_t)(n) << 2)
 #define DESC_SH_INNER    (3ULL << 8)
 #define DESC_SH_OUTER    (2ULL << 8)
+#define DESC_AP_RO       (2ULL << 6)
+#define DESC_AP_MASK     (3ULL << 6)
 #define DESC_AF          (1ULL << 10)
 #define DESC_PXN         (1ULL << 53)
 #define DESC_UXN         (1ULL << 54)
@@ -29,6 +31,31 @@ static uint64_t level2_ram_table[NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
 static uint64_t level3_ram_tables[NOVA_MMU_L3_TABLES][NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
+
+extern char __text_start[];
+extern char __text_end[];
+extern char __rodata_start[];
+extern char __rodata_end[];
+
+static int set_page_range(uintptr_t start, uintptr_t end,
+                          uint64_t set_flags, uint64_t clear_flags) {
+    uintptr_t address;
+    if (start > end || start < NOVA_MMU_RAM_BASE ||
+        end > NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
+        (start & (NOVA_MMU_PAGE_SIZE - 1U)) != 0 ||
+        (end & (NOVA_MMU_PAGE_SIZE - 1U)) != 0) return 0;
+
+    for (address = start; address < end; address += NOVA_MMU_PAGE_SIZE) {
+        uintptr_t offset = address - NOVA_MMU_RAM_BASE;
+        size_t l2_index = (size_t)(offset / NOVA_MMU_BLOCK_2M);
+        size_t l3_index = (size_t)((offset % NOVA_MMU_BLOCK_2M) /
+                                   NOVA_MMU_PAGE_SIZE);
+        uint64_t *descriptor = &level3_ram_tables[l2_index][l3_index];
+        if ((*descriptor & DESC_VALID) == 0) return 0;
+        *descriptor = (*descriptor & ~clear_flags) | set_flags;
+    }
+    return 1;
+}
 
 static void zero_table(uint64_t *table) {
     size_t i;
@@ -82,9 +109,19 @@ int nova_mmu_enable(void) {
                 ((uint64_t)page_index * NOVA_MMU_PAGE_SIZE);
             level3_ram_tables[table_index][page_index] =
                 (physical & DESC_ADDR_MASK) | DESC_VALID | DESC_PAGE |
-                DESC_ATTR(1) | DESC_SH_INNER | DESC_AF | DESC_UXN;
+                DESC_ATTR(1) | DESC_SH_INNER | DESC_AF | DESC_PXN | DESC_UXN;
         }
     }
+
+    /*
+     * Default RAM pages are EL1 read/write and execute-never.
+     * Kernel text becomes EL1 read-only and executable; rodata is read-only
+     * and execute-never. Linker boundaries are page aligned.
+     */
+    if (!set_page_range((uintptr_t)__text_start, (uintptr_t)__text_end,
+                        DESC_AP_RO, DESC_AP_MASK | DESC_PXN) ||
+        !set_page_range((uintptr_t)__rodata_start, (uintptr_t)__rodata_end,
+                        DESC_AP_RO | DESC_PXN, DESC_AP_MASK)) return 0;
 
     /* AttrIdx 0 = Device-nGnRnE; AttrIdx 1 = Normal memory, WB. */
     mair = 0x000000000000FF00ULL;
@@ -142,5 +179,45 @@ int nova_mmu_verify_unmapped(uintptr_t address) {
         : "=r"(par)
         : "r"((uint64_t)address)
         : "memory");
+    return (par & 1U) != 0;
+}
+
+int nova_mmu_verify_writable(uintptr_t address) {
+    uint64_t par;
+    __asm__ volatile(
+        "at s1e1w, %1\\n"
+        "isb\\n"
+        "mrs %0, par_el1\\n"
+        : "=r"(par) : "r"((uint64_t)address) : "memory");
+    return (par & 1U) == 0;
+}
+
+int nova_mmu_verify_write_protected(uintptr_t address) {
+    uint64_t par;
+    __asm__ volatile(
+        "at s1e1w, %1\\n"
+        "isb\\n"
+        "mrs %0, par_el1\\n"
+        : "=r"(par) : "r"((uint64_t)address) : "memory");
+    return (par & 1U) != 0;
+}
+
+int nova_mmu_verify_executable(uintptr_t address) {
+    uint64_t par;
+    __asm__ volatile(
+        "at s1e1p, %1\\n"
+        "isb\\n"
+        "mrs %0, par_el1\\n"
+        : "=r"(par) : "r"((uint64_t)address) : "memory");
+    return (par & 1U) == 0;
+}
+
+int nova_mmu_verify_execute_never(uintptr_t address) {
+    uint64_t par;
+    __asm__ volatile(
+        "at s1e1p, %1\\n"
+        "isb\\n"
+        "mrs %0, par_el1\\n"
+        : "=r"(par) : "r"((uint64_t)address) : "memory");
     return (par & 1U) != 0;
 }
