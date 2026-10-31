@@ -2,6 +2,7 @@
 
 #include "context.h"
 #include "interrupt.h"
+#include "address_space.h"
 
 #include <stddef.h>
 
@@ -35,6 +36,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     if (stack == 0) return 0;
     id = next_task_id++;
     tasks[i].id = id;
+    tasks[i].address_space_id = 0U;
     tasks[i].state = NOVA_TASK_READY;
     tasks[i].resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     tasks[i].entry = entry;
@@ -99,6 +101,7 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     size_t i;
     if (task == 0 || info == 0) return 0;
     info->id = task->id;
+    info->address_space_id = task->address_space_id;
     info->state = task->state;
     info->resume_kind = task->resume_kind;
     info->entry = task->entry;
@@ -112,6 +115,27 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     info->irq_frame = task->irq_frame;
     return 1;
 }
+
+int nova_task_set_address_space(uint32_t task_id, uint32_t address_space_id) {
+    struct nova_task_info *task = find_task(task_id);
+    uint32_t old_id;
+    if (task == 0 || task->state != NOVA_TASK_READY ||
+        task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN)
+        return 0;
+    old_id = task->address_space_id;
+    if (old_id == address_space_id) return 1;
+    if (address_space_id != 0U &&
+        !nova_address_space_retain(address_space_id))
+        return 0;
+    if (old_id != 0U && !nova_address_space_release(old_id)) {
+        if (address_space_id != 0U)
+            (void)nova_address_space_release(address_space_id);
+        return 0;
+    }
+    task->address_space_id = address_space_id;
+    return 1;
+}
+
 
 int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame) {
     struct nova_task_info *task = find_task(task_id);
@@ -306,8 +330,16 @@ int nova_task_destroy(uint32_t task_id) {
            task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN)))
         return 0;
     stack = task->kernel_stack_base;
-    if (!nova_vmap_free_guarded_page((void *)stack)) return 0;
+    if (task->address_space_id != 0U &&
+        !nova_address_space_release(task->address_space_id))
+        return 0;
+    if (!nova_vmap_free_guarded_page((void *)stack)) {
+        if (task->address_space_id != 0U)
+            (void)nova_address_space_retain(task->address_space_id);
+        return 0;
+    }
     task->id = 0;
+    task->address_space_id = 0U;
     task->state = NOVA_TASK_UNUSED;
     task->resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     task->entry = 0;
