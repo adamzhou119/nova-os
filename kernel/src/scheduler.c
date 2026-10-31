@@ -2,6 +2,8 @@
 
 #include "context.h"
 #include "task.h"
+#include "address_space.h"
+#include "mmu.h"
 
 #define NOVA_SCHED_QUANTUM_TICKS 5U
 
@@ -11,6 +13,37 @@ static uint32_t next_after_id;
 static volatile enum nova_sched_phase execution_phase = NOVA_SCHED_INACTIVE;
 static volatile uint32_t current_quantum_ticks;
 static volatile int preemption_pending;
+
+static uint32_t active_address_space_id;
+__attribute__((weak)) uintptr_t nova_mmu_kernel_root(void) { return 0U; }
+__attribute__((weak)) int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
+    (void)root; (void)asid; return 1;
+}
+static int scheduler_enter_task_space(uint32_t task_id) {
+    struct nova_task_info task;
+    struct nova_address_space_info space;
+    uint32_t next_id; uintptr_t root; uint16_t asid;
+    if (!nova_task_get(task_id, &task)) return 0;
+    next_id=task.address_space_id;
+    if (next_id==active_address_space_id) return 1;
+    if (next_id==0U) { root=nova_mmu_kernel_root(); asid=0U; }
+    else {
+        if (!nova_address_space_get(next_id,&space) ||
+            !nova_address_space_activate(next_id)) return 0;
+        root=space.root_physical; asid=space.asid;
+    }
+    if (!nova_mmu_switch_address_space(root,asid)) {
+        if(next_id!=0U)(void)nova_address_space_deactivate(next_id);
+        return 0;
+    }
+    if(active_address_space_id!=0U)(void)nova_address_space_deactivate(active_address_space_id);
+    active_address_space_id=next_id; return 1;
+}
+static void scheduler_return_to_kernel_space(void) {
+    if(!nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)) return;
+    if(active_address_space_id!=0U)(void)nova_address_space_deactivate(active_address_space_id);
+    active_address_space_id=0U;
+}
 
 static uintptr_t irq_save_disable(void) {
 #if defined(__aarch64__)
@@ -91,7 +124,9 @@ int nova_sched_start(void) {
         saved_daif = irq_save_disable();
         if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ) {
             struct nova_irq_frame *frame = 0;
-            if (!nova_task_take_irq_context(next, &frame)) {
+            if (!scheduler_enter_task_space(next) ||
+                !nova_task_take_irq_context(next, &frame)) {
+                scheduler_return_to_kernel_space();
                 irq_restore(saved_daif);
                 continue;
             }
@@ -115,6 +150,7 @@ int nova_sched_start(void) {
              * the continuation following the original context switch below.
              */
             execution_phase = NOVA_SCHED_SCHEDULER;
+            scheduler_return_to_kernel_space();
             {
                 uint32_t returned_id = current_task_id;
                 struct nova_task_info returned_task;
@@ -130,13 +166,15 @@ int nova_sched_start(void) {
 
         {
             struct nova_cpu_context *context = nova_task_context(next);
-            if (context == 0 ||
+            if (context == 0 || !scheduler_enter_task_space(next) ||
                 !nova_task_transition(next, NOVA_TASK_RUNNING)) {
+                scheduler_return_to_kernel_space();
                 irq_restore(saved_daif);
                 continue;
             }
             if (!nova_task_set_resume_kind(next, NOVA_TASK_RESUME_ACTIVE)) {
                 (void)nova_task_transition(next, NOVA_TASK_READY);
+                scheduler_return_to_kernel_space();
                 irq_restore(saved_daif);
                 continue;
             }
@@ -149,6 +187,7 @@ int nova_sched_start(void) {
         }
 
         execution_phase = NOVA_SCHED_SCHEDULER;
+        scheduler_return_to_kernel_space();
         {
             /*
              * An IRQ handoff may have resumed a different task before that
@@ -228,6 +267,21 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
         return 0;
     }
 
+    {
+        struct nova_task_info current_info, candidate_info;
+        uint32_t candidate_id=0U;
+        /* Cross-space IRQ handoff stays disabled until TTBR0 and IRQ-frame
+         * selection can be committed as one atomic operation. */
+        if(!nova_task_get(current_id,&current_info) ||
+           current_info.address_space_id!=0U ||
+           (nova_task_next_irq_ready(current_id,&candidate_id) &&
+            candidate_id!=current_id &&
+            (!nova_task_get(candidate_id,&candidate_info) ||
+             candidate_info.address_space_id!=0U))) {
+            current_quantum_ticks=0U; preemption_pending=0;
+            irq_restore(saved_daif); return 0;
+        }
+    }
     switched = nova_task_irq_handoff(current_id, frame, next_id, next_frame);
     /* A no-peer result still consumes the expired quantum, per the ADR. */
     current_quantum_ticks = 0U;
