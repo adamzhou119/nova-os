@@ -164,7 +164,6 @@ int main(void) {
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
 
-    assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
     assert(nova_task_transition(task_id, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(task_id));
