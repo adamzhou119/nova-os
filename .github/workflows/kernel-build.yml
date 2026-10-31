@@ -78,7 +78,7 @@ jobs:
           grep -q "Kernel task lifecycle tests passed." qemu.log
           grep -q "AArch64 cooperative context switch test passed." qemu.log
           grep -q "Kernel mixed-mode scheduler tests passed." qemu.log
-          grep -q "Kernel CPU-bound IRQ preemption tests passed." qemu.log
+          grep -q "Kernel cross-address-space CPU-bound IRQ preemption tests passed." qemu.log
           grep -q "EL1 generic physical timer tests passed." qemu.log
           grep -q "GICv2 physical timer IRQ tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
