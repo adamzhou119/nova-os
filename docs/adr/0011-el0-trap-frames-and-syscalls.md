@@ -108,3 +108,5 @@ The initial 288-byte C frame and host layout test are present. The EL1 vector sl
 The host scheduler test now seeds distinct SP_EL0 values in two task frames and verifies that cross-address-space IRQ handoff selects each task with its own saved user stack pointer intact.
 
 The lower-EL AArch64 IRQ vector slot now shares the common IRQ entry and scheduler handoff path. Together with the SP_EL0 field, this preserves the user stack across timer IRQs; actual EL0 first-run dispatch remains a separate, unfinished step.
+
+A host-tested `nova_user_irq_frame_init()` helper now prepares the initial 272-byte ERET frame (ELR, EL0t SPSR, SP_EL0, x0 argument, and zeroed remaining GPRs). It validates instruction and stack alignment only; it does not prove that the entry or stack is mapped, and it is not yet wired into task creation/scheduling.
