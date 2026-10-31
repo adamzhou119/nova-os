@@ -12,7 +12,8 @@ Experimental bare-metal kernel targeting QEMU's AArch64 `virt` machine.
 - A bounded Flattened Device Tree (FDT) parser that discovers RAM regions and parses both the header memreserve map and `/reserved-memory` child `reg` entries.
 - A bitmap-backed 4 KiB page allocator with allocation, free, double-free rejection, invalid-alignment rejection, and reuse checks.
 - A firmware-backed physical page map built from FDT RAM regions, excluding the kernel image, DTB blob, and firmware-reserved ranges.
-- QEMU checks for normal boot, heap/page allocator behavior, and a controlled EL1 `SVC #0` exception.
+- QEMU checks for normal boot, heap/page allocator behavior, cooperative two-task scheduling, and a controlled EL1 `SVC #0` exception.
+- An EL1 physical generic-timer driver reads the architectural counter/frequency and arms a bounded one-shot deadline. The current stage masks timer IRQ delivery and polls the timer status; interrupt-driven preemption is not yet enabled.
 
 ## Firmware-backed physical memory map
 
