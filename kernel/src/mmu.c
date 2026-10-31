@@ -568,3 +568,63 @@ int nova_mmu_verify_user_access(uintptr_t va,int write) {
     else __asm__ volatile("at s1e0r, %1\nisb\nmrs %0, par_el1":"=r"(par):"r"((uint64_t)va):"memory");
     return (par&1U)==0U;
 }
+
+
+int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
+                               uintptr_t va, unsigned int flags) {
+    uint64_t *l2, *l3, *slot, old_desc, new_desc;
+    uintptr_t pa;
+    size_t i2, i3, frame_index;
+    int old_writable, old_executable;
+    int new_writable = (flags & NOVA_MMU_MAP_WRITABLE) != 0U;
+    int new_executable = (flags & NOVA_MMU_MAP_EXECUTABLE) != 0U;
+
+    if (asid == 0U || asid > 255U ||
+        (flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0U ||
+        (new_writable && new_executable) ||
+        !user_va_indices(va, &i2, &i3))
+        return 0;
+
+    l2 = user_l2_for_root(root_physical);
+    if (l2 == NULL ||
+        (l2[i2] & (DESC_VALID | DESC_TABLE)) != (DESC_VALID | DESC_TABLE))
+        return 0;
+    l3 = (uint64_t *)(uintptr_t)(l2[i2] & DESC_ADDR_MASK);
+    if (!nova_page_is_allocated(l3)) return 0;
+    slot = &l3[i3];
+    old_desc = *slot;
+    if ((old_desc & (DESC_VALID | DESC_PAGE)) != (DESC_VALID | DESC_PAGE))
+        return 0;
+
+    pa = (uintptr_t)(old_desc & DESC_ADDR_MASK);
+    frame_index = physical_frame_index(pa);
+    old_writable = descriptor_is_writable(old_desc);
+    old_executable = descriptor_is_executable(old_desc);
+
+    /* W^X is enforced across every alias, including other address spaces. */
+    if ((new_writable &&
+         executable_aliases[frame_index] > (size_t)old_executable) ||
+        (new_executable &&
+         writable_aliases[frame_index] > (size_t)old_writable))
+        return 0;
+
+    new_desc = old_desc & ~(DESC_AP_MASK | DESC_PXN | DESC_UXN);
+    new_desc |= DESC_PXN; /* EL1 must never execute user-owned pages. */
+    new_desc |= new_writable ? DESC_AP_USER_RW : DESC_AP_USER_RO;
+    if (!new_executable) new_desc |= DESC_UXN;
+
+    /*
+     * Break-before-make: invalidate the old ASID+VA translation while the
+     * descriptor is invalid, then publish the replacement descriptor.
+     */
+    *slot = 0U;
+    invalidate_user_page(va, asid);
+    *slot = new_desc;
+    __asm__ volatile("dsb ishst\n isb" ::: "memory");
+
+    if (old_writable && !new_writable) --writable_aliases[frame_index];
+    if (!old_writable && new_writable) ++writable_aliases[frame_index];
+    if (old_executable && !new_executable) --executable_aliases[frame_index];
+    if (!old_executable && new_executable) ++executable_aliases[frame_index];
+    return 1;
+}
