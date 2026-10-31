@@ -85,11 +85,25 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(!nova_sched_preemption_pending());
             assert(nova_task_transition(peer_task, NOVA_TASK_READY));
         }
+        /*
+         * Switch A -> B through an IRQ frame, then simulate B yielding.
+         * The shared scheduler continuation must account for B, not A.
+         */
+        {
+            struct nova_irq_frame *selected_frame = 0;
+            uint32_t selected_id = 0U;
+            assert(nova_sched_irq_handoff(
+                (struct nova_irq_frame *)(current_info.kernel_stack_top -
+                    sizeof(struct nova_irq_frame)),
+                &selected_id, &selected_frame));
+            assert(selected_id == peer_task);
+            assert(nova_sched_current() == peer_task);
+        }
         ++switch_depth;
         assert(nova_sched_block_current());
         --switch_depth;
         assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
-        assert(nova_sched_current() == observed_task);
+        assert(nova_sched_current() == peer_task);
         nova_sched_timer_tick();
         assert(!nova_sched_preemption_pending());
     } else {
@@ -100,7 +114,7 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
         /* A scheduler-stack IRQ must never be attached to a task. */
         assert(!nova_sched_irq_handoff((struct nova_irq_frame *)to,
                                        &selected_id, &selected_frame));
-        assert(nova_sched_current() == observed_task);
+        assert(nova_sched_current() == peer_task);
     }
 }
 
@@ -130,11 +144,12 @@ int main(void) {
     assert(nova_sched_current() == 0U);
     assert(observed_task == task_id);
     assert(nova_task_get(task_id, &info));
-    assert(info.state == NOVA_TASK_BLOCKED);
-    assert(!nova_sched_preemption_pending());
-    assert(nova_task_get(peer_task, &info));
     assert(info.state == NOVA_TASK_READY &&
            info.resume_kind == NOVA_TASK_RESUME_IRQ);
+    assert(!nova_sched_preemption_pending());
+    assert(nova_task_get(peer_task, &info));
+    assert(info.state == NOVA_TASK_BLOCKED &&
+           info.resume_kind == NOVA_TASK_RESUME_COOPERATIVE);
 
     assert(nova_sched_unblock(task_id));
     assert(nova_task_transition(task_id, NOVA_TASK_RUNNING));
