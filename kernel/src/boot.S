@@ -9,6 +9,10 @@
 _start:
     /* Preserve the QEMU/firmware DTB pointer passed in x0. */
     mov     x20, x0
+    /* QEMU's bare-metal ELF loader leaves x0 unset; CI loads DTB here. */
+    cbnz    x20, 7f
+    ldr     x20, =0x41000000
+7:
 
     /* Establish the bootstrap stack before using any memory. */
     ldr     x0, =_stack_top
