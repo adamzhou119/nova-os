@@ -20,7 +20,7 @@ enum nova_task_state {
 /*
  * The scheduler must never resume an IRQ frame through the cooperative
  * context-switch path. FIRST_RUN and COOPERATIVE use nova_cpu_context;
- * IRQ uses the saved exception frame and is reserved for IRQ dispatch.
+ * IRQ uses the saved exception frame and the AArch64 ERET restore path.
  */
 enum nova_task_resume_kind {
     NOVA_TASK_RESUME_FIRST_RUN = 0,
