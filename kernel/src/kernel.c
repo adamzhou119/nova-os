@@ -299,6 +299,34 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
  * Syscall 0 returns the current task ID. Unknown calls return -ENOSYS (-38).
  * Other synchronous exceptions remain terminal until fault isolation exists.
  */
+/* Bounded UART write: validate every covered user page before dereferencing. */
+static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
+    uintptr_t page, last_page;
+    uint64_t i;
+
+    if (length > 128U) return -22; /* -EINVAL */
+    if (length == 0U) return 0;
+    if (user_buffer < NOVA_USER_VA_BASE ||
+        user_buffer >= NOVA_USER_VA_END ||
+        length > (uint64_t)(NOVA_USER_VA_END - user_buffer))
+        return -14; /* -EFAULT */
+
+    page = user_buffer & ~(uintptr_t)(NOVA_PAGE_SIZE - 1U);
+    last_page = (user_buffer + (uintptr_t)length - 1U) &
+                ~(uintptr_t)(NOVA_PAGE_SIZE - 1U);
+    for (;;) {
+        if (!nova_mmu_verify_user_access(page, 0))
+            return -14;
+        if (page == last_page) break;
+        page += NOVA_PAGE_SIZE;
+    }
+
+    uart_write("EL0 user message: ");
+    for (i = 0U; i < length; ++i)
+        uart_putc(((volatile const char *)user_buffer)[i]);
+    return (int64_t)length;
+}
+
 uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     struct nova_user_trap_frame *frame =
         (struct nova_user_trap_frame *)frame_address;
@@ -356,6 +384,14 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         uart_write_hex64(nova_sched_current());
 #endif
         frame->x[0] = (uint64_t)nova_sched_current();
+    } else if (frame->x[8] == 2U) {
+        int64_t written = nova_user_write((uintptr_t)frame->x[0],
+                                          frame->x[1]);
+#ifdef NOVA_TEST_EL0_SVC
+        if (written == -14)
+            uart_write("EL0 write syscall rejected invalid pointer.\n");
+#endif
+        frame->x[0] = (uint64_t)written;
     } else if (frame->x[8] == 1U) {
 #ifdef NOVA_TEST_EL0_SVC
         uart_write("EL0 SVC exit; current task: ");
