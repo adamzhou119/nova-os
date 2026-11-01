@@ -46,7 +46,7 @@ static void build_test_dtb(void) {
         "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0";
     static const char compatibles[] = "vendor,uart\0arm,pl011\0";
     static const char gic_compatible[] = "arm,gic-400";
-    uint8_t cells[16];
+    uint8_t cells[32];
     uint32_t structure_offset = 56U;
 
     memset(blob, 0, sizeof(blob));
@@ -69,6 +69,10 @@ static void build_test_dtb(void) {
     cells[13] = 0x00U;
     cells[14] = 0x10U;
     cells[15] = 0x00U;
+    cells[16] = 0x00U; cells[17] = 0x00U; cells[18] = 0x00U; cells[19] = 0x0aU;
+    cells[20] = 0x00U; cells[21] = 0x00U; cells[22] = 0x00U; cells[23] = 0x00U;
+    cells[24] = 0x00U; cells[25] = 0x00U; cells[26] = 0x20U; cells[27] = 0x00U;
+    cells[28] = 0x00U; cells[29] = 0x00U; cells[30] = 0x00U; cells[31] = 0x00U;
     append_property(38U, cells, sizeof(cells));
     append_be32(2U);
     append_node("soc");
@@ -131,6 +135,10 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x09000000U);
     assert(device.mmio_size == 0x1000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,pl011", 1U, &device) == 1);
+    assert(device.mmio_base == (uintptr_t)0x0a000000U);
+    assert(device.mmio_size == 0x2000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,pl011", 2U, &device) == 0);
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
