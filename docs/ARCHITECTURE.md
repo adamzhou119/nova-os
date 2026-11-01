@@ -46,3 +46,7 @@ The prototype targets QEMU's AArch64 `virt` machine and uses the PL011 UART at t
 ## Driver and service foundation
 
 The proposed device-driver and service lifecycle contracts are documented in [Driver and System-Service Foundations](DRIVER_SERVICE_FOUNDATIONS.md). These are design constraints only; a device registry, generic driver probe framework, IPC transport, and service manager are not yet implemented.
+
+## Current driver extraction
+
+Early boot and kernel diagnostics now use a small console API (`kernel/include/console.h`) backed by the QEMU virt PL011 implementation (`kernel/src/console.c`). The MMIO address and transmit-register details are isolated from the kernel orchestration code. This is the first driver boundary, not yet a generic FDT device registry or probe framework.
