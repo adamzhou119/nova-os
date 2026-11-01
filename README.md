@@ -15,6 +15,7 @@ The repository contains project planning documents and an experimental bare-meta
 - [Project charter](docs/PROJECT_CHARTER.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Architecture overview](docs/ARCHITECTURE.md)
+- [Driver and system-service foundations](docs/DRIVER_SERVICE_FOUNDATIONS.md)
 - [Early boot contract](docs/BOOT_PROTOCOL.md)
 - [Build and test guide](docs/BUILD.md)
 - [Kernel prototype notes](kernel/README.md)
