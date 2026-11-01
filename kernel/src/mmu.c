@@ -482,10 +482,11 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
             pa = (uintptr_t)(desc & DESC_ADDR_MASK);
             if (pa < NOVA_MMU_RAM_BASE ||
                 pa >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
-                !nova_page_is_allocated((const void *)pa) ||
-                mapped_aliases[frame] == 0U ||
-                nova_page_pin_count((const void *)pa) < mapped_aliases[frame]) return 0;
+                !nova_page_is_allocated((const void *)pa)) return 0;
             frame = physical_frame_index(pa);
+            if (mapped_aliases[frame] == 0U ||
+                nova_page_pin_count((const void *)pa) < mapped_aliases[frame])
+                return 0;
             if ((descriptor_is_writable(desc) && writable_aliases[frame] == 0U) ||
                 (descriptor_is_executable(desc) && executable_aliases[frame] == 0U))
                 return 0;
@@ -616,7 +617,8 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
          DESC_SH_INNER|DESC_AF|DESC_PXN|(wr?DESC_AP_USER_RW:DESC_AP_USER_RO);
     if(!ex)desc|=DESC_UXN;
     *slot=desc; ++mapped_aliases[fi];
-    if(wr)++writable_aliases[fi]; if(ex)++executable_aliases[fi];
+    if(wr)++writable_aliases[fi];
+    if(ex)++executable_aliases[fi];
     invalidate_user_page(va,asid); return 1;
 }
 int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va) {
