@@ -1202,6 +1202,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         {
             uintptr_t root_a=0U,root_b=0U,frame_a,frame_b,translated=0U;
             uint32_t id_a=0U,id_b=0U; const uintptr_t user_va=0x80000000U; int ok=0;
+            struct nova_address_space_info teardown_info;
             size_t pages_before = nova_page_available();
             frame_a=(uintptr_t)nova_page_alloc(); frame_b=(uintptr_t)nova_page_alloc();
             if(frame_a&&frame_b&&nova_mmu_address_space_create(&root_a)&&
@@ -1227,7 +1228,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_verify_user_access(user_va,1)&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
                nova_mmu_user_unmap_page(root_a,1U,user_va)&&
-               nova_address_space_release(id_a)&&nova_address_space_release(id_b)&&
+               nova_address_space_release(id_a)&&
+                nova_page_unpin((const void*)frame_b)&&!nova_address_space_release(id_b)&&
+                nova_address_space_get(id_b,&teardown_info)&&teardown_info.references==1U&&
+                teardown_info.active_cpus==0U&&nova_page_pin((const void*)frame_b)&&
+                nova_address_space_release(id_b)&&
                nova_page_free((void*)frame_a)&&nova_page_free((void*)frame_b)&&
                nova_page_available()==pages_before)ok=1;
             if(ok)nova_console_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
