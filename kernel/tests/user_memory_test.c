@@ -27,12 +27,12 @@ int main(void) {
 
     /* Invalid and out-of-window ranges are rejected before dereference. */
     assert(nova_user_copy_from(bytes, NOVA_USER_VA_END, 1U) == -14);
-    assert(nova_user_copy_from(&byte, NOVA_USER_VA_END - 1U, 2U) == -14);
+    assert(nova_user_copy_from(bytes, NOVA_USER_VA_END - 1U, 2U) == -14);
     assert(nova_user_copy_to(NOVA_USER_VA_END, &source, 1U) == -14);
     assert(access_checks == 0U);
 
     /* Oversized requests fail deterministically without touching user VA. */
-    assert(nova_user_copy_from(&byte, NOVA_USER_VA_BASE,
+    assert(nova_user_copy_from(bytes, NOVA_USER_VA_BASE,
                                NOVA_USER_COPY_MAX + 1U) == -22);
     assert(nova_user_copy_to(NOVA_USER_VA_BASE, &source,
                              NOVA_USER_COPY_MAX + 1U) == -22);
@@ -56,7 +56,12 @@ int main(void) {
     assert(checked_pages[1] == NOVA_USER_VA_BASE + 4096U);
 
     /* Kernel-side null buffers are rejected for non-empty copies. */
+    access_checks = 0U;
+    fail_on_check = 0U;
+    expected_write = 0;
     assert(nova_user_copy_from(0, NOVA_USER_VA_BASE, 1U) == -14);
+    assert(access_checks == 0U);
+    expected_write = 1;
     assert(nova_user_copy_to(NOVA_USER_VA_BASE, 0, 1U) == -14);
     assert(access_checks == 0U);
 
