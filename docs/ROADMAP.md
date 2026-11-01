@@ -68,6 +68,9 @@ Remaining:
 - [x] Restore the previous TTBR0 and retain the active-space ownership record when releasing an address space on scheduler return fails; AArch64 build, host scheduler tests, and all QEMU checks pass in CI run 595. A dedicated fault-injection test now forces the old-space release to fail after TTBR0 switches to the kernel root; it verifies restoration of the task root, retained active ownership, and unchanged task state (CI run 598).
 - [x] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU virt; the serial test confirms both tasks make progress across repeated TTBR0 handoffs.
 - [ ] Implement EL0 task execution, SVC boundary, and fault containment (288-byte trap frame, lower-EL sync/IRQ entry, SP_EL0 preservation, and host-tested user-task creation are implemented; first EL0 entry saves the scheduler continuation through a kernel-stack trampoline; syscall 0 returns the task ID, syscall 1 exits through deferred scheduler-stack cleanup, syscall 2 performs a 128-byte-bounded UART write after validating every covered user page and copying into a kernel buffer, and unknown calls return -ENOSYS; QEMU CI run 574 verifies EL0 data-abort and instruction-abort tasks are both reaped before a healthy peer completes; runs 560 and 562 also verify data-fault containment, valid user-buffer output, unmapped/cross-page pointer rejection, and oversized-length rejection; bounded copyin/copyout helpers are implemented and host-tested; QEMU exercises copy-in through syscall 2 and copy-out to a mapped user stack, including rejection of a write crossing into an unmapped page, along with broader user fault tests and hardware validation).
+
+- [x] Add a host fault-injection case for scheduler-entry TTBR0 failure; verify destination active-reference cleanup and READY task preservation (commit 01805f5; full CI rerun after retry-loop fix pending).
+- [x] Bound scheduler retries when READY candidates fail dispatch, preventing a single broken task from causing an unbounded scheduler loop (commit 3945a53; CI pending).
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 - [x] Add scheduler-entry fault injection for a failed destination TTBR0 install; verify the newly activated reference is released, task remains READY, and kernel TTBR0 remains active (CI pending for commit 01805f5).
 
@@ -75,6 +78,7 @@ Exit criteria: documented memory, exception, timer, and scheduling behavior unde
 
 ## Milestone 3 — System service model
 
+- [x] Write the initial driver and service lifecycle, resource ownership, trust-boundary, and validation contracts in [DRIVER_SERVICE_FOUNDATIONS.md](DRIVER_SERVICE_FOUNDATIONS.md). This is design-only; no generic driver registry, IPC transport, or service manager is implemented.
 - Define process and service boundaries.
 - Design capability-based access control.
 - Define IPC and service lifecycle.
