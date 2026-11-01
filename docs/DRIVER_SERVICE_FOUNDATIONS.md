@@ -25,8 +25,8 @@ It stores a bounded set of discovered devices and compatible-string driver callb
 Probe transitions through `DISCOVERED → PROBING → READY` or `FAILED`; failed probes
 release MMIO/IRQ claims, and removal releases claims only after the driver's remove
 callback succeeds. Overlapping MMIO ranges and duplicate active IRQ ownership are
-rejected. Host tests cover duplicate IDs/drivers, overflowed MMIO ranges, resource
-conflicts, failed-probe retry, and failed-removal retention.
+rejected. Host tests cover duplicate IDs/drivers, registry-capacity limits, invalid/overflowed MMIO ranges,
+resource conflicts, failed-probe retry, and failed-removal retention.
 
 The registry is not yet populated from FDT, and no hardware driver is registered
 through it. The early PL011 console, timer, and GIC paths remain their existing
