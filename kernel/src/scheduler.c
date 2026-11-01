@@ -142,12 +142,12 @@ int nova_sched_start(void) {
             preemption_pending = 0;
             execution_phase = NOVA_SCHED_TASK;
 
-            if (first_user_context != 0) {
+            if (next_info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN) {
                 /*
-                 * Enter EL0 through a kernel-stack trampoline after saving
-                 * scheduler_context. A later SVC exit can then return safely
-                 * to this scheduler continuation and reap the task off-stack.
+                 * A first-run user task must have a prepared kernel context;
+                 * never fall back to ERET without saving scheduler_context.
                  */
+                if (first_user_context == 0) scheduler_wait_forever();
                 nova_arch_context_switch(&scheduler_context,
                                          first_user_context);
             } else {
