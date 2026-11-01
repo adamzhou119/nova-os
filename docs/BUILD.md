@@ -6,17 +6,19 @@ The current prototype targets QEMU's AArch64 `virt` machine. It is an experiment
 
 ## Toolchain
 
-The build expects:
-- Clang with the `aarch64-none-elf` target enabled.
-- LLD (`ld.lld`).
-- GNU Make.
-- QEMU system emulator for AArch64 for runtime smoke testing.
+The CI-supported toolchain is pinned to GitHub Actions `ubuntu-26.04` with these apt package versions:
+- `clang=1:21.1.6-71` (AArch64 `aarch64-none-elf` target).
+- `lld=1:21.1.6-71` (`ld.lld`).
+- `qemu-system-arm=1:10.2.1+ds-1ubuntu3.3` (provides `qemu-system-aarch64`).
+- GNU Make from the pinned runner image; CI records its package version.
+
+CI installs exact versions and prints compiler, linker, emulator, and package versions. If the Ubuntu archive no longer provides these exact package versions, CI fails closed rather than silently upgrading the toolchain. Local distributions may use different versions; matching the CI set is recommended for reproducing its results.
 
 On Ubuntu, a starting package set is:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y clang lld make qemu-system-arm
+sudo apt-get install -y clang=1:21.1.6-71 lld=1:21.1.6-71 make qemu-system-arm=1:10.2.1+ds-1ubuntu3.3
 ```
 
 Package versions vary by distribution. Pin exact versions in CI or a development container before treating builds as reproducible.
