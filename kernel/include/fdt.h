@@ -25,8 +25,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
 /* Find the first node with an exact compatible string and a valid first reg tuple.
  * Returns 1 on success, 0 when absent, or a negative value for malformed input.
- * The reg tuple is decoded using the parent bus cell widths; bus ranges are not
- * translated by this low-level discovery API.
+ * The reg tuple is decoded using parent bus cell widths and translated through
+ * each ancestor bus's ranges property. Missing nested-bus ranges are rejected.
  */
 int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device);
