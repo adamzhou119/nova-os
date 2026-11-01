@@ -7,7 +7,6 @@
 
 static uint8_t blob[512];
 static uint32_t structure_cursor;
-static uint32_t strings_offset;
 
 static void put_be32(uint32_t offset, uint32_t value) {
     blob[offset] = (uint8_t)(value >> 24);
@@ -49,11 +48,8 @@ static void build_test_dtb(void) {
     uint32_t structure_offset = 56U;
 
     memset(blob, 0, sizeof(blob));
-    strings_offset = 0U;
     structure_cursor = structure_offset;
     append_node("");
-    put_be32(0U, 2U);
-    put_be32(0U, 2U);
     /* Root address/size cell widths are 2/2. */
     {
         uint8_t value[4] = {0U, 0U, 0U, 2U};
@@ -77,7 +73,6 @@ static void build_test_dtb(void) {
     append_be32(9U);
 
     memcpy(blob + structure_cursor, strings, sizeof(strings));
-    put_be32(0U, 0U);
     put_be32(4U, structure_cursor + (uint32_t)sizeof(strings));
     put_be32(8U, structure_offset);
     put_be32(12U, structure_cursor);
