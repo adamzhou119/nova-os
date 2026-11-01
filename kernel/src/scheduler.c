@@ -85,15 +85,29 @@ static int scheduler_enter_task_space(uint32_t task_id) {
     return 1;
 }
 static int scheduler_return_to_kernel_space(void) {
+    struct nova_address_space_info old_space;
+    uint32_t old_id = active_address_space_id;
+
     /*
-     * Never reclaim a task while TTBR0 may still reference its address space.
-     * On failure, leave ownership/active references intact and stop dispatch.
+     * Preserve the old translation regime until its active reference has
+     * been released. If release fails after TTBR0 changes, restore the old
+     * root and retain the old ownership record.
      */
+    if (old_id != 0U) {
+        if (!nova_address_space_get(old_id, &old_space))
+            scheduler_wait_forever();
+    }
+
     if (!nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U))
         return 0;
-    if (active_address_space_id != 0U &&
-        !nova_address_space_deactivate(active_address_space_id))
+
+    if (old_id != 0U && !nova_address_space_deactivate(old_id)) {
+        if (!nova_mmu_switch_address_space(old_space.root_physical,
+                                           old_space.asid))
+            scheduler_wait_forever();
         return 0;
+    }
+
     active_address_space_id = 0U;
     return 1;
 }
