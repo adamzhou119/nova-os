@@ -17,7 +17,7 @@ static unsigned int scheduler_handoff_count;
 static int scheduler_handoff_result;
 static struct nova_irq_frame *scheduler_handoff_frame;
 
-int nova_gic_init(void) { return 1; }
+int nova_gic_init(uintptr_t dtb_address) { (void)dtb_address; return 1; }
 uint32_t nova_gic_acknowledge(void) { return next_interrupt; }
 void nova_gic_end_interrupt(uint32_t id) {
     ended_interrupt = id;
