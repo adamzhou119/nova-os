@@ -1,9 +1,7 @@
 # Nova OS — Driver and System-Service Foundations
 
 Status: the bounded kernel device-registry core and an initial FDT compatible/reg lookup
-are implemented and host-tested. Nested-bus `ranges` address translation is implemented and host-tested. GICv2 interrupt decoding and interrupt-parent phandle lookup are implemented and host-tested. Automatic
-registry population and concrete hardware-driver registration remain in progress; the
-service manager, IPC transport, and capability enforcement are not implemented.
+are implemented and host-tested. Nested-bus `ranges` address translation is implemented and host-tested. GICv2 interrupt decoding and interrupt-parent phandle lookup are implemented and host-tested. Single-device FDT-to-registry discovery is implemented and host-tested. The PL011 console now registers and probes through the registry after early boot; automatic multi-device enumeration and additional hardware drivers remain in progress. The service manager, IPC transport, and capability enforcement are not implemented.
 
 ## Scope and order
 
@@ -31,9 +29,7 @@ resource conflicts, failed-probe retry, and failed-removal retention.
 
 The FDT helper in `kernel/src/fdt.c` can locate an exact compatible entry in a
 NUL-separated `compatible` string list and decode the first `reg` tuple using the
-parent bus's `#address-cells` and `#size-cells`. It applies ancestor bus `ranges` translations, including multi-level buses, and rejects a nested bus with a missing or non-matching translation. `nova_fdt_find_gicv2_irq` resolves inherited/overridden `interrupt-parent` phandles and the first three-cell GICv2 `interrupts` tuple. `interrupts-extended`, non-GICv2 controllers, and automatic registry population are not yet supported. The registry
-is not yet populated from FDT, and no hardware driver is registered through it. The early PL011 console, timer, and GIC paths remain their existing
-platform-specific implementations until their extraction is separately verified.
+parent bus's `#address-cells` and `#size-cells`. It applies ancestor bus `ranges` translations, including multi-level buses, and rejects a nested bus with a missing or non-matching translation. `nova_fdt_find_gicv2_irq` resolves inherited/overridden `interrupt-parent` phandles and the first three-cell GICv2 `interrupts` tuple. `interrupts-extended` and non-GICv2 controllers are not yet supported. `nova_device_discover_fdt` now combines translated MMIO and optional GICv2 IRQ discovery into a registry descriptor. The PL011 console is the first concrete driver: it discovers `arm,pl011`, registers its probe/remove callbacks, and switches its MMIO base after a successful probe. Timer and GIC paths remain platform-specific.
 
 ## Driver contract
 
