@@ -164,10 +164,15 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
                          frame->far_el1, frame->spsr_el1);
         for (;;) __asm__ volatile("wfe");
     }
-    if (frame->x[8] == 0U)
+    if (frame->x[8] == 0U) {
         frame->x[0] = (uint64_t)nova_sched_current();
-    else
+    } else if (frame->x[8] == 1U) {
+        uint32_t task_id = nova_sched_current();
+        (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
+        nova_sched_task_exit();
+    } else {
         frame->x[0] = (uint64_t)(int64_t)-38;
+    }
     frame->elr_el1 += 4U;
     return frame_address;
 }
