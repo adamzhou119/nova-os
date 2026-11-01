@@ -10,6 +10,14 @@
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
+static int fail_first_space_destroy = 1;
+static int destroy_test_space(uintptr_t root) {
+    if (root == 0x40008000U && fail_first_space_destroy) {
+        fail_first_space_destroy = 0;
+        return 0;
+    }
+    return 1;
+}
 
 void nova_task_start_trampoline(void) {}
 
@@ -40,6 +48,7 @@ int main(void) {
     struct nova_cpu_context context;
     struct nova_cpu_context *task_context;
     int argument = 42;
+    assert(nova_address_space_set_destroy_hook(destroy_test_space));
     assert(!nova_arch_context_init(&context, 0U, 0x2000U, 1U, 2U));
     assert(!nova_arch_context_init(&context, 0x1001U, 0x2000U, 1U, 2U));
     assert(nova_arch_context_init(&context, 0x3000U, 0x2000U, 1U, 2U));
@@ -213,6 +222,12 @@ int main(void) {
     assert(nova_task_transition(first, NOVA_TASK_ZOMBIE));
     assert(nova_task_get(first, &info) && info.exit_code == -7);
     assert(info.fault_kind == NOVA_TASK_FAULT_NONE);
+    assert(!nova_task_destroy(first)); /* Root teardown failure must be retryable. */
+    assert(nova_task_get(first, &info));
+    assert(info.state == NOVA_TASK_ZOMBIE && info.kernel_stack_base == 0U &&
+           info.kernel_stack_top == 0U);
+    assert(nova_address_space_get(address_space_id, &address_space_info));
+    assert(address_space_info.references == 1U);
     assert(nova_task_destroy(first));
     assert(!nova_address_space_get(address_space_id, &address_space_info));
     assert(!nova_task_get(first, &info));
