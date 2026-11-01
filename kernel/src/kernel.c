@@ -336,6 +336,9 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         }
         uart_write("EL0 fault contained; task id: ");
         uart_write_hex64(task_id);
+        uart_write("ESR exception description: ");
+        uart_write(nova_exception_class_name(frame->esr_el1));
+        uart_write("\n");
         uart_write("EL0 fault ESR: ");
         uart_write_hex64(frame->esr_el1);
         uart_write("EL0 fault FAR: ");
