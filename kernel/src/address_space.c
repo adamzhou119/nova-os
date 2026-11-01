@@ -9,6 +9,7 @@ struct address_space_slot {
 
 static struct address_space_slot spaces[NOVA_ADDRESS_SPACE_MAX];
 static uint32_t next_address_space_id = 1U;
+static nova_address_space_destroy_fn destroy_hook;
 
 static struct address_space_slot *find_space(uint32_t id) {
     size_t i;
@@ -16,6 +17,15 @@ static struct address_space_slot *find_space(uint32_t id) {
     for (i = 0; i < NOVA_ADDRESS_SPACE_MAX; ++i)
         if (spaces[i].used && spaces[i].info.id == id) return &spaces[i];
     return 0;
+}
+
+int nova_address_space_set_destroy_hook(nova_address_space_destroy_fn destroy) {
+    size_t i;
+    if (destroy == 0) return 0;
+    for (i = 0; i < NOVA_ADDRESS_SPACE_MAX; ++i)
+        if (spaces[i].used) return 0;
+    destroy_hook = destroy;
+    return 1;
 }
 
 int nova_address_space_create(uintptr_t root_physical, uint16_t asid,
@@ -55,6 +65,9 @@ int nova_address_space_release(uint32_t address_space_id) {
     struct address_space_slot *space = find_space(address_space_id);
     if (space == 0 || space->info.references == 0U) return 0;
     if (space->info.active_cpus >= space->info.references)
+        return 0;
+    if (space->info.references == 1U && destroy_hook != 0 &&
+        !destroy_hook(space->info.root_physical))
         return 0;
     --space->info.references;
     if (space->info.references == 0U) {
