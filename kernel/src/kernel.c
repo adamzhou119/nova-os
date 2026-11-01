@@ -1214,7 +1214,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_user_map_page(root_b,2U,user_va,frame_b,NOVA_MMU_MAP_WRITABLE)&&
                nova_mmu_user_map_page(root_a,1U,shared_va,frame_shared,NOVA_MMU_MAP_EXECUTABLE)&&
                nova_mmu_user_map_page(root_b,2U,shared_va,frame_shared,0U)&&
-               nova_page_pin_count((const void*)frame_shared)==2U&&
+               nova_mmu_user_map_page(root_b,2U,shared_va+NOVA_PAGE_SIZE,frame_shared,0U)&&
+               nova_page_pin_count((const void*)frame_shared)==3U&&
                !nova_mmu_user_protect_page(root_b,2U,shared_va,NOVA_MMU_MAP_WRITABLE)&&
                nova_mmu_switch_address_space(root_a,1U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_a&&
                nova_mmu_verify_user_access(user_va,0)&&nova_mmu_verify_user_access(user_va,1)&&
@@ -1234,8 +1235,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_verify_user_access(user_va,1)&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
                nova_mmu_user_unmap_page(root_a,1U,shared_va)&&
-               nova_page_pin_count((const void*)frame_shared)==1U&&
+               nova_page_pin_count((const void*)frame_shared)==2U&&
                nova_mmu_user_protect_page(root_b,2U,shared_va,NOVA_MMU_MAP_WRITABLE)&&
+               nova_mmu_user_protect_page(root_b,2U,shared_va+NOVA_PAGE_SIZE,NOVA_MMU_MAP_WRITABLE)&&
                nova_address_space_release(id_a)&&
                nova_page_pin_count((const void*)frame_a)==0U&&
                nova_mmu_address_space_create(&root_c)&&
