@@ -37,7 +37,7 @@ extern const uint8_t nova_user_test_payload_end[];
 
 static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
-    uintptr_t code_page = 0U, result_page = 0U, stack_page = 0U;
+    uintptr_t code_page = 0U, stack_page = 0U;
     uint32_t space_id = 0U, task_id = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
@@ -47,16 +47,14 @@ static int test_el0_svc_round_trip(void) {
 
     if (code_size == 0U || code_size > NOVA_PAGE_SIZE) return 0;
     code_page = (uintptr_t)nova_page_alloc();
-    result_page = (uintptr_t)nova_page_alloc();
     stack_page = (uintptr_t)nova_page_alloc();
-    if (code_page == 0U || result_page == 0U || stack_page == 0U ||
+    if (code_page == 0U || stack_page == 0U ||
         !nova_mmu_address_space_create(&root) ||
         !nova_address_space_create(root, 31U, &space_id))
         goto cleanup;
 
     for (i = 0; i < NOVA_PAGE_SIZE; ++i) {
         ((volatile uint8_t *)code_page)[i] = 0U;
-        ((volatile uint8_t *)result_page)[i] = 0U;
         ((volatile uint8_t *)stack_page)[i] = 0U;
     }
     for (i = 0; i < code_size; ++i)
@@ -90,13 +88,11 @@ cleanup:
         (void)nova_address_space_release(space_id);
     }
     if (root != 0U) {
-        (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE);
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
         (void)nova_mmu_address_space_destroy(root);
     }
     if (code_page != 0U) (void)nova_page_free((void *)code_page);
-    if (result_page != 0U) (void)nova_page_free((void *)result_page);
     if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
     return ok;
 }
