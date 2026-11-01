@@ -1143,6 +1143,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         fdt_uart.mmio_base == (uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE &&
         fdt_uart.mmio_size >= 0x1000U) {
         nova_console_write("FDT PL011 compatible/reg discovery passed.\n");
+        if (nova_console_init(dtb_address))
+            nova_console_write("PL011 registered and probed through device registry.\n");
+        else
+            nova_console_write("ERROR: PL011 device registry probe failed.\n");
     } else {
         nova_console_write("ERROR: FDT PL011 discovery or resource validation failed.\n");
     }
