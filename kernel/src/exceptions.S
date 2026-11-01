@@ -150,7 +150,6 @@ exception_user_sync_entry:
     str     x16, [sp, #280]
     mov     x0, sp
     bl      nova_user_sync_dispatch
-    bl      nova_user_sync_dispatch
     b       nova_arch_user_sync_resume
 .size exception_user_sync_entry, . - exception_user_sync_entry
 
