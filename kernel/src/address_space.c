@@ -68,7 +68,7 @@ int nova_address_space_release(uint32_t address_space_id) {
         return 0;
     /* Never discard the registry's final owner while the root is unowned. */
     if (space->info.references == 1U &&
-        (destroy_hook == 0 || !destroy_hook(space->info.root_physical)))
+        (destroy_hook == 0 || !destroy_hook(space->info.root_physical, space->info.asid)))
         return 0;
     --space->info.references;
     if (space->info.references == 0U) {
