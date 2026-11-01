@@ -42,3 +42,7 @@ The prototype targets QEMU's AArch64 `virt` machine and uses the PL011 UART at t
 - How model inference is split between on-device and remote execution.
 - How permissions, user confirmation, and audit records are represented.
 - What compatibility layer, if any, is required for existing mobile applications.
+
+## Driver and service foundation
+
+The proposed device-driver and service lifecycle contracts are documented in [Driver and System-Service Foundations](DRIVER_SERVICE_FOUNDATIONS.md). These are design constraints only; a device registry, generic driver probe framework, IPC transport, and service manager are not yet implemented.
