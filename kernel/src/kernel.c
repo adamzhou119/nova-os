@@ -159,7 +159,6 @@ cleanup:
             (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
             (void)nova_task_destroy(healthy_task);
     }
-    if (space_id != 0U) (void)nova_address_space_release(space_id);
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
@@ -167,7 +166,8 @@ cleanup:
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 8U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 9U * NOVA_PAGE_SIZE);
-        (void)nova_mmu_address_space_destroy(root);
+        if (space_id != 0U) (void)nova_address_space_release(space_id);
+        else (void)nova_mmu_address_space_destroy(root);
     }
     if (data_code != 0U) (void)nova_page_free((void *)data_code);
     if (data_stack != 0U) (void)nova_page_free((void *)data_stack);
@@ -262,13 +262,11 @@ cleanup:
             info.state == NOVA_TASK_READY)
             (void)nova_task_destroy(task_id);
     }
-    if (space_id != 0U) {
-        (void)nova_address_space_release(space_id);
-    }
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
-        (void)nova_mmu_address_space_destroy(root);
+        if (space_id != 0U) (void)nova_address_space_release(space_id);
+        else (void)nova_mmu_address_space_destroy(root);
     }
     if (code_page != 0U) (void)nova_page_free((void *)code_page);
     if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
@@ -1005,8 +1003,7 @@ cleanup:
     if (space_a != 0U &&
         nova_address_space_get(space_a, &address_space) &&
         address_space.references == 1U && address_space.active_cpus == 0U) {
-        if (!nova_address_space_release(space_a) ||
-            !nova_mmu_address_space_destroy(root_a))
+        if (!nova_address_space_release(space_a))
             result = 0;
     } else if (space_a == 0U && root_a != 0U) {
         if (!nova_mmu_address_space_destroy(root_a)) result = 0;
@@ -1014,8 +1011,7 @@ cleanup:
     if (space_b != 0U &&
         nova_address_space_get(space_b, &address_space) &&
         address_space.references == 1U && address_space.active_cpus == 0U) {
-        if (!nova_address_space_release(space_b) ||
-            !nova_mmu_address_space_destroy(root_b))
+        if (!nova_address_space_release(space_b))
             result = 0;
     } else if (space_b == 0U && root_b != 0U) {
         if (!nova_mmu_address_space_destroy(root_b)) result = 0;
@@ -1168,6 +1164,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     nova_console_write_hex64(nova_page_available());
 
     if (nova_mmu_enable()) {
+        if (!nova_address_space_set_destroy_hook(nova_mmu_address_space_destroy))
+            nova_console_write("ERROR: address-space destroy hook registration failed.\n");
         nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
         if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
             nova_mmu_verify_identity((uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE) &&
@@ -1227,9 +1225,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_switch_address_space(root_b,2U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_b&&
                nova_mmu_verify_user_access(user_va,1)&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
-               nova_address_space_release(id_a)&&nova_address_space_release(id_b)&&
                nova_mmu_user_unmap_page(root_a,1U,user_va)&&nova_mmu_user_unmap_page(root_b,2U,user_va)&&
-               nova_mmu_address_space_destroy(root_a)&&nova_mmu_address_space_destroy(root_b)&&
+               nova_address_space_release(id_a)&&nova_address_space_release(id_b)&&
                nova_page_free((void*)frame_a)&&nova_page_free((void*)frame_b))ok=1;
             if(ok)nova_console_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
             else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);nova_console_write("ERROR: private user mapping/isolation test failed.\n");}
