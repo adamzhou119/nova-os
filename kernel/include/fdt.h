@@ -30,6 +30,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
  */
 int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device);
+int nova_fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
+                             size_t reg_index, struct nova_fdt_device *device);
 
 /* Decode a three-cell ARM GICv2 interrupt specifier to a GIC INTID.
  * Cell 0 is SPI (0) or PPI (1); cell 1 is the interrupt number within
