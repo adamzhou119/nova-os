@@ -6,6 +6,12 @@
 
 #define NOVA_FDT_MAX_MEMORY_REGIONS 8U
 #define NOVA_FDT_MAX_RESERVED_REGIONS 16U
+#define NOVA_FDT_COMPATIBLE_MAX 64U
+
+struct nova_fdt_device {
+    uintptr_t mmio_base;
+    size_t mmio_size;
+};
 
 struct nova_memory_region {
     uint64_t start;
@@ -16,6 +22,14 @@ struct nova_memory_region {
 int nova_fdt_memory_regions(uintptr_t dtb_address,
                             struct nova_memory_region *regions,
                             size_t capacity);
+
+/* Find the first node with an exact compatible string and a valid first reg tuple.
+ * Returns 1 on success, 0 when absent, or a negative value for malformed input.
+ * The reg tuple is decoded using the parent bus cell widths; bus ranges are not
+ * translated by this low-level discovery API.
+ */
+int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
+                         struct nova_fdt_device *device);
 
 /* Returns validated DTB totalsize, or zero for an invalid header. */
 size_t nova_fdt_total_size(uintptr_t dtb_address);
