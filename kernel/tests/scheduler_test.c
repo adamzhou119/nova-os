@@ -25,6 +25,10 @@ static int fail_kernel_space_switch;
 static int fail_task_space_switch;
 static uint32_t fail_deactivate_id;
 
+static int destroy_mock_address_space(uintptr_t root) {
+    return root != 0U;
+}
+
 int nova_sched_address_space_activate(uint32_t id) {
     return nova_address_space_activate(id);
 }
@@ -273,6 +277,7 @@ int main(void) {
     struct nova_task_info info;
     struct nova_address_space_info space;
 
+    assert(nova_address_space_set_destroy_hook(destroy_mock_address_space));
     assert(nova_sched_execution_phase() == NOVA_SCHED_INACTIVE);
     assert(nova_sched_current() == 0U);
     nova_sched_timer_tick();
