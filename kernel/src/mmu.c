@@ -484,8 +484,6 @@ int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid) {
     return 1;
 }
 
-#define NOVA_USER_VA_BASE 0x80000000ULL
-#define NOVA_USER_VA_END  0xC0000000ULL
 #define DESC_AP_USER_RW  (1ULL << 6)
 #define DESC_AP_USER_RO  (3ULL << 6)
 static uint64_t *user_l2_for_root(uintptr_t root_physical) {

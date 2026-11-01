@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+/* Private EL0 virtual-address window shared by the page-table and task layers. */
+#define NOVA_USER_VA_BASE 0x80000000UL
+#define NOVA_USER_VA_END  0xC0000000UL
+
 /* Enable the QEMU EL1 RAM/PL011 map and reserve a dynamic virtual window. */
 int nova_mmu_enable(void);
 

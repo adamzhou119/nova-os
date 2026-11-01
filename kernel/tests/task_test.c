@@ -218,16 +218,16 @@ int main(void) {
 
     /* First-run EL0 tasks own a retained address-space reference and ERET frame. */
     assert(nova_address_space_create(0x50008000U, 2U, &user_space_id));
-    assert(nova_task_create_user(user_space_id, 0x400000U, 0x7fff0000U,
+    assert(nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                  0x1234U, &user_first));
     assert(nova_task_get(user_first, &info));
     assert(info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN);
     assert(info.state == NOVA_TASK_READY && info.address_space_id == user_space_id);
-    assert(info.user_entry == 0x400000U && info.user_stack_top == 0x7fff0000U);
+    assert(info.user_entry == 0x80004000U && info.user_stack_top == 0x80010000U);
     assert(info.entry == 0 && info.context.sp == 0U);
-    assert(info.irq_frame != 0 && info.irq_frame->elr_el1 == 0x400000U);
+    assert(info.irq_frame != 0 && info.irq_frame->elr_el1 == 0x80004000U);
     assert(info.irq_frame->spsr_el1 == 0U);
-    assert(info.irq_frame->sp_el0 == 0x7fff0000U);
+    assert(info.irq_frame->sp_el0 == 0x80010000U);
     assert(info.irq_frame->x[0] == 0x1234U);
     assert(nova_address_space_get(user_space_id, &address_space_info));
     assert(address_space_info.references == 2U);

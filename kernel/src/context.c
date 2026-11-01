@@ -1,6 +1,7 @@
 #include "context.h"
 #include "user_context.h"
 #include "interrupt.h"
+#include "mmu.h"
 
 int nova_arch_context_init(struct nova_cpu_context *context,
                            uintptr_t stack_top, uintptr_t entry,
@@ -25,8 +26,10 @@ int nova_user_irq_frame_init(struct nova_irq_frame *frame,
                              uintptr_t user_entry, uintptr_t user_stack_top,
                              uintptr_t argument0) {
     unsigned int i;
-    if (frame == 0 || user_entry == 0 || (user_entry & 3U) != 0U ||
-        user_stack_top == 0 || (user_stack_top & 15U) != 0U)
+    if (frame == 0 || user_entry < NOVA_USER_VA_BASE ||
+        user_entry >= NOVA_USER_VA_END || (user_entry & 3U) != 0U ||
+        user_stack_top <= NOVA_USER_VA_BASE ||
+        user_stack_top > NOVA_USER_VA_END || (user_stack_top & 15U) != 0U)
         return 0;
     for (i = 0; i < 31U; ++i) frame->x[i] = 0U;
     frame->x[0] = argument0;
