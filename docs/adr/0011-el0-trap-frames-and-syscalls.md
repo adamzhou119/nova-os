@@ -58,9 +58,10 @@ syscall set is deliberately narrower than the eventual service ABI:
 - syscall 1 exits the current task with the value in x0;
 - syscall 2 writes a user buffer to the UART, taking its address in x0 and
   length in x1. The initial implementation caps writes at 128 bytes, checks
-  the complete range against the EL0-readable page mappings before reading,
-  returns -EFAULT for invalid ranges and -EINVAL for excessive lengths, and
-  never passes a user pointer to an unbounded kernel string routine.
+  the complete range against the EL0-readable page mappings, copies the
+  validated bytes into a fixed 128-byte kernel buffer, returns -EFAULT for
+  invalid ranges and -EINVAL for excessive lengths, and never passes a user
+  pointer to an unbounded kernel string routine.
 Unknown syscall numbers return a defined negative error and do not panic the
 kernel.
 
