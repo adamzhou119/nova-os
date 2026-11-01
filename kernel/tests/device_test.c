@@ -37,7 +37,7 @@ int main(void) {
     struct nova_device_desc a = make_device(1U, "arm,pl011", 0x09000000U, 0x1000U, 33U);
     struct nova_device_desc overlap = make_device(2U, "arm,pl011", 0x09000800U, 0x1000U, 34U);
     struct nova_device_desc shared_irq = make_device(3U, "arm,pl011", 0x09002000U, 0x1000U, 33U);
-    struct nova_device_desc b = make_device(4U, "arm,pl011", 0x09002000U, 0x1000U, 34U);
+    struct nova_device_desc b = make_device(4U, "arm,pl011", 0x09002000U, 0x1000U, 36U);
     struct nova_device_desc invalid = make_device(5U, "arm,bad", UINTPTR_MAX - 3U, 8U, 35U);
 
     assert(!nova_device_add(0));
@@ -55,8 +55,11 @@ int main(void) {
     assert(!nova_device_probe(1U));
     assert(nova_device_get(1U, &info) && info.state == NOVA_DEVICE_FAILED);
     fail_probe = 0;
+    /* A failed probe releases its MMIO/IRQ claims for another device. */
+    assert(nova_device_probe(2U));
+    assert(nova_device_remove(2U));
     assert(nova_device_probe(1U));
-    assert(probe_calls == 2);
+    assert(probe_calls == 3);
     assert(nova_device_get(1U, &info) && info.state == NOVA_DEVICE_READY);
 
     /* Probe failure releases both MMIO and IRQ reservations. */
