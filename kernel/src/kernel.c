@@ -16,6 +16,7 @@
 #include "exception.h"
 #include "address_space.h"
 #include "user_context.h"
+#include "user_memory.h"
 
 static void uart_write(const char *s);
 static void uart_write_hex64(uint64_t value);
@@ -341,37 +342,21 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
  * Syscall 0 returns the current task ID. Unknown calls return -ENOSYS (-38).
  * Other synchronous exceptions remain terminal until fault isolation exists.
  */
-/* Bounded UART write: validate every covered user page before dereferencing. */
+/* Bounded UART write uses the shared, permission-checked copy-in path. */
 static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
-    uintptr_t page, last_page;
     char kernel_copy[128];
+    int64_t copied;
     uint64_t i;
 
-    if (length > 128U) return -22; /* -EINVAL */
+    if (length > sizeof(kernel_copy)) return -22; /* -EINVAL */
     if (length == 0U) return 0;
-    if (user_buffer < NOVA_USER_VA_BASE ||
-        user_buffer >= NOVA_USER_VA_END ||
-        length > (uint64_t)(NOVA_USER_VA_END - user_buffer))
-        return -14; /* -EFAULT */
-
-    page = user_buffer & ~(uintptr_t)(NOVA_PAGE_SIZE - 1U);
-    last_page = (user_buffer + (uintptr_t)length - 1U) &
-                ~(uintptr_t)(NOVA_PAGE_SIZE - 1U);
-    for (;;) {
-        if (!nova_mmu_verify_user_access(page, 0))
-            return -14;
-        if (page == last_page) break;
-        page += NOVA_PAGE_SIZE;
-    }
-
-    /* Copy only after the entire user range has passed EL0 read checks. */
-    for (i = 0U; i < length; ++i)
-        kernel_copy[i] = ((volatile const char *)user_buffer)[i];
+    copied = nova_user_copy_from(kernel_copy, user_buffer, length);
+    if (copied < 0) return copied;
 
     uart_write("EL0 user message: ");
-    for (i = 0U; i < length; ++i)
+    for (i = 0U; i < (uint64_t)copied; ++i)
         uart_putc(kernel_copy[i]);
-    return (int64_t)length;
+    return copied;
 }
 
 uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
