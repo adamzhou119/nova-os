@@ -267,8 +267,7 @@ exception_vector_panic_el2:
 nova_user_test_payload_start:
     mov     x8, #0
     svc     #0
-    movz    x1, #0x1000
-    movk    x1, #0x8000, lsl #16
+    movz    x1, #0x8000, lsl #16
     str     x0, [x1]
     mov     x8, #1
     mov     x0, #0
