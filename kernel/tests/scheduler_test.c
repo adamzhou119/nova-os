@@ -68,6 +68,7 @@ int nova_vmap_free_guarded_page(void *address) {
 void nova_arch_context_switch(struct nova_cpu_context *from,
                              const struct nova_cpu_context *to) {
     struct nova_task_info current_info;
+    struct nova_address_space_info active_space;
     (void)from;
     (void)to;
     if (user_space_mode) {
