@@ -6,6 +6,7 @@
 #include "scheduler.h"
 #include "task.h"
 #include "address_space.h"
+#include "mmu.h"
 
 static _Alignas(16) unsigned char stack_pool[NOVA_TASK_MAX][4096];
 static size_t next_stack;
@@ -23,6 +24,14 @@ static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
 static int fail_kernel_space_switch;
 static int fail_task_space_switch;
+int nova_mmu_user_verify_page(uintptr_t root, uint16_t asid,
+                              uintptr_t va, unsigned int flags) {
+    return root != 0U && asid != 0U &&
+           va >= NOVA_USER_VA_BASE && va < NOVA_USER_VA_END &&
+           (flags == NOVA_MMU_MAP_EXECUTABLE ||
+            flags == NOVA_MMU_MAP_WRITABLE);
+}
+
 static uint32_t fail_deactivate_id;
 static uintptr_t fail_destroy_root;
 
