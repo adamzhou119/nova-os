@@ -1,6 +1,6 @@
 # ADR 0011: EL0 Trap Frames, SVC, and User-Task Fault Containment
 
-- Status: Partially implemented; EL0 SVC round-trip, bounded copy-in, and data-abort containment verified in QEMU
+- Status: Partially implemented; EL0 SVC round-trip, bounded copy-in/copy-out, and data/instruction-abort containment verified in QEMU; broader fault coverage and hardware validation remain open
 - Date: 2026-11-01
 - Scope: Single-core AArch64, QEMU virt, EL1 kernel with EL0 AArch64 tasks
 
