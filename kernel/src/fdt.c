@@ -644,7 +644,14 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
                 target_found = 1;
             }
             if (node_is_interrupt_controller[depth] && node_phandle[depth] != 0U &&
-                interrupt_cells[depth] == 3U && controller_count < FDT_MAX_GIC_CONTROLLERS) {
+                interrupt_cells[depth] == 3U && node_compatible[depth] != NULL &&
+                (compatible_list_contains(node_compatible[depth],
+                                          node_compatible_length[depth],
+                                          "arm,gic-400") ||
+                 compatible_list_contains(node_compatible[depth],
+                                          node_compatible_length[depth],
+                                          "arm,cortex-a15-gic")) &&
+                controller_count < FDT_MAX_GIC_CONTROLLERS) {
                 /* A nonzero #interrupt-cells plus phandle identifies a
                  * candidate interrupt parent; the binding is checked by
                  * the exact three-cell GICv2 decoder below. */
