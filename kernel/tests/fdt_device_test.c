@@ -209,6 +209,16 @@ int main(void) {
         }
         assert(nova_device_discover_fdt((uintptr_t)blob, 7U,
                                         "vendor,nested") == 0);
+        assert(nova_device_discover_fdt_instance((uintptr_t)blob, 8U,
+                                                  "arm,pl011", 1U) == 1);
+        {
+            struct nova_device_info second;
+            assert(nova_device_get(8U, &second) == 1);
+            assert(second.desc.mmio_base == (uintptr_t)0x0b000000U);
+            assert(second.desc.mmio_size == 0x1000U);
+            assert(second.desc.irq == 37U);
+            assert(strcmp(second.desc.compatible, "arm,pl011") == 0);
+        }
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,missing",
                                        &irq) == 0);
     }
