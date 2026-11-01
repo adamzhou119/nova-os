@@ -17,6 +17,9 @@
 #include "address_space.h"
 #include "user_context.h"
 
+static void uart_write(const char *s);
+static void uart_write_hex64(uint64_t value);
+
 #define UART0_BASE       0x09000000UL
 #define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
 #define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
