@@ -71,7 +71,16 @@ static int test_el0_svc_round_trip(void) {
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       sizeof(uint64_t));
-    if (!nova_sched_start()) goto cleanup;
+    uart_write("EL0 test task prepared; task id: ");
+    uart_write_hex64(task_id);
+    if (!nova_sched_start()) {
+        uart_write("EL0 test scheduler returned failure.\n");
+        goto cleanup;
+    }
+    uart_write("EL0 test scheduler returned; stack result: ");
+    uart_write_hex64(*result);
+    uart_write("EL0 test expected task id: ");
+    uart_write_hex64(task_id);
     ok = *result == task_id;
 
 cleanup:
@@ -231,8 +240,12 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         for (;;) __asm__ volatile("wfe");
     }
     if (frame->x[8] == 0U) {
+        uart_write("EL0 SVC get-task-id; current task: ");
+        uart_write_hex64(nova_sched_current());
         frame->x[0] = (uint64_t)nova_sched_current();
     } else if (frame->x[8] == 1U) {
+        uart_write("EL0 SVC exit; current task: ");
+        uart_write_hex64(nova_sched_current());
         uint32_t task_id = nova_sched_current();
         (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
         nova_sched_task_exit();
