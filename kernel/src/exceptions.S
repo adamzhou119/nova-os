@@ -310,7 +310,7 @@ nova_user_test_payload_end:
 .type nova_user_fault_payload_start, %function
 nova_user_fault_payload_start:
     movz    x0, #0x8000, lsl #16
-    add     x0, x0, #6, lsl #12
+    add     x0, x0, #7, lsl #12
     ldr     x1, [x0]
 1:
     b       1b
