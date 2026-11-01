@@ -17,7 +17,7 @@ static uint32_t user_task;
 static uint32_t user_space_id;
 static uint32_t peer_space_id;
 static uint32_t failure_space_id;
-static int user_space_mode;
+static int failure_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
 static int fail_kernel_space_switch;
@@ -56,7 +56,14 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
     struct nova_task_info current_info;
     (void)from;
     (void)to;
-    if (user_space_mode) {
+    if (failure_mode) {
+        if (nova_sched_execution_phase() == NOVA_SCHED_TASK) {
+            assert(nova_sched_current() == user_task);
+            failure_mode = 2;
+            assert(nova_sched_block_current());
+            return;
+        }
+        assert(failure_mode == 2);
         assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
         assert(nova_sched_current() == user_task);
         return;
@@ -299,6 +306,7 @@ int main(void) {
         assert(nova_task_create(dummy_entry, 0, &user_task));
         assert(nova_task_set_address_space(user_task, failure_space_id));
         fail_kernel_space_switch = 1;
+        failure_mode = 1;
         assert(!nova_sched_start());
         assert(nova_task_get(user_task, &info));
         assert(info.state == NOVA_TASK_BLOCKED);
