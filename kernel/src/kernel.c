@@ -38,88 +38,126 @@ extern char __page_pool_end[];
 #ifdef NOVA_TEST_EL0_FAULT
 extern const uint8_t nova_user_fault_payload_start[];
 extern const uint8_t nova_user_fault_payload_end[];
+extern const uint8_t nova_user_instruction_fault_payload_start[];
+extern const uint8_t nova_user_instruction_fault_payload_end[];
 extern const uint8_t nova_user_healthy_payload_start[];
 extern const uint8_t nova_user_healthy_payload_end[];
 
 static int test_el0_fault_containment(void) {
     uintptr_t root = 0U;
-    uintptr_t fault_code = 0U, fault_stack = 0U;
+    uintptr_t data_code = 0U, data_stack = 0U;
+    uintptr_t instruction_code = 0U, instruction_stack = 0U;
     uintptr_t healthy_code = 0U, healthy_stack = 0U;
-    uint32_t space_id = 0U, fault_task = 0U, healthy_task = 0U;
-    uintptr_t fault_size = (uintptr_t)(nova_user_fault_payload_end -
-                                       nova_user_fault_payload_start);
+    uint32_t space_id = 0U;
+    uint32_t data_task = 0U, instruction_task = 0U, healthy_task = 0U;
+    uintptr_t data_size = (uintptr_t)(nova_user_fault_payload_end -
+                                      nova_user_fault_payload_start);
+    uintptr_t instruction_size =
+        (uintptr_t)(nova_user_instruction_fault_payload_end -
+                    nova_user_instruction_fault_payload_start);
     uintptr_t healthy_size = (uintptr_t)(nova_user_healthy_payload_end -
                                          nova_user_healthy_payload_start);
     volatile uint64_t *healthy_result;
     size_t i;
     int ok = 0;
 
-    if (fault_size == 0U || fault_size > NOVA_PAGE_SIZE ||
+    if (data_size == 0U || data_size > NOVA_PAGE_SIZE ||
+        instruction_size == 0U || instruction_size > NOVA_PAGE_SIZE ||
         healthy_size == 0U || healthy_size > NOVA_PAGE_SIZE)
         return 0;
-    fault_code = (uintptr_t)nova_page_alloc();
-    fault_stack = (uintptr_t)nova_page_alloc();
+
+    data_code = (uintptr_t)nova_page_alloc();
+    data_stack = (uintptr_t)nova_page_alloc();
+    instruction_code = (uintptr_t)nova_page_alloc();
+    instruction_stack = (uintptr_t)nova_page_alloc();
     healthy_code = (uintptr_t)nova_page_alloc();
     healthy_stack = (uintptr_t)nova_page_alloc();
-    if (fault_code == 0U || fault_stack == 0U ||
+    if (data_code == 0U || data_stack == 0U ||
+        instruction_code == 0U || instruction_stack == 0U ||
         healthy_code == 0U || healthy_stack == 0U ||
         !nova_mmu_address_space_create(&root) ||
         !nova_address_space_create(root, 32U, &space_id))
         goto cleanup;
 
     for (i = 0; i < NOVA_PAGE_SIZE; ++i) {
-        ((volatile uint8_t *)fault_code)[i] = 0U;
-        ((volatile uint8_t *)fault_stack)[i] = 0U;
+        ((volatile uint8_t *)data_code)[i] = 0U;
+        ((volatile uint8_t *)data_stack)[i] = 0U;
+        ((volatile uint8_t *)instruction_code)[i] = 0U;
+        ((volatile uint8_t *)instruction_stack)[i] = 0U;
         ((volatile uint8_t *)healthy_code)[i] = 0U;
         ((volatile uint8_t *)healthy_stack)[i] = 0U;
     }
-    for (i = 0; i < fault_size; ++i)
-        ((volatile uint8_t *)fault_code)[i] = nova_user_fault_payload_start[i];
+    for (i = 0; i < data_size; ++i)
+        ((volatile uint8_t *)data_code)[i] = nova_user_fault_payload_start[i];
+    for (i = 0; i < instruction_size; ++i)
+        ((volatile uint8_t *)instruction_code)[i] =
+            nova_user_instruction_fault_payload_start[i];
     for (i = 0; i < healthy_size; ++i)
-        ((volatile uint8_t *)healthy_code)[i] = nova_user_healthy_payload_start[i];
+        ((volatile uint8_t *)healthy_code)[i] =
+            nova_user_healthy_payload_start[i];
 
-    if (!nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
-                                fault_code, NOVA_MMU_MAP_EXECUTABLE) ||
+    /*
+     * Keep VA +7 unmapped for both fault types. Data and instruction fault
+     * tasks use separate code/stack pages; the healthy peer is mapped later.
+     */
+    if (!nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE,
+                                data_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
-                                fault_stack, NOVA_MMU_MAP_WRITABLE) ||
+                                data_stack, NOVA_MMU_MAP_WRITABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE,
-                                healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
+                                instruction_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE,
+                                instruction_stack, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 8U * NOVA_PAGE_SIZE,
+                                healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 9U * NOVA_PAGE_SIZE,
                                 healthy_stack, NOVA_MMU_MAP_WRITABLE) ||
-        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                               0U, &fault_task) ||
+                               0U, &data_task) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 6U * NOVA_PAGE_SIZE,
+                               0U, &instruction_task) ||
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 8U * NOVA_PAGE_SIZE,
+                               NOVA_USER_VA_BASE + 10U * NOVA_PAGE_SIZE,
                                0U, &healthy_task))
         goto cleanup;
 
     healthy_result = (volatile uint64_t *)(healthy_stack + NOVA_PAGE_SIZE -
                                            2U * sizeof(uint64_t));
-    uart_write("EL0 fault test task prepared; task id: ");
-    uart_write_hex64(fault_task);
+    uart_write("EL0 data-fault task prepared; task id: ");
+    uart_write_hex64(data_task);
+    uart_write("EL0 instruction-fault task prepared; task id: ");
+    uart_write_hex64(instruction_task);
     uart_write("EL0 healthy peer prepared; task id: ");
     uart_write_hex64(healthy_task);
     if (!nova_sched_start()) {
-        uart_write("EL0 fault test scheduler returned failure.\n");
+        uart_write("EL0 fault containment scheduler returned failure.\n");
         goto cleanup;
     }
 
     uart_write("EL0 healthy peer marker: ");
     uart_write_hex64(*healthy_result);
     ok = *healthy_result == healthy_task &&
-         !nova_task_get(fault_task, &(struct nova_task_info){0}) &&
+         !nova_task_get(data_task, &(struct nova_task_info){0}) &&
+         !nova_task_get(instruction_task, &(struct nova_task_info){0}) &&
          !nova_task_get(healthy_task, &(struct nova_task_info){0});
     if (ok)
-        uart_write("EL0 fault task reaped; healthy peer completed.\n");
+        uart_write("EL0 data/instruction fault tasks reaped; healthy peer completed.\n");
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
-    if (fault_task != 0U) {
+    if (data_task != 0U) {
         struct nova_task_info info;
-        if (nova_task_get(fault_task, &info) &&
+        if (nova_task_get(data_task, &info) &&
             (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
-            (void)nova_task_destroy(fault_task);
+            (void)nova_task_destroy(data_task);
+    }
+    if (instruction_task != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(instruction_task, &info) &&
+            (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
+            (void)nova_task_destroy(instruction_task);
     }
     if (healthy_task != 0U) {
         struct nova_task_info info;
@@ -129,20 +167,23 @@ cleanup:
     }
     if (space_id != 0U) (void)nova_address_space_release(space_id);
     if (root != 0U) {
-        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 8U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 9U * NOVA_PAGE_SIZE);
         (void)nova_mmu_address_space_destroy(root);
     }
-    if (fault_code != 0U) (void)nova_page_free((void *)fault_code);
-    if (fault_stack != 0U) (void)nova_page_free((void *)fault_stack);
+    if (data_code != 0U) (void)nova_page_free((void *)data_code);
+    if (data_stack != 0U) (void)nova_page_free((void *)data_stack);
+    if (instruction_code != 0U) (void)nova_page_free((void *)instruction_code);
+    if (instruction_stack != 0U) (void)nova_page_free((void *)instruction_stack);
     if (healthy_code != 0U) (void)nova_page_free((void *)healthy_code);
     if (healthy_stack != 0U) (void)nova_page_free((void *)healthy_stack);
     return ok;
 }
 #endif
-
 #ifdef NOVA_TEST_EL0_SVC
 extern const uint8_t nova_user_test_payload_start[];
 extern const uint8_t nova_user_test_payload_end[];
@@ -1257,9 +1298,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 
 #ifdef NOVA_TEST_EL0_FAULT
     if (current_el == 1U) {
-        uart_write("Starting EL0 data-abort containment test.\n");
+        uart_write("Starting EL0 data/instruction-abort containment test.\n");
         if (test_el0_fault_containment())
-            uart_write("QEMU EL0 data-abort containment passed.\n");
+            uart_write("QEMU EL0 data/instruction-abort containment passed.\n");
         else
             uart_write("ERROR: QEMU EL0 data-abort containment failed.\n");
     }
