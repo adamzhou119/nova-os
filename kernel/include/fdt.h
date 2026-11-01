@@ -32,6 +32,10 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device);
 int nova_fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                              size_t reg_index, struct nova_fdt_device *device);
+/* Locate a matching node instance, then one of its reg tuples. */
+int nova_fdt_find_device_instance(uintptr_t dtb_address, const char *compatible,
+                                  size_t instance_index, size_t reg_index,
+                                  struct nova_fdt_device *device);
 
 /* Decode a three-cell ARM GICv2 interrupt specifier to a GIC INTID.
  * Cell 0 is SPI (0) or PPI (1); cell 1 is the interrupt number within
