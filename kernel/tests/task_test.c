@@ -249,8 +249,13 @@ int main(void) {
                info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
         assert(!nova_task_take_irq_context(user_first, &taken));
     }
+    assert(!nova_task_set_fault(user_first, NOVA_TASK_FAULT_NONE,
+                                  0x90000000U, 0x80004000U, 0x80001008U));
+    assert(!nova_task_set_fault(user_first,
+                                (enum nova_task_fault_kind)99,
+                                0x90000000U, 0x80004000U, 0x80001008U));
     assert(nova_task_set_fault(user_first, NOVA_TASK_FAULT_DATA_ABORT,
-                                 0x90000000U, 0x80004000U, 0x80001008U));
+                               0x90000000U, 0x80004000U, 0x80001008U));
     assert(nova_task_get(user_first, &info));
     assert(info.exit_code == NOVA_TASK_EXIT_FAULT);
     assert(info.fault_kind == NOVA_TASK_FAULT_DATA_ABORT);
