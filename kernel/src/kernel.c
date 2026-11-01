@@ -250,8 +250,8 @@ static int test_el0_svc_round_trip(void) {
         if (((volatile const uint8_t *)stack_page)[NOVA_PAGE_SIZE - 4U + i] != 0U)
             goto cleanup;
     }
-    nova_console_write("EL0 copyout valid marker passed.\\n");
-    nova_console_write("EL0 copyout cross-page range rejected.\\n");
+    nova_console_write("EL0 copyout valid marker passed.\n");
+    nova_console_write("EL0 copyout cross-page range rejected.\n");
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       2U * sizeof(uint64_t));
@@ -1142,9 +1142,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     if (fdt_uart_found == 1 &&
         fdt_uart.mmio_base == (uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE &&
         fdt_uart.mmio_size >= 0x1000U) {
-        nova_console_write("FDT PL011 compatible/reg discovery passed.\\n");
+        nova_console_write("FDT PL011 compatible/reg discovery passed.\n");
     } else {
-        nova_console_write("ERROR: FDT PL011 discovery or resource validation failed.\\n");
+        nova_console_write("ERROR: FDT PL011 discovery or resource validation failed.\n");
     }
 
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
