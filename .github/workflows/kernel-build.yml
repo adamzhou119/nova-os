@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -20,7 +20,11 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld make qemu-system-arm
+          sudo apt-get install -y clang=1:21.1.6-71 lld=1:21.1.6-71 make qemu-system-arm=1:10.2.1+ds-1ubuntu3.3
+          clang --version
+          ld.lld --version
+          qemu-system-aarch64 --version
+          dpkg-query -W -f='${Package}=${Version}\n' clang lld make qemu-system-arm
 
       - name: Build AArch64 kernel and diagnostic test image
         run: |
