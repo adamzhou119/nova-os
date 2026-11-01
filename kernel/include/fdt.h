@@ -31,6 +31,15 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device);
 
+/* Decode a three-cell ARM GICv2 interrupt specifier to a GIC INTID.
+ * Cell 0 is SPI (0) or PPI (1); cell 1 is the interrupt number within
+ * that class; cell 2 is the standard trigger/polarity flag (1, 2, 4, or 8).
+ * Returns 1 on success, 0 for an unsupported/malformed specifier.
+ * This helper does not resolve interrupt-parent phandles or parse a node.
+ */
+int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
+                                    uint32_t flags, uint32_t *interrupt_id);
+
 /* Returns validated DTB totalsize, or zero for an invalid header. */
 size_t nova_fdt_total_size(uintptr_t dtb_address);
 
