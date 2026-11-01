@@ -268,11 +268,24 @@ nova_user_test_payload_start:
     mov     x8, #0
     svc     #0
     str     x0, [sp, #-16]!
-    mov     x8, #1
+    adr     x0, 2f
+    mov     x1, #15
+    mov     x8, #2
+    svc     #0
+    movz    x0, #0x8000, lsl #16
+    add     x0, x0, #0x4000
+    mov     x1, #1
+    mov     x8, #2
+    svc     #0
+    cmn     x0, #14
+    b.ne    1f
     mov     x0, #0
+    mov     x8, #1
     svc     #0
 1:
     b       1b
+2:
+    .ascii  "hello from EL0\n"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */
