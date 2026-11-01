@@ -42,7 +42,7 @@ static void append_property(uint32_t name_offset, const void *data,
 
 static void build_test_dtb(void) {
     static const char strings[] =
-        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0";
+        "compatible\\0#address-cells\\0#size-cells\\0reg\\0ranges\\0interrupt-parent\\0interrupts\\0phandle\\0#interrupt-cells\\0interrupt-controller\\0";
     static const char compatibles[] = "vendor,uart\0arm,pl011\0";
     uint8_t cells[16];
     uint32_t structure_offset = 56U;
@@ -86,10 +86,24 @@ static void build_test_dtb(void) {
         static const char nested_compatible[] = "vendor,nested";
         uint8_t nested_reg[8] = {0U, 0x90U, 0U, 0U, 0U, 0U, 0x10U, 0U};
         append_property(0U, nested_compatible, sizeof(nested_compatible));
+        uint8_t parent[4] = {0U, 0U, 0U, 1U};
+        uint8_t irq[12] = {0U, 0U, 0U, 1U, 0U, 0U, 0U, 14U,
+                           0U, 0U, 0U, 4U};
         append_property(38U, nested_reg, sizeof(nested_reg));
+        append_property(49U, parent, sizeof(parent));
+        append_property(66U, irq, sizeof(irq));
     }
     append_be32(2U);
     append_be32(2U);
+    append_node("intc");
+    {
+        uint8_t phandle[4] = {0U, 0U, 0U, 1U};
+        uint8_t cells[4] = {0U, 0U, 0U, 3U};
+        static const uint8_t empty = 0U;
+        append_property(77U, phandle, sizeof(phandle));
+        append_property(85U, cells, sizeof(cells));
+        append_property(102U, &empty, 0U);
+    }
     append_be32(2U);
     append_be32(9U);
 
@@ -119,6 +133,14 @@ int main(void) {
     assert(device.mmio_size == 0x1000U);
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,missing",
                                 &device) == 0);
+    {
+        uint32_t irq = UINT32_MAX;
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested",
+                                       &irq) == 1);
+        assert(irq == 30U);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,missing",
+                                       &irq) == 0);
+    }
     assert(nova_fdt_find_device((uintptr_t)blob, "", &device) < 0);
     blob[0] = 0U;
     assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
