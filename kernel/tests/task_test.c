@@ -236,7 +236,7 @@ int main(void) {
         struct nova_irq_frame *taken = 0;
         uint32_t selected = 0U;
         assert(!nova_task_next_cooperative_ready(0U, &selected));
-        assert(nova_task_next_irq_ready(0U, &selected));
+        assert(nova_task_next_irq_ready(0U, &selected) && selected == user_first);
         assert(nova_task_take_irq_context(user_first, &taken));
         assert(taken == info.irq_frame);
         assert(nova_task_get(user_first, &info));
