@@ -80,6 +80,7 @@ Remaining:
 - [x] Reject duplicate physical roots in the address-space registry so two IDs cannot independently own and destroy the same root (host tests; CI run 633).
 - [x] Verify cross-address-space shared-frame references and global W^X: executable aliases block writable aliases until the executable mapping is removed; frame pins remain until the final mapping is released (QEMU run 631).
 - [x] Make user map/unmap/protect alias accounting reject counter overflow and inconsistent pin/permission counts before mutating descriptors (CI run 634).
+- [x] Verify final-reference teardown reclaims a still-mapped writable user frame and a new address space can safely reuse the released ASID with no inherited user translation (QEMU run 635).
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
 
