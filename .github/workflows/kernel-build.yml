@@ -104,7 +104,7 @@ jobs:
           grep -q "QEMU EL0 SVC round-trip test passed." user-svc.log
           echo "Nova OS EL0 SVC round-trip passed."
 
-      - name: QEMU EL0 data-abort containment test
+      - name: QEMU EL0 data/instruction-abort containment test
         shell: bash
         run: |
           set +e
@@ -116,14 +116,15 @@ jobs:
             exit 1
           fi
           cat user-fault.log
-          grep -q "Starting EL0 data-abort containment test." user-fault.log
+          grep -q "Starting EL0 data/instruction-abort containment test." user-fault.log
           grep -q "EL0 fault contained; task id:" user-fault.log
           grep -q "ESR exception description: Data abort from lower EL" user-fault.log
+          grep -q "ESR exception description: Instruction abort from lower EL" user-fault.log
           grep -q "EL0 fault FAR: 0x0000000080007000" user-fault.log
-          grep -q "EL0 healthy peer marker: 0x0000000000000008" user-fault.log
-          grep -q "EL0 fault task reaped; healthy peer completed." user-fault.log
-          grep -q "QEMU EL0 data-abort containment passed." user-fault.log
-          echo "Nova OS EL0 data-abort containment passed."
+          grep -q "EL0 healthy peer marker: 0x0000000000000009" user-fault.log
+          grep -q "EL0 data/instruction fault tasks reaped; healthy peer completed." user-fault.log
+          grep -q "QEMU EL0 data/instruction-abort containment passed." user-fault.log
+          echo "Nova OS EL0 data/instruction-abort containment passed."
 
       - name: QEMU controlled exception test
         shell: bash
