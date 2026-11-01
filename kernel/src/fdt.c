@@ -579,7 +579,6 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     const uint8_t *strings;
     uint32_t total_size, struct_offset, strings_offset;
     uint32_t struct_size, strings_size, cursor = 0U;
-    uint32_t inherited_parent[FDT_MAX_DEPTH];
     uint32_t current_parent[FDT_MAX_DEPTH];
     uint32_t node_phandle[FDT_MAX_DEPTH];
     uint32_t interrupt_cells[FDT_MAX_DEPTH];
@@ -623,8 +622,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             cursor = (cursor + 3U) & ~3U;
             if (cursor > struct_size) return -6;
             ++depth;
-            inherited_parent[depth] = depth == 0 ? 0U : current_parent[depth - 1];
-            current_parent[depth] = inherited_parent[depth];
+            current_parent[depth] = depth == 0 ? 0U : current_parent[depth - 1];
             node_phandle[depth] = 0U;
             interrupt_cells[depth] = 0U;
             node_is_interrupt_controller[depth] = 0;
