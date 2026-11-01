@@ -37,65 +37,107 @@ extern char __page_pool_end[];
 #ifdef NOVA_TEST_EL0_FAULT
 extern const uint8_t nova_user_fault_payload_start[];
 extern const uint8_t nova_user_fault_payload_end[];
+extern const uint8_t nova_user_healthy_payload_start[];
+extern const uint8_t nova_user_healthy_payload_end[];
 
 static int test_el0_fault_containment(void) {
     uintptr_t root = 0U;
-    uintptr_t code_page = 0U, stack_page = 0U;
-    uint32_t space_id = 0U, task_id = 0U;
-    uintptr_t code_size = (uintptr_t)(nova_user_fault_payload_end -
-                                      nova_user_fault_payload_start);
+    uintptr_t fault_code = 0U, fault_stack = 0U;
+    uintptr_t healthy_code = 0U, healthy_stack = 0U;
+    uint32_t space_id = 0U, fault_task = 0U, healthy_task = 0U;
+    uintptr_t fault_size = (uintptr_t)(nova_user_fault_payload_end -
+                                       nova_user_fault_payload_start);
+    uintptr_t healthy_size = (uintptr_t)(nova_user_healthy_payload_end -
+                                         nova_user_healthy_payload_start);
+    volatile uint64_t *healthy_result;
     size_t i;
     int ok = 0;
 
-    if (code_size == 0U || code_size > NOVA_PAGE_SIZE) return 0;
-    code_page = (uintptr_t)nova_page_alloc();
-    stack_page = (uintptr_t)nova_page_alloc();
-    if (code_page == 0U || stack_page == 0U ||
+    if (fault_size == 0U || fault_size > NOVA_PAGE_SIZE ||
+        healthy_size == 0U || healthy_size > NOVA_PAGE_SIZE)
+        return 0;
+    fault_code = (uintptr_t)nova_page_alloc();
+    fault_stack = (uintptr_t)nova_page_alloc();
+    healthy_code = (uintptr_t)nova_page_alloc();
+    healthy_stack = (uintptr_t)nova_page_alloc();
+    if (fault_code == 0U || fault_stack == 0U ||
+        healthy_code == 0U || healthy_stack == 0U ||
         !nova_mmu_address_space_create(&root) ||
         !nova_address_space_create(root, 32U, &space_id))
         goto cleanup;
 
     for (i = 0; i < NOVA_PAGE_SIZE; ++i) {
-        ((volatile uint8_t *)code_page)[i] = 0U;
-        ((volatile uint8_t *)stack_page)[i] = 0U;
+        ((volatile uint8_t *)fault_code)[i] = 0U;
+        ((volatile uint8_t *)fault_stack)[i] = 0U;
+        ((volatile uint8_t *)healthy_code)[i] = 0U;
+        ((volatile uint8_t *)healthy_stack)[i] = 0U;
     }
-    for (i = 0; i < code_size; ++i)
-        ((volatile uint8_t *)code_page)[i] = nova_user_fault_payload_start[i];
+    for (i = 0; i < fault_size; ++i)
+        ((volatile uint8_t *)fault_code)[i] = nova_user_fault_payload_start[i];
+    for (i = 0; i < healthy_size; ++i)
+        ((volatile uint8_t *)healthy_code)[i] = nova_user_healthy_payload_start[i];
 
     if (!nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
-                                code_page, NOVA_MMU_MAP_EXECUTABLE) ||
+                                fault_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
-                                stack_page, NOVA_MMU_MAP_WRITABLE) ||
+                                fault_stack, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
+                                healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE,
+                                healthy_stack, NOVA_MMU_MAP_WRITABLE) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                               0U, &task_id))
+                               0U, &fault_task) ||
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
+                               NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE,
+                               0U, &healthy_task))
         goto cleanup;
 
+    healthy_result = (volatile uint64_t *)(healthy_stack + NOVA_PAGE_SIZE -
+                                           2U * sizeof(uint64_t));
     uart_write("EL0 fault test task prepared; task id: ");
-    uart_write_hex64(task_id);
+    uart_write_hex64(fault_task);
+    uart_write("EL0 healthy peer prepared; task id: ");
+    uart_write_hex64(healthy_task);
     if (!nova_sched_start()) {
         uart_write("EL0 fault test scheduler returned failure.\n");
         goto cleanup;
     }
-    ok = !nova_task_get(task_id, &(struct nova_task_info){0});
-    if (ok) uart_write("EL0 fault task was reaped; kernel continued.\n");
+
+    uart_write("EL0 healthy peer marker: ");
+    uart_write_hex64(*healthy_result);
+    ok = *healthy_result == healthy_task &&
+         !nova_task_get(fault_task, &(struct nova_task_info){0}) &&
+         !nova_task_get(healthy_task, &(struct nova_task_info){0});
+    if (ok)
+        uart_write("EL0 fault task reaped; healthy peer completed.\n");
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
-    if (task_id != 0U) {
+    if (fault_task != 0U) {
         struct nova_task_info info;
-        if (nova_task_get(task_id, &info) &&
+        if (nova_task_get(fault_task, &info) &&
             (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
-            (void)nova_task_destroy(task_id);
+            (void)nova_task_destroy(fault_task);
+    }
+    if (healthy_task != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(healthy_task, &info) &&
+            (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
+            (void)nova_task_destroy(healthy_task);
     }
     if (space_id != 0U) (void)nova_address_space_release(space_id);
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE);
         (void)nova_mmu_address_space_destroy(root);
     }
-    if (code_page != 0U) (void)nova_page_free((void *)code_page);
-    if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
+    if (fault_code != 0U) (void)nova_page_free((void *)fault_code);
+    if (fault_stack != 0U) (void)nova_page_free((void *)fault_stack);
+    if (healthy_code != 0U) (void)nova_page_free((void *)healthy_code);
+    if (healthy_stack != 0U) (void)nova_page_free((void *)healthy_stack);
     return ok;
 }
 #endif
