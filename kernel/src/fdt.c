@@ -583,6 +583,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     uint32_t current_parent[FDT_MAX_DEPTH];
     uint32_t node_phandle[FDT_MAX_DEPTH];
     uint32_t interrupt_cells[FDT_MAX_DEPTH];
+    int node_is_interrupt_controller[FDT_MAX_DEPTH];
     const uint8_t *node_compatible[FDT_MAX_DEPTH];
     uint32_t node_compatible_length[FDT_MAX_DEPTH];
     const uint8_t *node_interrupts[FDT_MAX_DEPTH];
@@ -626,6 +627,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             current_parent[depth] = inherited_parent[depth];
             node_phandle[depth] = 0U;
             interrupt_cells[depth] = 0U;
+            node_is_interrupt_controller[depth] = 0;
             node_compatible[depth] = NULL;
             node_compatible_length[depth] = 0U;
             node_interrupts[depth] = NULL;
@@ -641,7 +643,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
                 target_interrupts = node_interrupts[depth];
                 target_interrupts_length = node_interrupts_length[depth];
             }
-            if (node_phandle[depth] != 0U &&
+            if (node_is_interrupt_controller[depth] && node_phandle[depth] != 0U &&
                 interrupt_cells[depth] == 3U && controller_count < FDT_MAX_GIC_CONTROLLERS) {
                 /* A nonzero #interrupt-cells plus phandle identifies a
                  * candidate interrupt parent; the binding is checked by
@@ -676,6 +678,9 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             } else if (fdt_string_equals(strings, strings_size, name_offset, "#interrupt-cells") &&
                        length == 4U) {
                 interrupt_cells[depth] = read_be32(data);
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "interrupt-controller") && length == 0U) {
+                node_is_interrupt_controller[depth] = 1;
             }
             cursor += length;
             cursor = (cursor + 3U) & ~3U;
