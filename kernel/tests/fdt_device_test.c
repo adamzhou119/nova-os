@@ -82,8 +82,13 @@ static void build_test_dtb(void) {
             0U, 0U, 0U, 0U, 0x0bU, 0U, 0U, 0U,
             0U, 0U, 0U, 0U, 0U, 0U, 0x10U, 0U
         };
+        uint8_t parent[4] = {0U, 0U, 0U, 1U};
+        uint8_t irq[12] = {0U, 0U, 0U, 0U, 0U, 0U, 0U, 5U,
+                           0U, 0U, 0U, 4U};
         append_property(0U, second_uart, sizeof(second_uart) - 1U);
         append_property(38U, second_reg, sizeof(second_reg));
+        append_property(49U, parent, sizeof(parent));
+        append_property(66U, irq, sizeof(irq));
     }
     append_be32(2U);
     append_node("soc");
@@ -163,6 +168,14 @@ int main(void) {
     assert(device.mmio_size == 0x1000U);
     assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
                                          2U, 0U, &device) == 0);
+    {
+        uint32_t irq = UINT32_MAX;
+        assert(nova_fdt_find_gicv2_irq_instance((uintptr_t)blob, "arm,pl011",
+                                                1U, &irq) == 1);
+        assert(irq == 37U);
+        assert(nova_fdt_find_gicv2_irq_instance((uintptr_t)blob, "arm,pl011",
+                                                2U, &irq) == 0);
+    }
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
