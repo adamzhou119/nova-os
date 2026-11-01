@@ -224,7 +224,9 @@ int main(void) {
     assert(info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN);
     assert(info.state == NOVA_TASK_READY && info.address_space_id == user_space_id);
     assert(info.user_entry == 0x80004000U && info.user_stack_top == 0x80010000U);
-    assert(info.entry == 0 && info.context.sp == 0U);
+    assert(info.entry == 0 && info.context.sp == info.kernel_stack_top);
+    assert(info.context.x19_x30[0] == (uintptr_t)info.irq_frame);
+    assert(info.context.x19_x30[11] != 0U);
     assert(info.irq_frame != 0 && info.irq_frame->elr_el1 == 0x80004000U);
     assert(info.irq_frame->spsr_el1 == 0U);
     assert(info.irq_frame->sp_el0 == 0x80010000U);
