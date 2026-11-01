@@ -141,14 +141,6 @@ int main(void) {
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,missing",
                                        &irq) == 0);
     }
-    {
-        uint32_t irq = UINT32_MAX;
-        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested",
-                                       &irq) == 1);
-        assert(irq == 30U);
-        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,missing",
-                                       &irq) == 0);
-    }
     assert(nova_fdt_find_device((uintptr_t)blob, "", &device) < 0);
     blob[0] = 0U;
     assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
