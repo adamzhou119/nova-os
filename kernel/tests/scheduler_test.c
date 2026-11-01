@@ -19,11 +19,14 @@ static uint32_t peer_space_id;
 static int user_space_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
+static int fail_kernel_space_switch;
 
 void nova_task_start_trampoline(void) {}
 
 uintptr_t nova_mmu_kernel_root(void) { return 0x1000U; }
 int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
+    if (fail_kernel_space_switch && root == 0x1000U && asid == 0U)
+        return 0;
     mock_ttbr_root = root;
     mock_ttbr_asid = asid;
     return 1;
@@ -283,6 +286,27 @@ int main(void) {
     assert(space.references == 1U && space.active_cpus == 0U);
     assert(nova_address_space_release(user_space_id));
     assert(nova_address_space_release(peer_space_id));
-    puts("Scheduler phase, shared-address-space IRQ handoff, and cooperative tests passed.");
+
+    /*
+     * If the return-to-kernel TTBR0 switch fails, the scheduler must not reap
+     * the blocked task or drop its active address-space reference.
+     */
+    {
+        uint32_t failure_space = 0U;
+        struct nova_address_space_info failure_info;
+        assert(nova_address_space_create(0x4000U, 9U, &failure_space));
+        assert(nova_task_create(dummy_entry, 0, &user_task));
+        assert(nova_task_set_address_space(user_task, failure_space));
+        fail_kernel_space_switch = 1;
+        user_space_mode = 0;
+        assert(!nova_sched_start());
+        assert(nova_task_get(user_task, &info));
+        assert(info.state == NOVA_TASK_BLOCKED);
+        assert(nova_sched_current() == user_task);
+        assert(nova_address_space_get(failure_space, &failure_info));
+        assert(failure_info.references == 2U && failure_info.active_cpus == 1U);
+        assert(mock_ttbr_root == 0x4000U && mock_ttbr_asid == 9U);
+    }
+    puts("Scheduler address-space rollback failure containment tests passed.");
     return 0;
 }
