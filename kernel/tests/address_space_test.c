@@ -29,6 +29,7 @@ int main(void) {
     assert(nova_address_space_create(0x40001000U, 1U, &first));
     assert(first != 0U);
     assert(!nova_address_space_create(0x40002000U, 1U, &second));
+    assert(!nova_address_space_create(0x40001000U, 2U, &second)); /* A root has one registry owner. */
     assert(nova_address_space_get(first, &info));
     assert(info.id == first && info.asid == 1U);
     assert(info.references == 1U && info.active_cpus == 0U);
