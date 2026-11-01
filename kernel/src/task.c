@@ -104,8 +104,21 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
         (void)nova_vmap_free_guarded_page(stack);
         return 0;
     }
+    /*
+     * Finish all fallible local setup before retaining the address space.
+     * A failed context initialization must not leave an unreachable reference
+     * behind if the later final-release hook itself is temporarily failing.
+     */
+    if (!nova_arch_context_init(&tasks[i].context,
+                                (uintptr_t)stack + NOVA_TASK_STACK_SIZE,
+                                (uintptr_t)nova_user_task_start_trampoline,
+                                (uintptr_t)frame, 0U)) {
+        (void)nova_vmap_free_guarded_page(stack);
+        return 0;
+    }
     if (!nova_address_space_retain(address_space_id)) {
         (void)nova_vmap_free_guarded_page(stack);
+        tasks[i].context.sp = 0U;
         return 0;
     }
 
@@ -126,16 +139,6 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].irq_frame = frame;
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
-    if (!nova_arch_context_init(&tasks[i].context,
-                                tasks[i].kernel_stack_top,
-                                (uintptr_t)nova_user_task_start_trampoline,
-                                (uintptr_t)frame, 0U)) {
-        (void)nova_address_space_release(address_space_id);
-        (void)nova_vmap_free_guarded_page(stack);
-        tasks[i].id = 0U;
-        tasks[i].state = NOVA_TASK_UNUSED;
-        return 0;
-    }
     *task_id = id;
     return 1;
 }
