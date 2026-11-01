@@ -6,10 +6,19 @@
 #include "context.h"
 #include "vm.h"
 #include "address_space.h"
+#include "mmu.h"
 
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
+static int reject_user_mapping;
+int nova_mmu_user_verify_page(uintptr_t root, uint16_t asid,
+                              uintptr_t va, unsigned int flags) {
+    return !reject_user_mapping && root != 0U && asid != 0U &&
+           va >= NOVA_USER_VA_BASE && va < NOVA_USER_VA_END &&
+           (flags == NOVA_MMU_MAP_EXECUTABLE ||
+            flags == NOVA_MMU_MAP_WRITABLE);
+}
 static int fail_first_space_destroy = 1;
 static int destroy_test_space(uintptr_t root, uint16_t asid) {
     (void)asid;
@@ -235,6 +244,15 @@ int main(void) {
 
     /* First-run EL0 tasks own a retained address-space reference and ERET frame. */
     assert(nova_address_space_create(0x50008000U, 2U, &user_space_id));
+    /* Reject malformed or wrongly-permissioned EL0 mappings before task allocation. */
+    assert(!nova_task_create_user(user_space_id, 0x80004002U, 0x80010000U,
+                                  0x1234U, &user_first));
+    assert(!nova_task_create_user(user_space_id, 0x80004000U, 0x80010008U,
+                                  0x1234U, &user_first));
+    reject_user_mapping = 1;
+    assert(!nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
+                                  0x1234U, &user_first));
+    reject_user_mapping = 0;
     assert(nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                  0x1234U, &user_first));
     assert(nova_task_get(user_first, &info));
