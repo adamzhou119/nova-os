@@ -16,6 +16,7 @@ static int irq_resume_mock;
 static uint32_t user_task;
 static uint32_t user_space_id;
 static uint32_t peer_space_id;
+static uint32_t failure_space_id;
 static int user_space_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
@@ -76,7 +77,8 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(mock_ttbr_root == active_space.root_physical);
             assert(mock_ttbr_asid == active_space.asid);
             assert(active_space.active_cpus == 1U);
-        } else if (current_info.address_space_id == peer_space_id) {
+        } else if (current_info.address_space_id == peer_space_id ||
+                   current_info.address_space_id == failure_space_id) {
             struct nova_address_space_info active_space;
             assert(nova_address_space_get(peer_space_id, &active_space));
             assert(mock_ttbr_root == active_space.root_physical);
@@ -292,18 +294,16 @@ int main(void) {
      * the blocked task or drop its active address-space reference.
      */
     {
-        uint32_t failure_space = 0U;
         struct nova_address_space_info failure_info;
-        assert(nova_address_space_create(0x4000U, 9U, &failure_space));
+        assert(nova_address_space_create(0x4000U, 9U, &failure_space_id));
         assert(nova_task_create(dummy_entry, 0, &user_task));
-        assert(nova_task_set_address_space(user_task, failure_space));
+        assert(nova_task_set_address_space(user_task, failure_space_id));
         fail_kernel_space_switch = 1;
-        user_space_mode = 1;
         assert(!nova_sched_start());
         assert(nova_task_get(user_task, &info));
-        assert(info.state == NOVA_TASK_RUNNING);
+        assert(info.state == NOVA_TASK_BLOCKED);
         assert(nova_sched_current() == user_task);
-        assert(nova_address_space_get(failure_space, &failure_info));
+        assert(nova_address_space_get(failure_space_id, &failure_info));
         assert(failure_info.references == 2U && failure_info.active_cpus == 1U);
         assert(mock_ttbr_root == 0x4000U && mock_ttbr_asid == 9U);
     }
