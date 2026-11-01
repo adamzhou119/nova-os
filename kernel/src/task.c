@@ -402,7 +402,7 @@ int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
                         uint64_t esr, uint64_t far, uint64_t elr) {
     struct nova_task_info *task = find_task(task_id);
     if (task == 0 || task->state != NOVA_TASK_RUNNING ||
-        kind == NOVA_TASK_FAULT_NONE)
+        (kind <= NOVA_TASK_FAULT_NONE || kind > NOVA_TASK_FAULT_BRK))
         return 0;
     task->fault_kind = kind;
     task->fault_esr = esr;
