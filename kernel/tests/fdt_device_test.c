@@ -77,20 +77,20 @@ static void build_test_dtb(void) {
             0U, 0U, 0U, 0U, 0x10U, 0U, 0U, 0U,
             0x01U, 0U, 0U, 0U
         };
+        uint8_t parent[4] = {0U, 0U, 0U, 1U};
         append_property(11U, one, sizeof(one));
         append_property(26U, one, sizeof(one));
         append_property(42U, ranges, sizeof(ranges));
+        append_property(49U, parent, sizeof(parent));
     }
     append_node("device@900000");
     {
         static const char nested_compatible[] = "vendor,nested";
         uint8_t nested_reg[8] = {0U, 0x90U, 0U, 0U, 0U, 0U, 0x10U, 0U};
         append_property(0U, nested_compatible, sizeof(nested_compatible));
-        uint8_t parent[4] = {0U, 0U, 0U, 1U};
         uint8_t irq[12] = {0U, 0U, 0U, 1U, 0U, 0U, 0U, 14U,
                            0U, 0U, 0U, 4U};
         append_property(38U, nested_reg, sizeof(nested_reg));
-        append_property(49U, parent, sizeof(parent));
         append_property(66U, irq, sizeof(irq));
     }
     append_be32(2U);
