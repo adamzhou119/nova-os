@@ -1,7 +1,8 @@
 # Nova OS — Driver and System-Service Foundations
 
-Status: interface design only. This document does not claim that the service manager,
-IPC transport, capability enforcement, or device-driver framework is implemented.
+Status: the bounded kernel device-registry core is implemented and host-tested. FDT-driven
+discovery and concrete hardware-driver registration remain in progress; the service manager,
+IPC transport, and capability enforcement are not implemented.
 
 ## Scope and order
 
@@ -16,6 +17,20 @@ The implementation order is deliberately narrow:
    stable task scheduling, address-space isolation, and fault containment.
 5. Put AI orchestration above services; it must never bypass service permission
    checks or call device registers directly.
+
+## Registry implementation status
+
+The initial registry lives in `kernel/include/device.h` and `kernel/src/device.c`.
+It stores a bounded set of discovered devices and compatible-string driver callbacks.
+Probe transitions through `DISCOVERED → PROBING → READY` or `FAILED`; failed probes
+release MMIO/IRQ claims, and removal releases claims only after the driver's remove
+callback succeeds. Overlapping MMIO ranges and duplicate active IRQ ownership are
+rejected. Host tests cover duplicate IDs/drivers, overflowed MMIO ranges, resource
+conflicts, failed-probe retry, and failed-removal retention.
+
+The registry is not yet populated from FDT, and no hardware driver is registered
+through it. The early PL011 console, timer, and GIC paths remain their existing
+platform-specific implementations until their extraction is separately verified.
 
 ## Driver contract
 
