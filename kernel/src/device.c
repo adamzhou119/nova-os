@@ -198,6 +198,75 @@ int nova_device_discover_fdt_instance(uintptr_t dtb_address, uint32_t device_id,
     return nova_device_add(&desc);
 }
 
+static void discard_discovered_device(uint32_t device_id) {
+    struct device_slot *slot = find_device(device_id);
+    if (slot != 0 && slot->info.state == NOVA_DEVICE_DISCOVERED) {
+        slot->used = 0;
+    }
+}
+
+int nova_device_discover_fdt_all(uintptr_t dtb_address,
+                                 uint32_t first_device_id,
+                                 const char *compatible,
+                                 size_t *discovered_count) {
+    struct nova_device_desc candidates[NOVA_DEVICE_MAX];
+    char compatible_copy[NOVA_DEVICE_COMPATIBLE_MAX];
+    size_t count = 0U, free_slots = 0U, i;
+    int result;
+
+    if (discovered_count == NULL ||
+        !copy_compatible(compatible_copy, compatible)) return 0;
+    *discovered_count = 0U;
+
+    /* Discover and validate the complete set before mutating the registry. */
+    for (i = 0U; i <= NOVA_DEVICE_MAX; ++i) {
+        struct nova_fdt_device fdt_device;
+        uint32_t irq = NOVA_DEVICE_NO_IRQ;
+        struct nova_device_desc *desc;
+        result = nova_fdt_find_device_instance(dtb_address, compatible,
+                                                i, 0U, &fdt_device);
+        if (result == 0) break;
+        if (result < 0 || i == NOVA_DEVICE_MAX ||
+            first_device_id == 0U ||
+            first_device_id > UINT32_MAX - (uint32_t)i)
+            return 0;
+        if (find_device(first_device_id + (uint32_t)i) != 0) return 0;
+
+        result = nova_fdt_find_gicv2_irq_instance(dtb_address, compatible,
+                                                   i, &irq);
+        if (result < 0) return 0;
+
+        desc = &candidates[count];
+        desc->id = first_device_id + (uint32_t)i;
+        desc->mmio_base = fdt_device.mmio_base;
+        desc->mmio_size = fdt_device.mmio_size;
+        desc->irq = result == 1 ? irq : NOVA_DEVICE_NO_IRQ;
+        for (free_slots = 0U; compatible_copy[free_slots] != '\\0';
+             ++free_slots)
+            desc->compatible[free_slots] = compatible_copy[free_slots];
+        desc->compatible[free_slots] = '\\0';
+        ++count;
+    }
+
+    if (count == 0U) return 1;
+    free_slots = 0U;
+    for (i = 0U; i < NOVA_DEVICE_MAX; ++i)
+        if (!devices[i].used) ++free_slots;
+    if (free_slots < count) return 0;
+
+    for (i = 0U; i < count; ++i) {
+        if (!nova_device_add(&candidates[i])) {
+            while (i > 0U) {
+                --i;
+                discard_discovered_device(candidates[i].id);
+            }
+            return 0;
+        }
+    }
+    *discovered_count = count;
+    return 1;
+}
+
 int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
                              const char *compatible) {
     return nova_device_discover_fdt_instance(dtb_address, device_id,
