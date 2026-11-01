@@ -415,7 +415,8 @@ static int translate_fdt_bus_address(
 }
 
 static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
-                               size_t reg_index, struct nova_fdt_device *device) {
+                               size_t instance_index, size_t reg_index,
+                               struct nova_fdt_device *device) {
     const uint8_t *base = (const uint8_t *)dtb_address;
     const uint8_t *structure;
     const uint8_t *strings;
@@ -432,6 +433,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
     const uint8_t *ranges_data[FDT_MAX_DEPTH];
     uint32_t ranges_length[FDT_MAX_DEPTH];
     int depth = -1;
+    size_t matched_instances = 0U;
 
     if (dtb_address == 0U || compatible == NULL || device == NULL ||
         compatible[0] == '\0') return -1;
@@ -480,6 +482,10 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                                           compatible_length[depth],
                                           compatible) &&
                 reg_data[depth] != NULL) {
+                if (matched_instances++ != instance_index) {
+                    --depth;
+                    continue;
+                }
                 ac = parent_address_cells[depth];
                 sc = parent_size_cells[depth];
                 if (ac == 0U || ac > 2U || sc == 0U || sc > 2U)
@@ -553,12 +559,19 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
 
 int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device) {
-    return fdt_find_device_reg(dtb_address, compatible, 0U, device);
+    return fdt_find_device_reg(dtb_address, compatible, 0U, 0U, device);
 }
 
 int nova_fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                              size_t reg_index, struct nova_fdt_device *device) {
-    return fdt_find_device_reg(dtb_address, compatible, reg_index, device);
+    return fdt_find_device_reg(dtb_address, compatible, 0U, reg_index, device);
+}
+
+int nova_fdt_find_device_instance(uintptr_t dtb_address, const char *compatible,
+                                  size_t instance_index, size_t reg_index,
+                                  struct nova_fdt_device *device) {
+    return fdt_find_device_reg(dtb_address, compatible, instance_index,
+                               reg_index, device);
 }
 
 
