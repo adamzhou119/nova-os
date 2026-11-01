@@ -73,7 +73,8 @@ static int test_el0_svc_round_trip(void) {
                                0U, &task_id))
         goto cleanup;
 
-    result = (volatile uint64_t *)result_page;
+    result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
+                                      sizeof(uint64_t));
     if (!nova_sched_start()) goto cleanup;
     ok = *result == task_id;
 
