@@ -591,6 +591,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     uint32_t controller_cells[FDT_MAX_GIC_CONTROLLERS];
     uint32_t controller_count = 0U;
     uint32_t target_parent = 0U;
+    int target_found = 0;
     const uint8_t *target_interrupts = NULL;
     uint32_t target_interrupts_length = 0U;
     int depth = -1;
@@ -632,7 +633,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             node_interrupts_length[depth] = 0U;
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -7;
-            if (node_compatible[depth] != NULL &&
+            if (!target_found && node_compatible[depth] != NULL &&
                 compatible_list_contains(node_compatible[depth],
                                          node_compatible_length[depth],
                                          compatible) &&
@@ -640,6 +641,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
                 target_parent = current_parent[depth];
                 target_interrupts = node_interrupts[depth];
                 target_interrupts_length = node_interrupts_length[depth];
+                target_found = 1;
             }
             if (node_is_interrupt_controller[depth] && node_phandle[depth] != 0U &&
                 interrupt_cells[depth] == 3U && controller_count < FDT_MAX_GIC_CONTROLLERS) {
