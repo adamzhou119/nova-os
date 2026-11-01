@@ -22,6 +22,19 @@ static int failure_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
 static int fail_kernel_space_switch;
+static uint32_t fail_deactivate_id;
+
+int nova_sched_address_space_activate(uint32_t id) {
+    return nova_address_space_activate(id);
+}
+
+int nova_sched_address_space_deactivate(uint32_t id) {
+    if (fail_deactivate_id == id) {
+        fail_deactivate_id = 0U;
+        return 0;
+    }
+    return nova_address_space_deactivate(id);
+}
 
 void nova_task_start_trampoline(void) {}
 
@@ -126,6 +139,27 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
             assert(!nova_sched_irq_handoff(0, &selected_id, &selected_frame));
             assert(nova_sched_preemption_pending());
             assert(nova_sched_current() == observed_task);
+
+            /*
+             * If releasing the old active-space reference fails after TTBR0
+             * changes, the IRQ handoff must restore the old root and leave
+             * task selection and both active reference counts unchanged.
+             */
+            fail_deactivate_id = user_space_id;
+            assert(!nova_sched_irq_handoff(
+                (struct nova_irq_frame *)(current_info.kernel_stack_top -
+                    sizeof(struct nova_irq_frame)),
+                &selected_id, &selected_frame));
+            assert(mock_ttbr_root == 0x2000U && mock_ttbr_asid == 7U);
+            assert(nova_sched_current() == observed_task);
+            assert(!nova_sched_preemption_pending());
+            assert(nova_address_space_get(user_space_id, &active_space));
+            assert(active_space.active_cpus == 1U);
+            assert(nova_address_space_get(peer_space_id, &active_space));
+            assert(active_space.active_cpus == 0U);
+
+            for (i = 0; i < 5U; ++i) nova_sched_timer_tick();
+            assert(nova_sched_preemption_pending());
             assert(nova_sched_irq_handoff(
                                           (struct nova_irq_frame *)(current_info.kernel_stack_top -
                                               sizeof(struct nova_irq_frame)),
