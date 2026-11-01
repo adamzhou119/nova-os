@@ -32,6 +32,18 @@ enum nova_task_resume_kind {
     NOVA_TASK_RESUME_ACTIVE
 };
 
+enum nova_task_fault_kind {
+    NOVA_TASK_FAULT_NONE = 0,
+    NOVA_TASK_FAULT_INSTRUCTION_ABORT,
+    NOVA_TASK_FAULT_DATA_ABORT,
+    NOVA_TASK_FAULT_BREAKPOINT,
+    NOVA_TASK_FAULT_SOFTWARE_STEP,
+    NOVA_TASK_FAULT_WATCHPOINT,
+    NOVA_TASK_FAULT_BRK
+};
+
+#define NOVA_TASK_EXIT_FAULT (-14)
+
 struct nova_task_info {
     uint32_t id;
     uint32_t address_space_id; /* 0 is the immortal privileged kernel space. */
@@ -42,6 +54,10 @@ struct nova_task_info {
     uintptr_t kernel_stack_base;
     uintptr_t kernel_stack_top;
     int exit_code;
+    enum nova_task_fault_kind fault_kind;
+    uint64_t fault_esr;
+    uint64_t fault_far;
+    uint64_t fault_elr;
     struct nova_cpu_context context;
     struct nova_irq_frame *irq_frame;
     uintptr_t user_entry;
@@ -79,6 +95,9 @@ int nova_task_next_cooperative_ready(uint32_t after_id, uint32_t *task_id);
 int nova_task_next_irq_ready(uint32_t after_id, uint32_t *task_id);
 void nova_task_mark_zombie(struct nova_task_info *task);
 int nova_task_set_exit_code(uint32_t task_id, int exit_code);
+/* Records a contained EL0 fault on the currently RUNNING task. */
+int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
+                        uint64_t esr, uint64_t far, uint64_t elr);
 /* Only READY (never dispatched) and ZOMBIE tasks may be destroyed. */
 int nova_task_destroy(uint32_t task_id);
 
