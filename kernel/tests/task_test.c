@@ -212,6 +212,7 @@ int main(void) {
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
     assert(nova_task_transition(first, NOVA_TASK_ZOMBIE));
     assert(nova_task_get(first, &info) && info.exit_code == -7);
+    assert(info.fault_kind == NOVA_TASK_FAULT_NONE);
     assert(nova_task_destroy(first));
     assert(!nova_address_space_get(address_space_id, &address_space_info));
     assert(!nova_task_get(first, &info));
@@ -231,6 +232,8 @@ int main(void) {
     assert(info.irq_frame->spsr_el1 == 0U);
     assert(info.irq_frame->sp_el0 == 0x80010000U);
     assert(info.irq_frame->x[0] == 0x1234U);
+    assert(info.fault_kind == NOVA_TASK_FAULT_NONE);
+    assert(info.fault_esr == 0U && info.fault_far == 0U && info.fault_elr == 0U);
     assert(nova_address_space_get(user_space_id, &address_space_info));
     assert(address_space_info.references == 2U);
     assert(nova_address_space_release(user_space_id));
@@ -246,6 +249,14 @@ int main(void) {
                info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
         assert(!nova_task_take_irq_context(user_first, &taken));
     }
+    assert(nova_task_set_fault(user_first, NOVA_TASK_FAULT_DATA_ABORT,
+                                 0x90000000U, 0x80004000U, 0x80001008U));
+    assert(nova_task_get(user_first, &info));
+    assert(info.exit_code == NOVA_TASK_EXIT_FAULT);
+    assert(info.fault_kind == NOVA_TASK_FAULT_DATA_ABORT);
+    assert(info.fault_esr == 0x90000000U &&
+           info.fault_far == 0x80004000U &&
+           info.fault_elr == 0x80001008U);
     assert(nova_task_transition(user_first, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(user_first));
     assert(!nova_address_space_get(user_space_id, &address_space_info));
