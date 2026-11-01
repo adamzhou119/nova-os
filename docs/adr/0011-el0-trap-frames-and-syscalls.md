@@ -126,6 +126,7 @@ QEMU CI run 570 verifies the refactored syscall-2 copy-in path together with
 the existing EL0 SVC and data-abort tests. QEMU CI run 574 now executes both
 an EL0 data abort (load from the unmapped page) and an EL0 instruction abort
 (branch to the same unmapped page) in separate tasks; the scheduler reaps both
-faulting tasks and a healthy peer then publishes its task ID and exits normally. Copy-to is host-tested but
-does not yet have a dedicated EL0 QEMU runtime test; hardware testing remains
-deferred.
+faulting tasks and a healthy peer then publishes its task ID and exits normally. QEMU CI run 578 also exercises copy-to-user against a real EL0-writable stack
+page, verifies the copied marker in physical memory, and rejects a write that
+crosses from the mapped stack page into an unmapped page before modifying the
+first page. Hardware testing remains deferred.
