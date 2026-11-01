@@ -40,10 +40,18 @@ static int scheduler_enter_task_space(uint32_t task_id) {
     if(active_address_space_id!=0U)(void)nova_address_space_deactivate(active_address_space_id);
     active_address_space_id=next_id; return 1;
 }
-static void scheduler_return_to_kernel_space(void) {
-    if(!nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)) return;
-    if(active_address_space_id!=0U)(void)nova_address_space_deactivate(active_address_space_id);
-    active_address_space_id=0U;
+static int scheduler_return_to_kernel_space(void) {
+    /*
+     * Never reclaim a task while TTBR0 may still reference its address space.
+     * On failure, leave ownership/active references intact and stop dispatch.
+     */
+    if (!nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U))
+        return 0;
+    if (active_address_space_id != 0U &&
+        !nova_address_space_deactivate(active_address_space_id))
+        return 0;
+    active_address_space_id = 0U;
+    return 1;
 }
 
 static uintptr_t irq_save_disable(void) {
@@ -131,7 +139,10 @@ int nova_sched_start(void) {
                     ? nova_task_context(next) : 0;
             if (!scheduler_enter_task_space(next) ||
                 !nova_task_take_irq_context(next, &frame)) {
-                scheduler_return_to_kernel_space();
+                if (!scheduler_return_to_kernel_space()) {
+                    irq_restore(saved_daif);
+                    return 0;
+                }
                 irq_restore(saved_daif);
                 continue;
             }
@@ -155,7 +166,10 @@ int nova_sched_start(void) {
             }
 
             execution_phase = NOVA_SCHED_SCHEDULER;
-            scheduler_return_to_kernel_space();
+            if (!scheduler_return_to_kernel_space()) {
+                irq_restore(saved_daif);
+                return 0;
+            }
             {
                 uint32_t returned_id = current_task_id;
                 struct nova_task_info returned_task;
@@ -192,7 +206,10 @@ int nova_sched_start(void) {
         }
 
         execution_phase = NOVA_SCHED_SCHEDULER;
-        scheduler_return_to_kernel_space();
+        if (!scheduler_return_to_kernel_space()) {
+            irq_restore(saved_daif);
+            return 0;
+        }
         {
             /*
              * An IRQ handoff may have resumed a different task before that
