@@ -75,6 +75,17 @@ static void build_test_dtb(void) {
     cells[28] = 0x00U; cells[29] = 0x00U; cells[30] = 0x20U; cells[31] = 0x00U;
     append_property(38U, cells, sizeof(cells));
     append_be32(2U);
+    append_node("uart@b000000");
+    {
+        static const char second_uart[] = "vendor,uart\\0arm,pl011\\0";
+        uint8_t second_reg[16] = {
+            0U, 0U, 0U, 0U, 0U, 0xb0U, 0U, 0U,
+            0U, 0U, 0U, 0U, 0U, 0U, 0x10U, 0U
+        };
+        append_property(0U, second_uart, sizeof(second_uart) - 1U);
+        append_property(38U, second_reg, sizeof(second_reg));
+    }
+    append_be32(2U);
     append_node("soc");
     {
         uint8_t one[4] = {0U, 0U, 0U, 1U};
@@ -146,6 +157,12 @@ int main(void) {
     assert(device.mmio_base == (uintptr_t)0x0a000000U);
     assert(device.mmio_size == 0x2000U);
     assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,pl011", 2U, &device) == 0);
+    assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
+                                         1U, 0U, &device) == 1);
+    assert(device.mmio_base == (uintptr_t)0x0b000000U);
+    assert(device.mmio_size == 0x1000U);
+    assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
+                                         2U, 0U, &device) == 0);
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
