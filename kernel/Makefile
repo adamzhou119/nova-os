@@ -32,6 +32,7 @@ STACK_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-stack-fault-test.o
 EL2_TEST_KERNEL_OBJECT := $(BUILD)/kernel-el2-test.o
 EL2_VECTOR_BOOT_OBJECT := $(BUILD)/boot-el2-vector.o
 USER_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-test.o
+USER_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-fault-test.o
 EL3_TEST_BOOT_OBJECT := $(BUILD)/el3-test-boot.o
 
 .PHONY: all test host-test clean
@@ -55,7 +56,7 @@ host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/user_context_test.c src/context.c -o $(BUILD)/user-context-test
 	$(BUILD)/user-context-test
 
-test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/el3-test-boot.elf
+test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -126,6 +127,9 @@ $(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h i
 $(USER_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_SVC -c $< -o $@
 
+$(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_FAULT -c $< -o $@
+
 $(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL2_BOOT -c $< -o $@
 
@@ -151,6 +155,10 @@ $(BUILD)/nova-el2-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL
 	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) -o $@
 $(BUILD)/nova-user-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) linker.ld
 	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) -o $@
+
+$(BUILD)/nova-user-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) -o $@
+
 
 $(BUILD)/nova-el2-vector-test.elf: $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) linker-el2-test.ld
 	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) -o $@
