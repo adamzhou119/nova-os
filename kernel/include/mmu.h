@@ -12,7 +12,7 @@ int nova_mmu_enable(void);
 
 /* Create/destroy a root with shared privileged mappings and a private user L2. */
 int nova_mmu_address_space_create(uintptr_t *root_physical);
-int nova_mmu_address_space_destroy(uintptr_t root_physical);
+int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid);
 /* Switch TTBR0_EL1 using an 8-bit ASID; ASID zero is reserved for kernel root. */
 int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid);
 uintptr_t nova_mmu_kernel_root(void);
