@@ -20,25 +20,69 @@ __attribute__((weak)) uintptr_t nova_mmu_kernel_root(void) { return 0U; }
 __attribute__((weak)) int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
     (void)root; (void)asid; return 1;
 }
+/*
+ * Indirection keeps address-space reference failures injectable in host tests.
+ * Production builds use the registry operations directly.
+ */
+__attribute__((weak)) int nova_sched_address_space_activate(uint32_t id) {
+    return nova_address_space_activate(id);
+}
+__attribute__((weak)) int nova_sched_address_space_deactivate(uint32_t id) {
+    return nova_address_space_deactivate(id);
+}
+
 static int scheduler_enter_task_space(uint32_t task_id) {
     struct nova_task_info task;
-    struct nova_address_space_info space;
-    uint32_t next_id; uintptr_t root; uint16_t asid;
+    struct nova_address_space_info next_space, old_space;
+    uint32_t next_id, old_id = active_address_space_id;
+    uintptr_t next_root, old_root = nova_mmu_kernel_root();
+    uint16_t next_asid, old_asid = 0U;
+
     if (!nova_task_get(task_id, &task)) return 0;
-    next_id=task.address_space_id;
-    if (next_id==active_address_space_id) return 1;
-    if (next_id==0U) { root=nova_mmu_kernel_root(); asid=0U; }
-    else {
-        if (!nova_address_space_get(next_id,&space) ||
-            !nova_address_space_activate(next_id)) return 0;
-        root=space.root_physical; asid=space.asid;
+    next_id = task.address_space_id;
+    if (next_id == old_id) return 1;
+
+    if (old_id != 0U) {
+        if (!nova_address_space_get(old_id, &old_space))
+            scheduler_wait_forever();
+        old_root = old_space.root_physical;
+        old_asid = old_space.asid;
     }
-    if (!nova_mmu_switch_address_space(root,asid)) {
-        if(next_id!=0U)(void)nova_address_space_deactivate(next_id);
+
+    if (next_id == 0U) {
+        next_root = nova_mmu_kernel_root();
+        next_asid = 0U;
+    } else {
+        if (!nova_address_space_get(next_id, &next_space) ||
+            !nova_sched_address_space_activate(next_id))
+            return 0;
+        next_root = next_space.root_physical;
+        next_asid = next_space.asid;
+    }
+
+    if (!nova_mmu_switch_address_space(next_root, next_asid)) {
+        if (next_id != 0U &&
+            !nova_sched_address_space_deactivate(next_id))
+            scheduler_wait_forever();
         return 0;
     }
-    if(active_address_space_id!=0U)(void)nova_address_space_deactivate(active_address_space_id);
-    active_address_space_id=next_id; return 1;
+
+    /*
+     * The new TTBR0 is live, but ownership is not committed until the old
+     * active reference is released. If that release fails, restore the old
+     * translation regime before dropping the new reference.
+     */
+    if (old_id != 0U && !nova_sched_address_space_deactivate(old_id)) {
+        if (!nova_mmu_switch_address_space(old_root, old_asid))
+            scheduler_wait_forever();
+        if (next_id != 0U &&
+            !nova_sched_address_space_deactivate(next_id))
+            scheduler_wait_forever();
+        return 0;
+    }
+
+    active_address_space_id = next_id;
+    return 1;
 }
 static int scheduler_return_to_kernel_space(void) {
     /*
@@ -290,11 +334,14 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
     uint32_t candidate_id = 0U;
     uint32_t target_space_id = 0U;
     struct nova_task_info current_info, candidate_info;
-    struct nova_address_space_info target_space;
+    struct nova_address_space_info old_space, target_space;
+    uintptr_t old_root = nova_mmu_kernel_root();
+    uint16_t old_asid = 0U;
     uintptr_t target_root = 0U;
     uint16_t target_asid = 0U;
     int switched_space = 0;
     int target_activated = 0;
+    int old_deactivated = 0;
     int switched;
 
     if (execution_phase != NOVA_SCHED_TASK || current_id == 0U ||
@@ -316,6 +363,13 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
         return 0;
     }
 
+    if (active_address_space_id != 0U) {
+        if (!nova_address_space_get(active_address_space_id, &old_space))
+            scheduler_wait_forever();
+        old_root = old_space.root_physical;
+        old_asid = old_space.asid;
+    }
+
     if (nova_task_next_irq_ready(current_id, &candidate_id) &&
         candidate_id != current_id) {
         if (!nova_task_get(candidate_id, &candidate_info)) {
@@ -332,7 +386,7 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
                 target_asid = 0U;
             } else {
                 if (!nova_address_space_get(target_space_id, &target_space) ||
-                    !nova_address_space_activate(target_space_id)) {
+                    !nova_sched_address_space_activate(target_space_id)) {
                     current_quantum_ticks = 0U;
                     preemption_pending = 0;
                     irq_restore(saved_daif);
@@ -344,49 +398,61 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
             }
 
             /*
-             * Activate the destination before changing TTBR0. The current
-             * kernel stack and IRQ frame remain reachable through the shared
-             * privileged mappings during this short handoff window.
+             * Keep both spaces pinned across the TTBR0 transition. Do not
+             * commit task selection until the old active reference is safely
+             * released; otherwise a failed release could leave bookkeeping
+             * inconsistent with the active translation regime.
              */
             if (!nova_mmu_switch_address_space(target_root, target_asid)) {
-                if (target_activated)
-                    (void)nova_address_space_deactivate(target_space_id);
+                if (target_activated &&
+                    !nova_sched_address_space_deactivate(target_space_id))
+                    scheduler_wait_forever();
                 current_quantum_ticks = 0U;
                 preemption_pending = 0;
                 irq_restore(saved_daif);
                 return 0;
             }
             switched_space = 1;
+
+            if (active_address_space_id != 0U) {
+                if (!nova_sched_address_space_deactivate(active_address_space_id)) {
+                    if (!nova_mmu_switch_address_space(old_root, old_asid))
+                        scheduler_wait_forever();
+                    if (target_activated &&
+                        !nova_sched_address_space_deactivate(target_space_id))
+                        scheduler_wait_forever();
+                    current_quantum_ticks = 0U;
+                    preemption_pending = 0;
+                    irq_restore(saved_daif);
+                    return 0;
+                }
+                old_deactivated = 1;
+            }
         }
     }
 
     switched = nova_task_irq_handoff(current_id, frame, next_id, next_frame);
     current_quantum_ticks = 0U;
-    preemption_pending = 0;
+    preemption_pending = 0U;
 
     if (switched) {
-        if (switched_space) {
-            if (active_address_space_id != 0U)
-                (void)nova_address_space_deactivate(active_address_space_id);
+        if (switched_space)
             active_address_space_id = target_space_id;
-        }
         current_task_id = *next_id;
         next_after_id = *next_id;
     } else if (switched_space) {
-        uintptr_t old_root = nova_mmu_kernel_root();
-        uint16_t old_asid = 0U;
-        if (current_info.address_space_id != 0U) {
-            struct nova_address_space_info old_space;
-            if (!nova_address_space_get(current_info.address_space_id,
-                                        &old_space))
-                scheduler_wait_forever();
-            old_root = old_space.root_physical;
-            old_asid = old_space.asid;
-        }
+        /*
+         * The task-layer handoff declined the switch. Restore the old active
+         * reference before reloading its TTBR0, then release the destination.
+         */
+        if (old_deactivated &&
+            !nova_sched_address_space_activate(current_info.address_space_id))
+            scheduler_wait_forever();
         if (!nova_mmu_switch_address_space(old_root, old_asid))
             scheduler_wait_forever();
-        if (target_activated)
-            (void)nova_address_space_deactivate(target_space_id);
+        if (target_activated &&
+            !nova_sched_address_space_deactivate(target_space_id))
+            scheduler_wait_forever();
     }
 
     irq_restore(saved_daif);
