@@ -219,7 +219,7 @@ int main(void) {
             assert(discovered == 2U);
             assert(nova_device_get(20U, &first) == 1);
             assert(first.desc.mmio_base == (uintptr_t)0x09000000U);
-            assert(first.desc.irq == 33U);
+            assert(first.desc.irq == NOVA_DEVICE_NO_IRQ);
             assert(nova_device_get(21U, &second) == 1);
             assert(second.desc.mmio_base == (uintptr_t)0x0b000000U);
             assert(second.desc.irq == 37U);
