@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "fdt.h"
+#include "device.h"
 
 static uint8_t blob[1024];
 static uint32_t structure_cursor;
@@ -140,6 +141,19 @@ int main(void) {
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested",
                                        &irq) == 1);
         assert(irq == 30U);
+        assert(nova_device_discover_fdt((uintptr_t)blob, 7U,
+                                        "vendor,nested") == 1);
+        {
+            struct nova_device_info info;
+            assert(nova_device_get(7U, &info) == 1);
+            assert(info.state == NOVA_DEVICE_DISCOVERED);
+            assert(info.desc.mmio_base == (uintptr_t)0x10900000U);
+            assert(info.desc.mmio_size == 0x1000U);
+            assert(info.desc.irq == 30U);
+            assert(strcmp(info.desc.compatible, "vendor,nested") == 0);
+        }
+        assert(nova_device_discover_fdt((uintptr_t)blob, 7U,
+                                        "vendor,nested") == 0);
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,missing",
                                        &irq) == 0);
     }
