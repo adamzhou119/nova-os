@@ -73,6 +73,10 @@ Remaining:
 - [x] Bound scheduler retries when READY candidates fail dispatch, preventing a single broken task from causing an unbounded scheduler loop (commit 3945a53; all 17 CI checks passed in run 605).
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 - [x] Add scheduler-entry fault injection for a failed destination TTBR0 install; verify the newly activated reference is released, task remains READY, and kernel TTBR0 remains active (CI pending for commit 01805f5).
+- [x] Tie final address-space reference release to an MMU teardown hook; reject final release if no teardown owner is registered, and preserve the registry entry when teardown preflight fails.
+- [x] Reclaim all user leaf mappings, their page-table L3 pages, the private L2 page, and the root page on final release; preserve mapped data-frame ownership by dropping only the address-space pin.
+- [x] Flush the complete ASID before reclaiming page tables so later ASID reuse cannot observe stale translations.
+- [x] Verify QEMU teardown of a still-mapped user page returns all allocated pages to the physical allocator; all 17 CI checks passed in run 628.
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
 
