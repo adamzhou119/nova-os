@@ -53,6 +53,10 @@ int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
  */
 int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
                             uint32_t *interrupt_id);
+int nova_fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
+                                     const char *compatible,
+                                     size_t instance_index,
+                                     uint32_t *interrupt_id);
 
 /* Returns validated DTB totalsize, or zero for an invalid header. */
 size_t nova_fdt_total_size(uintptr_t dtb_address);
