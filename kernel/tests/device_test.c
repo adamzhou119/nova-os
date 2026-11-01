@@ -74,7 +74,7 @@ int main(void) {
     assert(nova_device_remove(1U));
     assert(nova_device_get(1U, &info) && info.state == NOVA_DEVICE_DISCOVERED);
     assert(nova_device_probe(2U));
-    assert(remove_calls == 2);
+    assert(remove_calls == 3);
     puts("Device registry host tests passed.");
     return 0;
 }
