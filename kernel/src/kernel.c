@@ -106,6 +106,19 @@ static int test_el0_fault_containment(void) {
                                 healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 9U * NOVA_PAGE_SIZE,
                                 healthy_stack, NOVA_MMU_MAP_WRITABLE) ||
+        /* Check real page-table permissions, including rejection of mismatches. */
+        !nova_mmu_user_verify_page(root, 32U,
+            NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE,
+            NOVA_MMU_MAP_EXECUTABLE) ||
+        nova_mmu_user_verify_page(root, 32U,
+            NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE,
+            NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_user_verify_page(root, 32U,
+            NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
+            NOVA_MMU_MAP_WRITABLE) ||
+        nova_mmu_user_verify_page(root, 32U,
+            NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
+            NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 1U * NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
                                0U, &data_task) ||
