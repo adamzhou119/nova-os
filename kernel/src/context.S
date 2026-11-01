@@ -23,6 +23,20 @@ nova_arch_context_switch:
     ret
 .size nova_arch_context_switch, . - nova_arch_context_switch
 
+/*
+ * First EL0 dispatch trampoline: x19 points to the prepared IRQ frame.
+ * The cooperative switch has already saved scheduler_context before ERET.
+ */
+.global nova_user_task_start_trampoline
+.type nova_user_task_start_trampoline, %function
+nova_user_task_start_trampoline:
+    mov     x0, x19
+    bl      nova_arch_irq_resume
+1:
+    wfe
+    b       1b
+.size nova_user_task_start_trampoline, . - nova_user_task_start_trampoline
+
 /* First-run trampoline: x19=entry, x20=argument, x21=task control block. */
 .extern nova_sched_task_exit
 .global nova_task_start_trampoline
