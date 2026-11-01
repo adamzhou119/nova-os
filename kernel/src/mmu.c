@@ -442,7 +442,8 @@ int nova_mmu_address_space_create(uintptr_t *root_physical) {
 int nova_mmu_address_space_destroy(uintptr_t root_physical) {
     uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
-    size_t i;
+    size_t i, j;
+
     if (root_physical == 0U || root_physical == (uintptr_t)level1_table ||
         (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
         !nova_page_is_allocated(root)) return 0;
@@ -451,11 +452,66 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical) {
     if ((root[2] & (DESC_VALID | DESC_TABLE)) !=
         (DESC_VALID | DESC_TABLE)) return 0;
     user_l2 = (uint64_t *)(uintptr_t)(root[2] & DESC_ADDR_MASK);
-    if (!nova_page_is_allocated(user_l2)) return 0;
-    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
-        if (user_l2[i] != 0U) return 0;
-    if (nova_page_pin_count(root) != 1U ||
+    if (!nova_page_is_allocated(user_l2) ||
+        nova_page_pin_count(root) != 1U ||
         nova_page_pin_count(user_l2) != 1U) return 0;
+
+    /*
+     * Preflight the complete private user tree before changing a descriptor.
+     * An inactive address space owns one pin on each page-table page and one
+     * pin on every mapped frame; mapped data frames themselves are not freed.
+     */
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        if ((user_l2[i] & (DESC_VALID | DESC_TABLE)) !=
+            (DESC_VALID | DESC_TABLE)) return 0;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        if (!nova_page_is_allocated(l3) || nova_page_pin_count(l3) != 1U)
+            return 0;
+        for (j = 0; j < NOVA_MMU_TABLE_ENTRIES; ++j) {
+            uint64_t desc = l3[j];
+            uintptr_t pa;
+            size_t frame;
+            if (desc == 0U) continue;
+            if ((desc & (DESC_VALID | DESC_PAGE)) !=
+                (DESC_VALID | DESC_PAGE)) return 0;
+            pa = (uintptr_t)(desc & DESC_ADDR_MASK);
+            if (pa < NOVA_MMU_RAM_BASE ||
+                pa >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
+                !nova_page_is_allocated((const void *)pa) ||
+                nova_page_pin_count((const void *)pa) == 0U) return 0;
+            frame = physical_frame_index(pa);
+            if ((descriptor_is_writable(desc) && writable_aliases[frame] == 0U) ||
+                (descriptor_is_executable(desc) && executable_aliases[frame] == 0U))
+                return 0;
+        }
+    }
+
+    /*
+     * Final-reference release is only allowed after all CPUs switched away.
+     * The switch path invalidates this ASID before returning to the kernel.
+     */
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        for (j = 0; j < NOVA_MMU_TABLE_ENTRIES; ++j) {
+            uint64_t desc = l3[j];
+            uintptr_t pa;
+            size_t frame;
+            if (desc == 0U) continue;
+            pa = (uintptr_t)(desc & DESC_ADDR_MASK);
+            frame = physical_frame_index(pa);
+            if (descriptor_is_writable(desc)) --writable_aliases[frame];
+            if (descriptor_is_executable(desc)) --executable_aliases[frame];
+            l3[j] = 0U;
+            if (!nova_page_unpin((const void *)pa)) return 0;
+        }
+        user_l2[i] = 0U;
+        if (!nova_page_unpin(l3) || !nova_page_free(l3)) return 0;
+    }
+
     if (!nova_page_unpin(user_l2) || !nova_page_unpin(root)) return 0;
     if (!nova_page_free(user_l2)) return 0;
     return nova_page_free(root);
