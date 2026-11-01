@@ -1121,6 +1121,8 @@ static int test_task_lifecycle(void) {
 void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
+    struct nova_fdt_device fdt_uart;
+    int fdt_uart_found;
     uint64_t total_ram = 0;
     size_t region_index;
     nova_console_write("Welcome to Nova OS\n");
@@ -1135,6 +1137,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     }
     for (;;) __asm__ volatile("wfe");
 #endif
+
+    fdt_uart_found = nova_fdt_find_device(dtb_address, "arm,pl011", &fdt_uart);
+    if (fdt_uart_found == 1 &&
+        fdt_uart.mmio_base == (uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE &&
+        fdt_uart.mmio_size >= 0x1000U) {
+        nova_console_write("FDT PL011 compatible/reg discovery passed.\\n");
+    } else {
+        nova_console_write("ERROR: FDT PL011 discovery or resource validation failed.\\n");
+    }
 
     memory_regions = nova_fdt_memory_regions(dtb_address, detected_memory,
                                              NOVA_FDT_MAX_MEMORY_REGIONS);
