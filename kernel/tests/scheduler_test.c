@@ -57,6 +57,11 @@ void nova_arch_context_switch(struct nova_cpu_context *from,
     struct nova_task_info current_info;
     (void)from;
     (void)to;
+    if (user_space_mode) {
+        assert(nova_sched_execution_phase() == NOVA_SCHED_SCHEDULER);
+        assert(nova_sched_current() == user_task);
+        return;
+    }
     if (failure_mode) {
         if (nova_sched_execution_phase() == NOVA_SCHED_TASK) {
             assert(nova_sched_current() == user_task);
