@@ -24,9 +24,14 @@ static uint16_t mock_ttbr_asid;
 static int fail_kernel_space_switch;
 static int fail_task_space_switch;
 static uint32_t fail_deactivate_id;
+static uintptr_t fail_destroy_root;
 
 static int destroy_mock_address_space(uintptr_t root, uint16_t asid) {
     (void)asid;
+    if (root == fail_destroy_root) {
+        fail_destroy_root = 0U;
+        return 0;
+    }
     return root != 0U;
 }
 
@@ -367,6 +372,31 @@ int main(void) {
         assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
         assert(nova_task_destroy(user_task));
         assert(nova_address_space_release(failure_space_id));
+    }
+
+    /*
+     * A transient final address-space teardown failure leaves a stackless
+     * zombie. The next scheduler entry must retry and finish reaping it.
+     */
+    {
+        struct nova_address_space_info retry_space;
+        uint32_t retry_task;
+        assert(nova_address_space_create(0x6000U, 11U, &failure_space_id));
+        assert(nova_task_create(dummy_entry, 0, &retry_task));
+        assert(nova_task_set_address_space(retry_task, failure_space_id));
+        assert(nova_address_space_release(failure_space_id));
+        assert(nova_task_transition(retry_task, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(retry_task, NOVA_TASK_ZOMBIE));
+        fail_destroy_root = 0x6000U;
+        assert(nova_sched_start());
+        assert(nova_task_get(retry_task, &info));
+        assert(info.state == NOVA_TASK_ZOMBIE &&
+               info.kernel_stack_base == 0U);
+        assert(nova_address_space_get(failure_space_id, &retry_space));
+        assert(retry_space.references == 1U);
+        assert(nova_sched_start());
+        assert(!nova_task_get(retry_task, &info));
+        assert(!nova_address_space_get(failure_space_id, &retry_space));
     }
 
     /*
