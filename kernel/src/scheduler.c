@@ -126,6 +126,9 @@ int nova_sched_start(void) {
         if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ ||
             next_info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN) {
             struct nova_irq_frame *frame = 0;
+            struct nova_cpu_context *first_user_context =
+                next_info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN
+                    ? nova_task_context(next) : 0;
             if (!scheduler_enter_task_space(next) ||
                 !nova_task_take_irq_context(next, &frame)) {
                 scheduler_return_to_kernel_space();
@@ -139,18 +142,18 @@ int nova_sched_start(void) {
             preemption_pending = 0;
             execution_phase = NOVA_SCHED_TASK;
 
-            /*
-             * This restores the selected task's complete exception frame
-             * and ERETs. It does not return on hardware. If that task later
-             * yields, its saved cooperative context returns to the scheduler
-             * continuation established by the first context switch below.
-             */
-            nova_arch_irq_resume(frame);
-            /*
-             * Only a returning host test shim reaches this path. On hardware,
-             * ERET resumes the task and a later cooperative switch returns to
-             * the continuation following the original context switch below.
-             */
+            if (first_user_context != 0) {
+                /*
+                 * Enter EL0 through a kernel-stack trampoline after saving
+                 * scheduler_context. A later SVC exit can then return safely
+                 * to this scheduler continuation and reap the task off-stack.
+                 */
+                nova_arch_context_switch(&scheduler_context,
+                                         first_user_context);
+            } else {
+                nova_arch_irq_resume(frame);
+            }
+
             execution_phase = NOVA_SCHED_SCHEDULER;
             scheduler_return_to_kernel_space();
             {
