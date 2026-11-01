@@ -48,6 +48,8 @@ host-test: | $(BUILD)
 	$(BUILD)/vm-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/device_test.c src/device.c -o $(BUILD)/device-test
 	$(BUILD)/device-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fdt_device_test.c src/fdt.c -o $(BUILD)/fdt-device-test
+	$(BUILD)/fdt-device-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c src/address_space.c -o $(BUILD)/task-test
 	$(BUILD)/task-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/interrupt_test.c src/interrupt.c -o $(BUILD)/interrupt-test
