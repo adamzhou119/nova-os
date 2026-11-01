@@ -48,6 +48,10 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
+    tasks[i].fault_kind = NOVA_TASK_FAULT_NONE;
+    tasks[i].fault_esr = 0U;
+    tasks[i].fault_far = 0U;
+    tasks[i].fault_elr = 0U;
     tasks[i].irq_frame = (struct nova_irq_frame *)(tasks[i].kernel_stack_top -
                                                     sizeof(struct nova_irq_frame));
     {
@@ -169,6 +173,10 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     info->kernel_stack_base = task->kernel_stack_base;
     info->kernel_stack_top = task->kernel_stack_top;
     info->exit_code = task->exit_code;
+    info->fault_kind = task->fault_kind;
+    info->fault_esr = task->fault_esr;
+    info->fault_far = task->fault_far;
+    info->fault_elr = task->fault_elr;
     for (i = 0; i < 12U; ++i)
         info->context.x19_x30[i] = task->context.x19_x30[i];
     info->context.sp = task->context.sp;
@@ -386,6 +394,20 @@ int nova_task_set_exit_code(uint32_t task_id, int exit_code) {
     return 1;
 }
 
+int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
+                        uint64_t esr, uint64_t far, uint64_t elr) {
+    struct nova_task_info *task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_RUNNING ||
+        kind == NOVA_TASK_FAULT_NONE)
+        return 0;
+    task->fault_kind = kind;
+    task->fault_esr = esr;
+    task->fault_far = far;
+    task->fault_elr = elr;
+    task->exit_code = NOVA_TASK_EXIT_FAULT;
+    return 1;
+}
+
 int nova_task_destroy(uint32_t task_id) {
     struct nova_task_info *task = find_task(task_id);
     uintptr_t stack;
@@ -415,6 +437,10 @@ int nova_task_destroy(uint32_t task_id) {
     task->kernel_stack_base = 0;
     task->kernel_stack_top = 0;
     task->exit_code = 0;
+    task->fault_kind = NOVA_TASK_FAULT_NONE;
+    task->fault_esr = 0U;
+    task->fault_far = 0U;
+    task->fault_elr = 0U;
     {
         size_t i;
         for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0;
