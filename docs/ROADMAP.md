@@ -23,7 +23,7 @@ Status: in progress.
 - [x] Add ELF header and linker-symbol inspection to CI.
 - [x] Add a runtime probe for zero-initialized `.bss`.
 - [x] Report the current exception level over UART.
-- [ ] Pin and document a supported QEMU/toolchain version set.
+- [x] Pin and document the CI runner and QEMU/Clang/LLD package versions (Ubuntu 26.04 runner; Clang/LLD 21.1.6-71; QEMU 10.2.1+ds-1ubuntu3.3; exact apt package pins enforced in CI).
 - [ ] Validate the boot contract against a second virtual platform or a documented physical development board.
 
 Exit criteria: repeatable QEMU boot with captured evidence and no reliance on undocumented local state. The current prototype remains QEMU-specific.
@@ -53,7 +53,7 @@ Remaining:
       including EL1 physical timer access controls.
 - [ ] Add EL2/EL3 vector tables, trap handling, and a general firmware
       handoff contract.
-- [ ] Pin and document the supported QEMU/toolchain matrix.
+- [x] Pin and document the CI runner and QEMU/Clang/LLD package versions (Ubuntu 26.04 runner; Clang/LLD 21.1.6-71; QEMU 10.2.1+ds-1ubuntu3.3; exact apt package pins enforced in CI).
 - [ ] Generalize device-memory mappings and page-table construction from FDT data.
 - [x] Define per-task address-space ownership, mapping, permission, ASID,
       exception-frame, and isolation requirements (ADR 0010).
@@ -65,10 +65,11 @@ Remaining:
 - [x] Switch TTBR0 and maintain address-space active references during cooperative task dispatch/return.
 - [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path.
 - [x] Implement atomic cross-address-space IRQ-frame/TTBR handoff with destination activation, TTBR0 switch, active-reference transfer, and rollback; host scheduler tests cover successful handoff and old-space deactivation failure rollback (CI runs 593–595).
-- [x] Restore the previous TTBR0 and retain the active-space ownership record when releasing an address space on scheduler return fails; AArch64 build, host scheduler tests, and all QEMU checks pass in CI run 595. A dedicated fault-injection test for this exact scheduler-return failure remains follow-up work.
+- [x] Restore the previous TTBR0 and retain the active-space ownership record when releasing an address space on scheduler return fails; AArch64 build, host scheduler tests, and all QEMU checks pass in CI run 595. A dedicated fault-injection test now forces the old-space release to fail after TTBR0 switches to the kernel root; it verifies restoration of the task root, retained active ownership, and unchanged task state (CI run 598).
 - [x] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU virt; the serial test confirms both tasks make progress across repeated TTBR0 handoffs.
 - [ ] Implement EL0 task execution, SVC boundary, and fault containment (288-byte trap frame, lower-EL sync/IRQ entry, SP_EL0 preservation, and host-tested user-task creation are implemented; first EL0 entry saves the scheduler continuation through a kernel-stack trampoline; syscall 0 returns the task ID, syscall 1 exits through deferred scheduler-stack cleanup, syscall 2 performs a 128-byte-bounded UART write after validating every covered user page and copying into a kernel buffer, and unknown calls return -ENOSYS; QEMU CI run 574 verifies EL0 data-abort and instruction-abort tasks are both reaped before a healthy peer completes; runs 560 and 562 also verify data-fault containment, valid user-buffer output, unmapped/cross-page pointer rejection, and oversized-length rejection; bounded copyin/copyout helpers are implemented and host-tested; QEMU exercises copy-in through syscall 2 and copy-out to a mapped user stack, including rejection of a write crossing into an unmapped page, along with broader user fault tests and hardware validation).
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
+- [x] Add scheduler-entry fault injection for a failed destination TTBR0 install; verify the newly activated reference is released, task remains READY, and kernel TTBR0 remains active (CI pending for commit 01805f5).
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
 
