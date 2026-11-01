@@ -34,6 +34,72 @@ extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
 
+#ifdef NOVA_TEST_EL0_FAULT
+extern const uint8_t nova_user_fault_payload_start[];
+extern const uint8_t nova_user_fault_payload_end[];
+
+static int test_el0_fault_containment(void) {
+    uintptr_t root = 0U;
+    uintptr_t code_page = 0U, stack_page = 0U;
+    uint32_t space_id = 0U, task_id = 0U;
+    uintptr_t code_size = (uintptr_t)(nova_user_fault_payload_end -
+                                      nova_user_fault_payload_start);
+    size_t i;
+    int ok = 0;
+
+    if (code_size == 0U || code_size > NOVA_PAGE_SIZE) return 0;
+    code_page = (uintptr_t)nova_page_alloc();
+    stack_page = (uintptr_t)nova_page_alloc();
+    if (code_page == 0U || stack_page == 0U ||
+        !nova_mmu_address_space_create(&root) ||
+        !nova_address_space_create(root, 32U, &space_id))
+        goto cleanup;
+
+    for (i = 0; i < NOVA_PAGE_SIZE; ++i) {
+        ((volatile uint8_t *)code_page)[i] = 0U;
+        ((volatile uint8_t *)stack_page)[i] = 0U;
+    }
+    for (i = 0; i < code_size; ++i)
+        ((volatile uint8_t *)code_page)[i] = nova_user_fault_payload_start[i];
+
+    if (!nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
+                                code_page, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
+                                stack_page, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
+                               NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
+                               0U, &task_id))
+        goto cleanup;
+
+    uart_write("EL0 fault test task prepared; task id: ");
+    uart_write_hex64(task_id);
+    if (!nova_sched_start()) {
+        uart_write("EL0 fault test scheduler returned failure.\\n");
+        goto cleanup;
+    }
+    ok = !nova_task_get(task_id, &(struct nova_task_info){0});
+    if (ok) uart_write("EL0 fault task was reaped; kernel continued.\\n");
+
+cleanup:
+    (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
+    if (task_id != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(task_id, &info) &&
+            (info.state == NOVA_TASK_READY || info.state == NOVA_TASK_ZOMBIE))
+            (void)nova_task_destroy(task_id);
+    }
+    if (space_id != 0U) (void)nova_address_space_release(space_id);
+    if (root != 0U) {
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_address_space_destroy(root);
+    }
+    if (code_page != 0U) (void)nova_page_free((void *)code_page);
+    if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
+    return ok;
+}
+#endif
+
 #ifdef NOVA_TEST_EL0_SVC
 extern const uint8_t nova_user_test_payload_start[];
 extern const uint8_t nova_user_test_payload_end[];
@@ -236,12 +302,51 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
 uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     struct nova_user_trap_frame *frame =
         (struct nova_user_trap_frame *)frame_address;
+    enum nova_exception_policy policy = nova_exception_policy_for(
+        8U, frame->esr_el1, frame->spsr_el1);
     uint32_t exception_class = (uint32_t)((frame->esr_el1 >> 26) & 0x3fU);
-    if ((frame->spsr_el1 & 0xfU) != 0U || exception_class != 0x15U) {
+
+    if (policy == NOVA_EXCEPTION_POLICY_KERNEL_FATAL) {
         exception_report(frame->esr_el1, frame->elr_el1, 8U,
                          frame->far_el1, frame->spsr_el1);
         for (;;) __asm__ volatile("wfe");
     }
+
+    if (policy == NOVA_EXCEPTION_POLICY_USER_FAULT) {
+        uint32_t task_id = nova_sched_current();
+        enum nova_task_fault_kind kind;
+        switch (exception_class) {
+        case 0x20U: kind = NOVA_TASK_FAULT_INSTRUCTION_ABORT; break;
+        case 0x24U: kind = NOVA_TASK_FAULT_DATA_ABORT; break;
+        case 0x30U: kind = NOVA_TASK_FAULT_BREAKPOINT; break;
+        case 0x32U: kind = NOVA_TASK_FAULT_SOFTWARE_STEP; break;
+        case 0x34U: kind = NOVA_TASK_FAULT_WATCHPOINT; break;
+        case 0x3cU: kind = NOVA_TASK_FAULT_BRK; break;
+        default:
+            exception_report(frame->esr_el1, frame->elr_el1, 8U,
+                             frame->far_el1, frame->spsr_el1);
+            for (;;) __asm__ volatile("wfe");
+        }
+        if (task_id == 0U ||
+            !nova_task_set_fault(task_id, kind, frame->esr_el1,
+                                 frame->far_el1, frame->elr_el1)) {
+            exception_report(frame->esr_el1, frame->elr_el1, 8U,
+                             frame->far_el1, frame->spsr_el1);
+            for (;;) __asm__ volatile("wfe");
+        }
+        uart_write("EL0 fault contained; task id: ");
+        uart_write_hex64(task_id);
+        uart_write("EL0 fault ESR: ");
+        uart_write_hex64(frame->esr_el1);
+        uart_write("EL0 fault FAR: ");
+        uart_write_hex64(frame->far_el1);
+        uart_write("EL0 fault ELR: ");
+        uart_write_hex64(frame->elr_el1);
+        nova_sched_task_exit();
+        for (;;) __asm__ volatile("wfe");
+    }
+
+    /* Remaining eligible lower-EL synchronous traps are SVC calls. */
     if (frame->x[8] == 0U) {
 #ifdef NOVA_TEST_EL0_SVC
         uart_write("EL0 SVC get-task-id; current task: ");
@@ -1074,6 +1179,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uart_write("QEMU EL0 SVC round-trip test passed.\n");
         else
             uart_write("ERROR: QEMU EL0 SVC round-trip test failed.\n");
+    }
+#endif
+
+#ifdef NOVA_TEST_EL0_FAULT
+    if (current_el == 1U) {
+        uart_write("Starting EL0 data-abort containment test.\\n");
+        if (test_el0_fault_containment())
+            uart_write("QEMU EL0 data-abort containment passed.\\n");
+        else
+            uart_write("ERROR: QEMU EL0 data-abort containment failed.\\n");
     }
 #endif
 
