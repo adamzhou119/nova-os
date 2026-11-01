@@ -250,7 +250,7 @@ int main(void) {
 
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
-    assert(freed_stacks == 2);
+    assert(freed_stacks == 3);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
