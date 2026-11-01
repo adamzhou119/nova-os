@@ -679,9 +679,6 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "interrupt-controller") && length == 0U) {
                 node_is_interrupt_controller[depth] = 1;
-            } else if (fdt_string_equals(strings, strings_size, name_offset,
-                                         "interrupt-controller") && length == 0U) {
-                node_is_interrupt_controller[depth] = 1;
             }
             cursor += length;
             cursor = (cursor + 3U) & ~3U;
