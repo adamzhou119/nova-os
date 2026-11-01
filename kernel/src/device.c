@@ -172,17 +172,20 @@ int nova_device_get(uint32_t device_id, struct nova_device_info *info) {
 }
 
 
-int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
-                             const char *compatible) {
+int nova_device_discover_fdt_instance(uintptr_t dtb_address, uint32_t device_id,
+                                      const char *compatible,
+                                      size_t instance_index) {
     struct nova_fdt_device fdt_device;
     struct nova_device_desc desc;
     uint32_t irq = NOVA_DEVICE_NO_IRQ;
     int result;
     size_t i;
     if (device_id == 0U || compatible == NULL || compatible[0] == '\0') return 0;
-    result = nova_fdt_find_device(dtb_address, compatible, &fdt_device);
+    result = nova_fdt_find_device_instance(dtb_address, compatible, instance_index,
+                                          0U, &fdt_device);
     if (result != 1) return 0;
-    result = nova_fdt_find_gicv2_irq(dtb_address, compatible, &irq);
+    result = nova_fdt_find_gicv2_irq_instance(dtb_address, compatible,
+                                              instance_index, &irq);
     if (result < 0) return 0;
     for (i = 0U; compatible[i] != '\0' && i < NOVA_DEVICE_COMPATIBLE_MAX; ++i)
         desc.compatible[i] = compatible[i];
@@ -193,4 +196,10 @@ int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
     desc.mmio_size = fdt_device.mmio_size;
     desc.irq = result == 1 ? irq : NOVA_DEVICE_NO_IRQ;
     return nova_device_add(&desc);
+}
+
+int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
+                             const char *compatible) {
+    return nova_device_discover_fdt_instance(dtb_address, device_id,
+                                             compatible, 0U);
 }
