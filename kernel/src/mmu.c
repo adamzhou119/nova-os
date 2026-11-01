@@ -439,12 +439,13 @@ int nova_mmu_address_space_create(uintptr_t *root_physical) {
     return 1;
 }
 
-int nova_mmu_address_space_destroy(uintptr_t root_physical) {
+int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
     size_t i, j;
 
-    if (root_physical == 0U || root_physical == (uintptr_t)level1_table ||
+    if (asid == 0U || asid > 255U || root_physical == 0U ||
+        root_physical == (uintptr_t)level1_table ||
         (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
         !nova_page_is_allocated(root)) return 0;
     for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
@@ -489,9 +490,19 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical) {
     }
 
     /*
-     * Final-reference release is only allowed after all CPUs switched away.
-     * The switch path invalidates this ASID before returning to the kernel.
+     * The registry guarantees no CPU is actively using this root. Flush the
+     * complete ASID before releasing any leaf frame or page-table page so a
+     * later ASID reuse cannot observe stale translations.
      */
+    {
+        uint64_t operand = (uint64_t)asid << 48;
+        __asm__ volatile(
+            "dsb ishst\n"
+            "tlbi aside1is, %0\n"
+            "dsb ish\n"
+            "isb\n"
+            : : "r"(operand) : "memory");
+    }
     for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
         uint64_t *l3;
         if (user_l2[i] == 0U) continue;
