@@ -1200,8 +1200,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             nova_console_write("ERROR: MMU kernel permission test failed.\n");
         }
         {
-            uintptr_t root_a=0U,root_b=0U,frame_a,frame_b,frame_shared,translated=0U;
-            uint32_t id_a=0U,id_b=0U; const uintptr_t user_va=0x80000000U;
+            uintptr_t root_a=0U,root_b=0U,root_c=0U,frame_a,frame_b,frame_shared,translated=0U;
+            uint32_t id_a=0U,id_b=0U,id_c=0U; const uintptr_t user_va=0x80000000U;
             const uintptr_t shared_va=user_va+2U*NOVA_PAGE_SIZE; int ok=0;
             struct nova_address_space_info teardown_info;
             size_t pages_before = nova_page_available();
@@ -1233,11 +1233,17 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_switch_address_space(root_b,2U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_b&&
                nova_mmu_verify_user_access(user_va,1)&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
-               nova_mmu_user_unmap_page(root_a,1U,user_va)&&
                nova_mmu_user_unmap_page(root_a,1U,shared_va)&&
                nova_page_pin_count((const void*)frame_shared)==1U&&
                nova_mmu_user_protect_page(root_b,2U,shared_va,NOVA_MMU_MAP_WRITABLE)&&
                nova_address_space_release(id_a)&&
+               nova_page_pin_count((const void*)frame_a)==0U&&
+               nova_mmu_address_space_create(&root_c)&&
+               nova_address_space_create(root_c,1U,&id_c)&&
+               nova_mmu_switch_address_space(root_c,1U)&&
+               !nova_mmu_verify_user_access(user_va,0)&&
+               nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
+               nova_address_space_release(id_c)&&
                 nova_page_unpin((const void*)frame_b)&&!nova_address_space_release(id_b)&&
                 nova_address_space_get(id_b,&teardown_info)&&teardown_info.references==1U&&
                 teardown_info.active_cpus==0U&&nova_page_pin((const void*)frame_b)&&
