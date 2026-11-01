@@ -3,6 +3,7 @@
 #include "context.h"
 #include "interrupt.h"
 #include "address_space.h"
+#include "mmu.h"
 #include "user_context.h"
 
 #include <stddef.h>
@@ -90,7 +91,15 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     struct nova_irq_frame *frame;
 
     if (address_space_id == 0U || task_id == 0 || next_task_id == 0U ||
-        !nova_address_space_get(address_space_id, &space))
+        (user_entry & 3U) != 0U || (user_stack_top & 15U) != 0U ||
+        user_entry < NOVA_USER_VA_BASE || user_entry >= NOVA_USER_VA_END ||
+        user_stack_top <= NOVA_USER_VA_BASE || user_stack_top > NOVA_USER_VA_END ||
+        !nova_address_space_get(address_space_id, &space) ||
+        !nova_mmu_user_verify_page(space.root_physical, space.asid,
+            user_entry & ~(uintptr_t)4095U, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_verify_page(space.root_physical, space.asid,
+            (user_stack_top - 1U) & ~(uintptr_t)4095U,
+            NOVA_MMU_MAP_WRITABLE))
         return 0;
     for (i = 0; i < NOVA_TASK_MAX; ++i)
         if (tasks[i].state == NOVA_TASK_UNUSED) break;
