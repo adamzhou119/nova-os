@@ -187,7 +187,10 @@ int nova_sched_start(void) {
             struct nova_cpu_context *context = nova_task_context(next);
             if (context == 0 || !scheduler_enter_task_space(next) ||
                 !nova_task_transition(next, NOVA_TASK_RUNNING)) {
-                scheduler_return_to_kernel_space();
+                if (!scheduler_return_to_kernel_space()) {
+                    irq_restore(saved_daif);
+                    return 0;
+                }
                 irq_restore(saved_daif);
                 continue;
             }
