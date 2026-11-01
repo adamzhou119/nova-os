@@ -212,6 +212,31 @@ int main(void) {
         assert(nova_device_discover_fdt_instance((uintptr_t)blob, 8U,
                                                   "arm,pl011", 1U) == 1);
         {
+            size_t discovered = 99U;
+            struct nova_device_info first, second;
+            assert(nova_device_discover_fdt_all((uintptr_t)blob, 20U,
+                                                "arm,pl011", &discovered) == 1);
+            assert(discovered == 2U);
+            assert(nova_device_get(20U, &first) == 1);
+            assert(first.desc.mmio_base == (uintptr_t)0x09000000U);
+            assert(first.desc.irq == 33U);
+            assert(nova_device_get(21U, &second) == 1);
+            assert(second.desc.mmio_base == (uintptr_t)0x0b000000U);
+            assert(second.desc.irq == 37U);
+
+            /* A collision or ID overflow must leave the registry untouched. */
+            discovered = 99U;
+            assert(nova_device_discover_fdt_all((uintptr_t)blob, 7U,
+                                                "arm,pl011", &discovered) == 0);
+            assert(discovered == 0U);
+            assert(nova_device_get(7U, &first) == 1);
+            assert(nova_device_get(22U, &second) == 0);
+            assert(nova_device_discover_fdt_all((uintptr_t)blob, UINT32_MAX,
+                                                "arm,pl011", &discovered) == 0);
+            assert(discovered == 0U);
+            assert(nova_device_get(UINT32_MAX, &second) == 0);
+        }
+        {
             struct nova_device_info second;
             assert(nova_device_get(8U, &second) == 1);
             assert(second.desc.mmio_base == (uintptr_t)0x0b000000U);
