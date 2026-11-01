@@ -101,7 +101,7 @@ static int scheduler_return_to_kernel_space(void) {
     if (!nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U))
         return 0;
 
-    if (old_id != 0U && !nova_address_space_deactivate(old_id)) {
+    if (old_id != 0U && !nova_sched_address_space_deactivate(old_id)) {
         if (!nova_mmu_switch_address_space(old_space.root_physical,
                                            old_space.asid))
             scheduler_wait_forever();
