@@ -28,8 +28,8 @@ rejected. Host tests cover duplicate IDs/drivers, registry-capacity limits, inva
 resource conflicts, failed-probe retry, and failed-removal retention.
 
 The FDT helper in `kernel/src/fdt.c` can locate an exact compatible entry in a
-NUL-separated `compatible` string list and decode the first `reg` tuple using the
-parent bus's `#address-cells` and `#size-cells`. It applies ancestor bus `ranges` translations, including multi-level buses, and rejects a nested bus with a missing or non-matching translation. `nova_fdt_find_gicv2_irq` resolves inherited/overridden `interrupt-parent` phandles and the first three-cell GICv2 `interrupts` tuple. `interrupts-extended` and non-GICv2 controllers are not yet supported. `nova_device_discover_fdt` now combines translated MMIO and optional GICv2 IRQ discovery into a registry descriptor. The PL011 console is the first concrete driver: it discovers `arm,pl011`, registers its probe/remove callbacks, and switches its MMIO base after a successful probe. Timer and GIC paths remain platform-specific.
+NUL-separated `compatible` string list and decode an indexed `reg` tuple using the
+parent bus's `#address-cells` and `#size-cells`. It applies ancestor bus `ranges` translations, including multi-level buses, and rejects a nested bus with a missing or non-matching translation. `nova_fdt_find_gicv2_irq` resolves inherited/overridden `interrupt-parent` phandles and the first three-cell GICv2 `interrupts` tuple. `interrupts-extended` and non-GICv2 controllers are not yet supported. `nova_device_discover_fdt` now combines translated MMIO and optional GICv2 IRQ discovery into a registry descriptor. The PL011 console is the first concrete driver: it discovers `arm,pl011`, registers its probe/remove callbacks, and switches its MMIO base after a successful probe. GICv2 distributor and CPU-interface windows are now resolved from the first two `reg` tuples of the FDT interrupt-controller node; the timer PPI remains platform-configured.
 
 ## Driver contract
 
@@ -67,7 +67,7 @@ specified, explicit user confirmation.
 |---|---|---|
 | PL011 UART | QEMU-specific MMIO output in kernel code | Console API plus isolated PL011 backend |
 | ARM generic timer | Implemented for QEMU virt | Keep timer core independent of register access |
-| GICv2 | Implemented for QEMU virt | FDT-described interrupt-controller registration |
+| GICv2 | Distributor and CPU-interface MMIO windows resolved from FDT; timer PPI 30 remains configured | Add controller registry lifecycle and validate interrupt-controller variants |
 | Block storage | Not implemented | Read-only virtio block prototype after DMA/IOMMU policy |
 | Display/input/network | Not implemented | Defer until a documented reference board exists |
 
