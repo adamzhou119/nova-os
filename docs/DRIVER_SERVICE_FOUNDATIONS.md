@@ -1,8 +1,9 @@
 # Nova OS — Driver and System-Service Foundations
 
-Status: the bounded kernel device-registry core is implemented and host-tested. FDT-driven
-discovery and concrete hardware-driver registration remain in progress; the service manager,
-IPC transport, and capability enforcement are not implemented.
+Status: the bounded kernel device-registry core and an initial FDT compatible/reg lookup
+are implemented and host-tested. Bus address translation, interrupt decoding, automatic
+registry population, and concrete hardware-driver registration remain in progress; the
+service manager, IPC transport, and capability enforcement are not implemented.
 
 ## Scope and order
 
@@ -28,8 +29,12 @@ callback succeeds. Overlapping MMIO ranges and duplicate active IRQ ownership ar
 rejected. Host tests cover duplicate IDs/drivers, registry-capacity limits, invalid/overflowed MMIO ranges,
 resource conflicts, failed-probe retry, and failed-removal retention.
 
-The registry is not yet populated from FDT, and no hardware driver is registered
-through it. The early PL011 console, timer, and GIC paths remain their existing
+The FDT helper in `kernel/src/fdt.c` can locate an exact compatible entry in a
+NUL-separated `compatible` string list and decode the first `reg` tuple using the
+parent bus's `#address-cells` and `#size-cells`. It deliberately does not yet apply
+ancestor `ranges` translations or interpret `interrupts`/`interrupt-parent`; those
+must be implemented before a discovered resource is trusted for MMIO. The registry
+is not yet populated from FDT, and no hardware driver is registered through it. The early PL011 console, timer, and GIC paths remain their existing
 platform-specific implementations until their extraction is separately verified.
 
 ## Driver contract
