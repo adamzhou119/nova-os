@@ -1139,9 +1139,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 #endif
 
     fdt_uart_found = nova_fdt_find_device(dtb_address, "arm,pl011", &fdt_uart);
-    if (fdt_uart_found == 1 &&
-        fdt_uart.mmio_base == (uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE &&
-        fdt_uart.mmio_size >= 0x1000U) {
+    if (fdt_uart_found == 1 && fdt_uart.mmio_size >= 0x1000U) {
         nova_console_write("FDT PL011 compatible/reg discovery passed.\n");
         if (nova_console_init(dtb_address))
             nova_console_write("PL011 registered and probed through device registry.\n");
