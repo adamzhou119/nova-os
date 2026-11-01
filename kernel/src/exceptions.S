@@ -279,6 +279,19 @@ nova_user_test_payload_start:
     svc     #0
     cmn     x0, #14
     b.ne    1f
+    movz    x0, #0x8000, lsl #16
+    add     x0, x0, #0x2ff8
+    mov     x1, #16
+    mov     x8, #2
+    svc     #0
+    cmn     x0, #14
+    b.ne    1f
+    adr     x0, 2f
+    mov     x1, #129
+    mov     x8, #2
+    svc     #0
+    cmn     x0, #22
+    b.ne    1f
     mov     x0, #0
     mov     x8, #1
     svc     #0
