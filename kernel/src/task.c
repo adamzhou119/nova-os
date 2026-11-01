@@ -412,6 +412,20 @@ int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
     return 1;
 }
 
+int nova_task_reap_zombies(void) {
+    uint32_t ids[NOVA_TASK_MAX];
+    size_t i, count = 0U, reaped = 0U;
+
+    /* Snapshot IDs first: successful destruction clears and reuses TCB slots. */
+    for (i = 0; i < NOVA_TASK_MAX; ++i) {
+        if (tasks[i].state == NOVA_TASK_ZOMBIE)
+            ids[count++] = tasks[i].id;
+    }
+    for (i = 0; i < count; ++i)
+        if (nova_task_destroy(ids[i])) ++reaped;
+    return (int)reaped;
+}
+
 int nova_task_destroy(uint32_t task_id) {
     struct nova_task_info *task = find_task(task_id);
     uintptr_t stack;
