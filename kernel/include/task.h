@@ -26,6 +26,8 @@ enum nova_task_resume_kind {
     NOVA_TASK_RESUME_FIRST_RUN = 0,
     NOVA_TASK_RESUME_COOPERATIVE,
     NOVA_TASK_RESUME_IRQ,
+    /* First dispatch must use ERET into EL0, never the cooperative context. */
+    NOVA_TASK_RESUME_USER_FIRST_RUN,
     /* The task is executing; any prior exception frame has been consumed. */
     NOVA_TASK_RESUME_ACTIVE
 };
@@ -42,10 +44,16 @@ struct nova_task_info {
     int exit_code;
     struct nova_cpu_context context;
     struct nova_irq_frame *irq_frame;
+    uintptr_t user_entry;
+    uintptr_t user_stack_top;
 };
 
 /* Creates a task control block and one mapped kernel stack page. */
 int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id);
+/* Caller must map user_entry executable and user_stack_top-1 writable with EL0 permissions. */
+int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
+                          uintptr_t user_stack_top, uintptr_t argument0,
+                          uint32_t *task_id);
 /* State changes are validated; this does not yet perform a CPU context switch. */
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state);
 int nova_task_get(uint32_t task_id, struct nova_task_info *info);

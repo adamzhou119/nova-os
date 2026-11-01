@@ -66,7 +66,7 @@ Remaining:
 - [x] Allow timer IRQ-frame handoff between tasks sharing one private address space without changing TTBR0; host scheduler tests cover this path.
 - [x] Implement atomic cross-address-space IRQ-frame/TTBR handoff with destination activation, TTBR0 switch, active-reference transfer, and rollback; host scheduler tests cover the handoff.
 - [x] Verify CPU-bound tasks in distinct address spaces are preempted and resumed under QEMU virt; the serial test confirms both tasks make progress across repeated TTBR0 handoffs.
-- [ ] Implement EL0 task execution, SVC boundary, and fault containment (ADR 0011; 288-byte trap frame, host-tested first-run frame initializer, lower-EL sync capture, lower-EL IRQ routing, and SP_EL0 IRQ preservation are implemented; C path remains fail-closed and the frame is not yet wired into task creation/scheduling; no EL0 return/syscalls yet).
+- [ ] Implement EL0 task execution, SVC boundary, and fault containment (ADR 0011; 288-byte trap frame, lower-EL sync capture, lower-EL IRQ routing, SP_EL0 IRQ preservation, and a host-tested `nova_task_create_user()` path with a dedicated `USER_FIRST_RUN` ERET dispatch are implemented; user mapping preconditions remain caller-owned; EL0 payload execution, SVC return/syscalls, and fault containment remain unverified).
 - [ ] Evaluate SMP only after single-core synchronization and ownership invariants are documented.
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.

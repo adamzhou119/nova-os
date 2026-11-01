@@ -3,6 +3,7 @@
 #include "context.h"
 #include "interrupt.h"
 #include "address_space.h"
+#include "user_context.h"
 
 #include <stddef.h>
 
@@ -41,6 +42,8 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     tasks[i].resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     tasks[i].entry = entry;
     tasks[i].argument = argument;
+    tasks[i].user_entry = 0U;
+    tasks[i].user_stack_top = 0U;
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
@@ -68,6 +71,57 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
         return 0;
     }
     tasks[i].context.x19_x30[2] = (uintptr_t)&tasks[i];
+    *task_id = id;
+    return 1;
+}
+
+int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
+                          uintptr_t user_stack_top, uintptr_t argument0,
+                          uint32_t *task_id) {
+    size_t i;
+    void *stack;
+    uint32_t id;
+    struct nova_address_space_info space;
+    struct nova_irq_frame *frame;
+
+    if (address_space_id == 0U || task_id == 0 || next_task_id == 0U ||
+        !nova_address_space_get(address_space_id, &space))
+        return 0;
+    for (i = 0; i < NOVA_TASK_MAX; ++i)
+        if (tasks[i].state == NOVA_TASK_UNUSED) break;
+    if (i == NOVA_TASK_MAX) return 0;
+
+    stack = nova_vmap_alloc_guarded_page(NOVA_MMU_MAP_WRITABLE);
+    if (stack == 0) return 0;
+    frame = (struct nova_irq_frame *)((uintptr_t)stack + NOVA_TASK_STACK_SIZE -
+                                      sizeof(struct nova_irq_frame));
+    if (!nova_user_irq_frame_init(frame, user_entry, user_stack_top, argument0)) {
+        (void)nova_vmap_free_guarded_page(stack);
+        return 0;
+    }
+    if (!nova_address_space_retain(address_space_id)) {
+        (void)nova_vmap_free_guarded_page(stack);
+        return 0;
+    }
+
+    id = next_task_id++;
+    tasks[i].id = id;
+    tasks[i].address_space_id = address_space_id;
+    tasks[i].state = NOVA_TASK_READY;
+    tasks[i].resume_kind = NOVA_TASK_RESUME_USER_FIRST_RUN;
+    tasks[i].entry = 0;
+    tasks[i].argument = (void *)argument0;
+    tasks[i].kernel_stack_base = (uintptr_t)stack;
+    tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
+    tasks[i].exit_code = 0;
+    tasks[i].irq_frame = frame;
+    tasks[i].user_entry = user_entry;
+    tasks[i].user_stack_top = user_stack_top;
+    {
+        size_t reg;
+        for (reg = 0; reg < 12U; ++reg) tasks[i].context.x19_x30[reg] = 0U;
+        tasks[i].context.sp = 0U;
+    }
     *task_id = id;
     return 1;
 }
@@ -113,6 +167,8 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
         info->context.x19_x30[i] = task->context.x19_x30[i];
     info->context.sp = task->context.sp;
     info->irq_frame = task->irq_frame;
+    info->user_entry = task->user_entry;
+    info->user_stack_top = task->user_stack_top;
     return 1;
 }
 
@@ -184,7 +240,8 @@ int nova_task_take_irq_context(uint32_t task_id,
     uintptr_t address;
 
     if (task == 0 || frame == 0 || task->state != NOVA_TASK_READY ||
-        task->resume_kind != NOVA_TASK_RESUME_IRQ ||
+        (task->resume_kind != NOVA_TASK_RESUME_IRQ &&
+         task->resume_kind != NOVA_TASK_RESUME_USER_FIRST_RUN) ||
         task->irq_frame == 0)
         return 0;
 
@@ -227,6 +284,7 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
     selected = find_task(selected_id);
     if (selected == 0 || selected->state != NOVA_TASK_READY ||
         (selected->resume_kind != NOVA_TASK_RESUME_FIRST_RUN &&
+         selected->resume_kind != NOVA_TASK_RESUME_USER_FIRST_RUN &&
          selected->resume_kind != NOVA_TASK_RESUME_IRQ) ||
         selected->irq_frame == 0) {
         current->state = NOVA_TASK_RUNNING;
@@ -278,7 +336,8 @@ static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
     for (i = 0; i < NOVA_TASK_MAX; ++i) {
         if (tasks[i].state != NOVA_TASK_READY ||
             (resume_path == 1 &&
-             tasks[i].resume_kind == NOVA_TASK_RESUME_IRQ) ||
+             (tasks[i].resume_kind == NOVA_TASK_RESUME_IRQ ||
+              tasks[i].resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN)) ||
             (resume_path == 2 &&
              tasks[i].resume_kind == NOVA_TASK_RESUME_COOPERATIVE))
             continue;
@@ -327,7 +386,8 @@ int nova_task_destroy(uint32_t task_id) {
     if (task == 0 ||
         (task->state != NOVA_TASK_ZOMBIE &&
          !(task->state == NOVA_TASK_READY &&
-           task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN)))
+           (task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN ||
+            task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN))))
         return 0;
     stack = task->kernel_stack_base;
     if (task->address_space_id != 0U &&
@@ -344,6 +404,8 @@ int nova_task_destroy(uint32_t task_id) {
     task->resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     task->entry = 0;
     task->argument = 0;
+    task->user_entry = 0U;
+    task->user_stack_top = 0U;
     task->kernel_stack_base = 0;
     task->kernel_stack_top = 0;
     task->exit_code = 0;

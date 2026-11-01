@@ -34,7 +34,7 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, address_space_id;
+    uint32_t first, second, address_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -215,6 +215,36 @@ int main(void) {
     assert(nova_task_destroy(first));
     assert(!nova_address_space_get(address_space_id, &address_space_info));
     assert(!nova_task_get(first, &info));
+
+    /* First-run EL0 tasks own a retained address-space reference and ERET frame. */
+    assert(nova_task_create_user(address_space_id, 0x400000U, 0x7fff0000U,
+                                 0x1234U, &user_first));
+    assert(nova_task_get(user_first, &info));
+    assert(info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN);
+    assert(info.state == NOVA_TASK_READY && info.address_space_id == address_space_id);
+    assert(info.user_entry == 0x400000U && info.user_stack_top == 0x7fff0000U);
+    assert(info.entry == 0 && info.context.sp == 0U);
+    assert(info.irq_frame != 0 && info.irq_frame->elr_el1 == 0x400000U);
+    assert(info.irq_frame->spsr_el1 == 0U);
+    assert(info.irq_frame->sp_el0 == 0x7fff0000U);
+    assert(info.irq_frame->x[0] == 0x1234U);
+    {
+        struct nova_irq_frame *taken = 0;
+        uint32_t selected = 0U;
+        assert(!nova_task_next_cooperative_ready(0U, &selected) || selected != user_first);
+        assert(nova_task_next_irq_ready(0U, &selected));
+        assert(nova_task_take_irq_context(user_first, &taken));
+        assert(taken == info.irq_frame);
+        assert(nova_task_get(user_first, &info));
+        assert(info.state == NOVA_TASK_RUNNING &&
+               info.resume_kind == NOVA_TASK_RESUME_ACTIVE);
+        assert(!nova_task_take_irq_context(user_first, &taken));
+    }
+    assert(nova_task_transition(user_first, NOVA_TASK_ZOMBIE));
+    assert(nova_task_destroy(user_first));
+    assert(nova_address_space_get(address_space_id, &address_space_info));
+    assert(address_space_info.references == 1U);
+
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
     assert(freed_stacks == 2);

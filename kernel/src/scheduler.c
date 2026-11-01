@@ -123,7 +123,8 @@ int nova_sched_start(void) {
             continue;
 
         saved_daif = irq_save_disable();
-        if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ) {
+        if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ ||
+            next_info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN) {
             struct nova_irq_frame *frame = 0;
             if (!scheduler_enter_task_space(next) ||
                 !nova_task_take_irq_context(next, &frame)) {
