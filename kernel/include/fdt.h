@@ -35,7 +35,6 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
  * Cell 0 is SPI (0) or PPI (1); cell 1 is the interrupt number within
  * that class; cell 2 is the standard trigger/polarity flag (1, 2, 4, or 8).
  * Returns 1 on success, 0 for an unsupported/malformed specifier.
- * This helper only decodes the three-cell specifier; see the lookup API below.
  */
 int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
                                     uint32_t flags, uint32_t *interrupt_id);
