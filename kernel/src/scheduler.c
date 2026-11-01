@@ -196,7 +196,10 @@ int nova_sched_start(void) {
             }
             if (!nova_task_set_resume_kind(next, NOVA_TASK_RESUME_ACTIVE)) {
                 (void)nova_task_transition(next, NOVA_TASK_READY);
-                scheduler_return_to_kernel_space();
+                if (!scheduler_return_to_kernel_space()) {
+                    irq_restore(saved_daif);
+                    return 0;
+                }
                 irq_restore(saved_daif);
                 continue;
             }
