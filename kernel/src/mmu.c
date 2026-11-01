@@ -38,6 +38,7 @@ static uint64_t level2_ram_table[NOVA_MMU_TABLE_ENTRIES]
 static uint64_t level3_ram_tables[NOVA_MMU_L3_TABLES][NOVA_MMU_TABLE_ENTRIES]
     __attribute__((aligned(NOVA_MMU_PAGE_SIZE)));
 /* Track writable/executable aliases per physical frame to enforce global W^X. */
+static uint32_t mapped_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
 static uint32_t writable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
 static uint32_t executable_aliases[NOVA_MMU_MAX_PHYSICAL_PAGES];
 
@@ -87,6 +88,7 @@ int nova_mmu_enable(void) {
     if ((l1_address & (NOVA_MMU_PAGE_SIZE - 1U)) != 0) return 0;
 
     for (table_index = 0; table_index < NOVA_MMU_MAX_PHYSICAL_PAGES; ++table_index) {
+        mapped_aliases[table_index] = 0;
         writable_aliases[table_index] = 0;
         executable_aliases[table_index] = 0;
     }
@@ -481,7 +483,8 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
             if (pa < NOVA_MMU_RAM_BASE ||
                 pa >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE ||
                 !nova_page_is_allocated((const void *)pa) ||
-                nova_page_pin_count((const void *)pa) == 0U) return 0;
+                mapped_aliases[frame] == 0U ||
+                nova_page_pin_count((const void *)pa) < mapped_aliases[frame]) return 0;
             frame = physical_frame_index(pa);
             if ((descriptor_is_writable(desc) && writable_aliases[frame] == 0U) ||
                 (descriptor_is_executable(desc) && executable_aliases[frame] == 0U))
@@ -518,6 +521,7 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
             if (descriptor_is_executable(desc)) --executable_aliases[frame];
             l3[j] = 0U;
             if (!nova_page_unpin((const void *)pa)) return 0;
+            --mapped_aliases[frame];
         }
         user_l2[i] = 0U;
         if (!nova_page_unpin(l3) || !nova_page_free(l3)) return 0;
@@ -597,6 +601,7 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
     slot=&l3[i3]; fi=physical_frame_index(pa);
     if((*slot&DESC_VALID)!=0U ||
        (wr&&executable_aliases[fi]!=0U) || (ex&&writable_aliases[fi]!=0U) ||
+       mapped_aliases[fi]==UINT32_MAX ||
        (wr&&writable_aliases[fi]==UINT32_MAX) ||
        (ex&&executable_aliases[fi]==UINT32_MAX) ||
        !nova_page_pin((const void*)pa)) {
@@ -610,7 +615,8 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
     desc=((uint64_t)pa&DESC_ADDR_MASK)|DESC_VALID|DESC_PAGE|DESC_ATTR(1)|
          DESC_SH_INNER|DESC_AF|DESC_PXN|(wr?DESC_AP_USER_RW:DESC_AP_USER_RO);
     if(!ex)desc|=DESC_UXN;
-    *slot=desc; if(wr)++writable_aliases[fi]; if(ex)++executable_aliases[fi];
+    *slot=desc; ++mapped_aliases[fi];
+    if(wr)++writable_aliases[fi]; if(ex)++executable_aliases[fi];
     invalidate_user_page(va,asid); return 1;
 }
 int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va) {
@@ -622,7 +628,7 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
     slot=&l3[i3]; if((*slot&DESC_VALID)==0U)return 0;
     pa=(uintptr_t)(*slot&DESC_ADDR_MASK); fi=physical_frame_index(pa);
     if(!nova_page_is_allocated((const void*)pa) ||
-       nova_page_pin_count((const void*)pa)==0U ||
+       nova_page_pin_count((const void*)pa)==0U || mapped_aliases[fi]==0U ||
        (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
        (descriptor_is_executable(*slot)&&executable_aliases[fi]==0U))
         return 0;
@@ -630,6 +636,7 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
     if(descriptor_is_executable(*slot))--executable_aliases[fi];
     *slot=0U; invalidate_user_page(va,asid);
     if(!nova_page_unpin((const void*)pa))return 0;
+    --mapped_aliases[fi];
     for(i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)if(l3[i]!=0U){empty=0;break;}
     if(empty){l2[i2]=0U;if(!nova_page_unpin(l3))return 0;return nova_page_free(l3);}
     return 1;
@@ -674,6 +681,7 @@ int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
     old_executable = descriptor_is_executable(old_desc);
     if (!nova_page_is_allocated((const void *)pa) ||
         nova_page_pin_count((const void *)pa) == 0U ||
+        mapped_aliases[frame_index] == 0U ||
         (old_writable && writable_aliases[frame_index] == 0U) ||
         (old_executable && executable_aliases[frame_index] == 0U))
         return 0;
