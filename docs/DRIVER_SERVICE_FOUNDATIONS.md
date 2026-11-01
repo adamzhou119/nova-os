@@ -1,7 +1,7 @@
 # Nova OS — Driver and System-Service Foundations
 
 Status: the bounded kernel device-registry core and an initial FDT compatible/reg lookup
-are implemented and host-tested, including indexed `reg` tuples and matching-node instance lookup. Nested-bus `ranges` address translation is implemented and host-tested. GICv2 interrupt decoding and interrupt-parent phandle lookup are implemented and host-tested. Single-device FDT-to-registry discovery is implemented and host-tested. The PL011 console now registers and probes through the registry after early boot; automatic registry population across all matching nodes and additional hardware drivers remain in progress. The service manager, IPC transport, and capability enforcement are not implemented.
+are implemented and host-tested, including indexed `reg` tuples and matching-node instance lookup. Nested-bus `ranges` address translation is implemented and host-tested. GICv2 interrupt decoding and interrupt-parent phandle lookup are implemented and host-tested. Single-device FDT-to-registry discovery is implemented and host-tested. The PL011 console now registers and probes through the registry after early boot; atomic enumeration and registration of every matching node are implemented and host-tested; additional hardware drivers remain in progress. The service manager, IPC transport, and capability enforcement are not implemented.
 
 ## Scope and order
 
