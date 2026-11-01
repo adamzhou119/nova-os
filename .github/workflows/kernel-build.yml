@@ -38,6 +38,7 @@ jobs:
           file kernel/build/nova-stack-fault-test.elf
           file kernel/build/nova-el2-test.elf
           file kernel/build/nova-el2-vector-test.elf
+          file kernel/build/nova-user-test.elf
           file kernel/build/el3-test-boot.elf
           readelf -h kernel/build/nova.elf
           readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
@@ -82,6 +83,22 @@ jobs:
           grep -q "EL1 generic physical timer tests passed." qemu.log
           grep -q "GICv2 physical timer IRQ tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
+
+      - name: QEMU EL0 SVC round-trip test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat user-svc.log
+          grep -q "Starting real EL0 SVC round-trip test." user-svc.log
+          grep -q "QEMU EL0 SVC round-trip test passed." user-svc.log
+          echo "Nova OS EL0 SVC round-trip passed."
 
       - name: QEMU controlled exception test
         shell: bash
