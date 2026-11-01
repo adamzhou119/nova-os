@@ -344,3 +344,149 @@ size_t nova_fdt_total_size(uintptr_t dtb_address) {
     if (total < FDT_HEADER_SIZE) return 0;
     return (size_t)total;
 }
+
+
+/* Match one entry in a NUL-separated FDT compatible string list. */
+static int compatible_list_contains(const uint8_t *data, uint32_t length,
+                                    const char *expected) {
+    uint32_t pos = 0;
+    size_t expected_length = 0;
+    while (expected[expected_length] != '\0') ++expected_length;
+    if (expected_length == 0U) return 0;
+    while (pos < length) {
+        uint32_t start = pos;
+        while (pos < length && data[pos] != 0U) ++pos;
+        if (pos == length) return 0;
+        if ((size_t)(pos - start) == expected_length) {
+            size_t i;
+            for (i = 0; i < expected_length; ++i)
+                if (data[start + i] != (uint8_t)expected[i]) break;
+            if (i == expected_length) return 1;
+        }
+        ++pos;
+    }
+    return 0;
+}
+
+int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
+                         struct nova_fdt_device *device) {
+    const uint8_t *base = (const uint8_t *)dtb_address;
+    const uint8_t *structure;
+    const uint8_t *strings;
+    uint32_t total_size, struct_offset, strings_offset;
+    uint32_t struct_size, strings_size, cursor = 0;
+    uint32_t parent_address_cells[FDT_MAX_DEPTH];
+    uint32_t parent_size_cells[FDT_MAX_DEPTH];
+    uint32_t child_address_cells[FDT_MAX_DEPTH];
+    uint32_t child_size_cells[FDT_MAX_DEPTH];
+    const uint8_t *compatible_data[FDT_MAX_DEPTH];
+    uint32_t compatible_length[FDT_MAX_DEPTH];
+    const uint8_t *reg_data[FDT_MAX_DEPTH];
+    uint32_t reg_length[FDT_MAX_DEPTH];
+    int depth = -1;
+
+    if (dtb_address == 0U || compatible == NULL || device == NULL ||
+        compatible[0] == '\0') return -1;
+    if (read_be32(base) != FDT_MAGIC) return -2;
+    total_size = read_be32(base + 4U);
+    struct_offset = read_be32(base + 8U);
+    strings_offset = read_be32(base + 12U);
+    strings_size = read_be32(base + 32U);
+    struct_size = read_be32(base + 36U);
+    if (total_size < FDT_HEADER_SIZE ||
+        struct_offset > total_size || struct_size > total_size - struct_offset ||
+        strings_offset > total_size || strings_size > total_size - strings_offset)
+        return -3;
+
+    structure = base + struct_offset;
+    strings = base + strings_offset;
+    while (cursor + 4U <= struct_size) {
+        uint32_t token = read_be32(structure + cursor);
+        cursor += 4U;
+        if (token == FDT_BEGIN_NODE) {
+            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
+            while (cursor < struct_size && structure[cursor] != 0U) ++cursor;
+            if (cursor >= struct_size) return -5;
+            ++cursor;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -6;
+            ++depth;
+            parent_address_cells[depth] =
+                depth == 0 ? 2U : child_address_cells[depth - 1];
+            parent_size_cells[depth] =
+                depth == 0 ? 1U : child_size_cells[depth - 1];
+            child_address_cells[depth] = parent_address_cells[depth];
+            child_size_cells[depth] = parent_size_cells[depth];
+            compatible_data[depth] = NULL;
+            compatible_length[depth] = 0U;
+            reg_data[depth] = NULL;
+            reg_length[depth] = 0U;
+        } else if (token == FDT_END_NODE) {
+            uint32_t ac, sc, tuple_bytes;
+            uint64_t address, size;
+            if (depth < 0) return -7;
+            if (compatible_data[depth] != NULL &&
+                compatible_list_contains(compatible_data[depth],
+                                          compatible_length[depth],
+                                          compatible) &&
+                reg_data[depth] != NULL) {
+                ac = parent_address_cells[depth];
+                sc = parent_size_cells[depth];
+                if (ac == 0U || ac > 2U || sc == 0U || sc > 2U)
+                    return -8;
+                tuple_bytes = (ac + sc) * 4U;
+                if (reg_length[depth] < tuple_bytes ||
+                    reg_length[depth] % tuple_bytes != 0U)
+                    return -9;
+                if (!read_cells(reg_data[depth], ac, &address) ||
+                    !read_cells(reg_data[depth] + ac * 4U, sc, &size) ||
+                    size == 0U || address > UINT64_MAX - size ||
+                    address > UINTPTR_MAX || size > SIZE_MAX)
+                    return -10;
+                device->mmio_base = (uintptr_t)address;
+                device->mmio_size = (size_t)size;
+                return 1;
+            }
+            --depth;
+        } else if (token == FDT_PROP) {
+            uint32_t length, name_offset;
+            const uint8_t *data;
+            if (depth < 0 || cursor + 8U > struct_size) return -11;
+            length = read_be32(structure + cursor);
+            name_offset = read_be32(structure + cursor + 4U);
+            cursor += 8U;
+            if (length > struct_size - cursor || name_offset >= strings_size)
+                return -12;
+            data = structure + cursor;
+            if (fdt_string_equals(strings, strings_size, name_offset,
+                                  "compatible")) {
+                compatible_data[depth] = data;
+                compatible_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "reg")) {
+                reg_data[depth] = data;
+                reg_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "#address-cells") && length == 4U) {
+                uint32_t cells = read_be32(data);
+                if (cells > 2U) return -13;
+                child_address_cells[depth] = cells;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "#size-cells") && length == 4U) {
+                uint32_t cells = read_be32(data);
+                if (cells > 2U) return -14;
+                child_size_cells[depth] = cells;
+            }
+            cursor += length;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -15;
+        } else if (token == FDT_NOP) {
+            continue;
+        } else if (token == FDT_END) {
+            return 0;
+        } else {
+            return -16;
+        }
+    }
+    return -17;
+}
