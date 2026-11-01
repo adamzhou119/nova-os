@@ -90,6 +90,7 @@ Exit criteria: documented memory, exception, timer, and scheduling behavior unde
 
 - [x] Write the initial driver and service lifecycle, resource ownership, trust-boundary, and validation contracts in [DRIVER_SERVICE_FOUNDATIONS.md](DRIVER_SERVICE_FOUNDATIONS.md). This is design-only; no generic driver registry, IPC transport, or service manager is implemented.
 - [x] Extract early console output behind a small kernel console API with a QEMU virt PL011 backend; all 17 build, host, and QEMU checks passed in run 613. Generic device discovery and driver registration remain unimplemented.
+- [x] Implement the bounded device-registry core: compatible driver registration, explicit probe/ready/failed lifecycle, exclusive MMIO/IRQ claims, failed-probe unwind/retry, and safe removal; host-tested in CI run 655. FDT discovery and concrete hardware-driver registration remain open.
 - Define process and service boundaries.
 - Design capability-based access control.
 - Define IPC and service lifecycle.
