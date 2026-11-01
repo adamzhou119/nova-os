@@ -31,6 +31,7 @@ extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
 
+#ifdef NOVA_TEST_EL0_SVC
 extern const uint8_t nova_user_test_payload_start[];
 extern const uint8_t nova_user_test_payload_end[];
 
@@ -98,6 +99,7 @@ cleanup:
     if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
     return ok;
 }
+#endif
 
 static volatile uint64_t bss_probe;
 static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
