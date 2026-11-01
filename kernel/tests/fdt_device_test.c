@@ -5,7 +5,7 @@
 
 #include "fdt.h"
 
-static uint8_t blob[512];
+static uint8_t blob[1024];
 static uint32_t structure_cursor;
 
 static void put_be32(uint32_t offset, uint32_t value) {
