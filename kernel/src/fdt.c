@@ -568,3 +568,139 @@ int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
     *interrupt_id = id;
     return 1;
 }
+
+
+#define FDT_MAX_GIC_CONTROLLERS 16U
+
+int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
+                            uint32_t *interrupt_id) {
+    const uint8_t *base = (const uint8_t *)dtb_address;
+    const uint8_t *structure;
+    const uint8_t *strings;
+    uint32_t total_size, struct_offset, strings_offset;
+    uint32_t struct_size, strings_size, cursor = 0U;
+    uint32_t inherited_parent[FDT_MAX_DEPTH];
+    uint32_t current_parent[FDT_MAX_DEPTH];
+    uint32_t node_phandle[FDT_MAX_DEPTH];
+    uint32_t interrupt_cells[FDT_MAX_DEPTH];
+    uint32_t node_irq_parent[FDT_MAX_DEPTH];
+    const uint8_t *node_compatible[FDT_MAX_DEPTH];
+    uint32_t node_compatible_length[FDT_MAX_DEPTH];
+    const uint8_t *node_interrupts[FDT_MAX_DEPTH];
+    uint32_t node_interrupts_length[FDT_MAX_DEPTH];
+    uint32_t controller_phandles[FDT_MAX_GIC_CONTROLLERS];
+    uint32_t controller_cells[FDT_MAX_GIC_CONTROLLERS];
+    uint32_t controller_count = 0U;
+    uint32_t target_parent = 0U;
+    const uint8_t *target_interrupts = NULL;
+    uint32_t target_interrupts_length = 0U;
+    int depth = -1;
+    uint32_t i;
+
+    if (dtb_address == 0U || compatible == NULL || compatible[0] == '\\0' ||
+        interrupt_id == NULL) return -1;
+    if (read_be32(base) != FDT_MAGIC) return -2;
+    total_size = read_be32(base + 4U);
+    struct_offset = read_be32(base + 8U);
+    strings_offset = read_be32(base + 12U);
+    strings_size = read_be32(base + 32U);
+    struct_size = read_be32(base + 36U);
+    if (total_size < FDT_HEADER_SIZE ||
+        struct_offset > total_size || struct_size > total_size - struct_offset ||
+        strings_offset > total_size || strings_size > total_size - strings_offset)
+        return -3;
+
+    structure = base + struct_offset;
+    strings = base + strings_offset;
+    while (cursor + 4U <= struct_size) {
+        uint32_t token = read_be32(structure + cursor);
+        cursor += 4U;
+        if (token == FDT_BEGIN_NODE) {
+            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
+            while (cursor < struct_size && structure[cursor] != 0U) ++cursor;
+            if (cursor >= struct_size) return -5;
+            ++cursor;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -6;
+            ++depth;
+            inherited_parent[depth] = depth == 0 ? 0U : current_parent[depth - 1];
+            current_parent[depth] = inherited_parent[depth];
+            node_phandle[depth] = 0U;
+            interrupt_cells[depth] = 0U;
+            node_irq_parent[depth] = 0U;
+            node_compatible[depth] = NULL;
+            node_compatible_length[depth] = 0U;
+            node_interrupts[depth] = NULL;
+            node_interrupts_length[depth] = 0U;
+        } else if (token == FDT_END_NODE) {
+            if (depth < 0) return -7;
+            if (node_compatible[depth] != NULL &&
+                compatible_list_contains(node_compatible[depth],
+                                         node_compatible_length[depth],
+                                         compatible) &&
+                node_interrupts[depth] != NULL) {
+                target_parent = current_parent[depth];
+                target_interrupts = node_interrupts[depth];
+                target_interrupts_length = node_interrupts_length[depth];
+            }
+            if (node_phandle[depth] != 0U &&
+                interrupt_cells[depth] == 3U && controller_count < FDT_MAX_GIC_CONTROLLERS) {
+                /* A nonzero #interrupt-cells plus phandle identifies a
+                 * candidate interrupt parent; the binding is checked by
+                 * the exact three-cell GICv2 decoder below. */
+                controller_phandles[controller_count] = node_phandle[depth];
+                controller_cells[controller_count] = interrupt_cells[depth];
+                ++controller_count;
+            }
+            --depth;
+        } else if (token == FDT_PROP) {
+            uint32_t length, name_offset;
+            const uint8_t *data;
+            if (depth < 0 || cursor + 8U > struct_size) return -8;
+            length = read_be32(structure + cursor);
+            name_offset = read_be32(structure + cursor + 4U);
+            cursor += 8U;
+            if (length > struct_size - cursor || name_offset >= strings_size)
+                return -9;
+            data = structure + cursor;
+            if (fdt_string_equals(strings, strings_size, name_offset, "compatible")) {
+                node_compatible[depth] = data;
+                node_compatible_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "interrupts")) {
+                node_interrupts[depth] = data;
+                node_interrupts_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "interrupt-parent") && length == 4U) {
+                current_parent[depth] = read_be32(data);
+            } else if ((fdt_string_equals(strings, strings_size, name_offset, "phandle") ||
+                        fdt_string_equals(strings, strings_size, name_offset, "linux,phandle")) &&
+                       length == 4U) {
+                node_phandle[depth] = read_be32(data);
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "#interrupt-cells") &&
+                       length == 4U) {
+                interrupt_cells[depth] = read_be32(data);
+            }
+            cursor += length;
+            cursor = (cursor + 3U) & ~3U;
+            if (cursor > struct_size) return -10;
+        } else if (token == FDT_NOP) {
+            continue;
+        } else if (token == FDT_END) {
+            if (target_interrupts == NULL || target_parent == 0U ||
+                target_interrupts_length < 12U ||
+                (target_interrupts_length % 12U) != 0U) return 0;
+            for (i = 0U; i < controller_count; ++i) {
+                if (controller_phandles[i] == target_parent &&
+                    controller_cells[i] == 3U) {
+                    return nova_fdt_decode_gicv2_interrupt(
+                        read_be32(target_interrupts),
+                        read_be32(target_interrupts + 4U),
+                        read_be32(target_interrupts + 8U), interrupt_id);
+                }
+            }
+            return 0;
+        } else {
+            return -11;
+        }
+    }
+    return -12;
+}
