@@ -43,8 +43,9 @@ int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
 
 /* Find the first interrupt specifier for a compatible device node.
  * Resolves inherited/overridden interrupt-parent phandles and a three-cell
- * GICv2 interrupt-controller node. Returns 1 on success, 0 if absent or
- * unsupported, and a negative value for malformed DTB data.
+ * GICv2 interrupt-controller node. Returns 1 on success, 0 if the device has
+ * no interrupts property, and a negative value for malformed or unsupported
+ * interrupt bindings.
  */
 int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
                             uint32_t *interrupt_id);
