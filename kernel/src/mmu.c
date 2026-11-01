@@ -597,6 +597,8 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
     slot=&l3[i3]; fi=physical_frame_index(pa);
     if((*slot&DESC_VALID)!=0U ||
        (wr&&executable_aliases[fi]!=0U) || (ex&&writable_aliases[fi]!=0U) ||
+       (wr&&writable_aliases[fi]==UINT32_MAX) ||
+       (ex&&executable_aliases[fi]==UINT32_MAX) ||
        !nova_page_pin((const void*)pa)) {
         if(created_l3) {
             l2[i2]=0U;
@@ -619,8 +621,13 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
     l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK); if(!nova_page_is_allocated(l3))return 0;
     slot=&l3[i3]; if((*slot&DESC_VALID)==0U)return 0;
     pa=(uintptr_t)(*slot&DESC_ADDR_MASK); fi=physical_frame_index(pa);
-    if(descriptor_is_writable(*slot)&&writable_aliases[fi])--writable_aliases[fi];
-    if(descriptor_is_executable(*slot)&&executable_aliases[fi])--executable_aliases[fi];
+    if(!nova_page_is_allocated((const void*)pa) ||
+       nova_page_pin_count((const void*)pa)==0U ||
+       (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
+       (descriptor_is_executable(*slot)&&executable_aliases[fi]==0U))
+        return 0;
+    if(descriptor_is_writable(*slot))--writable_aliases[fi];
+    if(descriptor_is_executable(*slot))--executable_aliases[fi];
     *slot=0U; invalidate_user_page(va,asid);
     if(!nova_page_unpin((const void*)pa))return 0;
     for(i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)if(l3[i]!=0U){empty=0;break;}
@@ -665,12 +672,21 @@ int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
     frame_index = physical_frame_index(pa);
     old_writable = descriptor_is_writable(old_desc);
     old_executable = descriptor_is_executable(old_desc);
+    if (!nova_page_is_allocated((const void *)pa) ||
+        nova_page_pin_count((const void *)pa) == 0U ||
+        (old_writable && writable_aliases[frame_index] == 0U) ||
+        (old_executable && executable_aliases[frame_index] == 0U))
+        return 0;
 
     /* W^X is enforced across every alias, including other address spaces. */
     if ((new_writable &&
          executable_aliases[frame_index] > (size_t)old_executable) ||
         (new_executable &&
-         writable_aliases[frame_index] > (size_t)old_writable))
+         writable_aliases[frame_index] > (size_t)old_writable) ||
+        (!old_writable && new_writable &&
+         writable_aliases[frame_index] == UINT32_MAX) ||
+        (!old_executable && new_executable &&
+         executable_aliases[frame_index] == UINT32_MAX))
         return 0;
 
     new_desc = old_desc & ~(DESC_AP_MASK | DESC_PXN | DESC_UXN);
