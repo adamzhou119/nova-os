@@ -316,6 +316,20 @@ nova_user_fault_payload_start:
     b       1b
 nova_user_fault_payload_end:
 .size nova_user_fault_payload_start, nova_user_fault_payload_end - nova_user_fault_payload_start
+/* Branch to an unmapped EL0 page to exercise instruction-abort containment. */
+.section .text.user_instruction_fault_test, "ax"
+.balign 4
+.global nova_user_instruction_fault_payload_start
+.global nova_user_instruction_fault_payload_end
+.type nova_user_instruction_fault_payload_start, %function
+nova_user_instruction_fault_payload_start:
+    movz    x0, #0x8000, lsl #16
+    add     x0, x0, #7, lsl #12
+    br      x0
+1:
+    b       1b
+nova_user_instruction_fault_payload_end:
+.size nova_user_instruction_fault_payload_start, nova_user_instruction_fault_payload_end - nova_user_instruction_fault_payload_start
 /* A healthy peer publishes its task ID and exits after another user task faults. */
 .section .text.user_healthy_test, "ax"
 .balign 4
