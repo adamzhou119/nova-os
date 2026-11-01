@@ -176,11 +176,13 @@ static int switch_to_scheduler(enum nova_task_state next_state, int change_state
 
 int nova_sched_start(void) {
     uint32_t next;
+    unsigned int failed_dispatches = 0U;
     if (execution_phase != NOVA_SCHED_INACTIVE) return 0;
 
     execution_phase = NOVA_SCHED_SCHEDULER;
     current_task_id = 0U;
-    while (nova_task_next_ready(next_after_id, &next)) {
+    while (failed_dispatches < NOVA_TASK_MAX &&
+           nova_task_next_ready(next_after_id, &next)) {
         struct nova_task_info next_info;
         uintptr_t saved_daif;
 
@@ -188,6 +190,13 @@ int nova_sched_start(void) {
             next_info.state != NOVA_TASK_READY)
             continue;
 
+        /*
+         * Bound retries when a READY task cannot be dispatched (for example,
+         * because its address-space activation or TTBR0 install failed).
+         * Without this budget a single broken candidate can spin forever.
+         */
+        ++failed_dispatches;
+        next_after_id = next;
         saved_daif = irq_save_disable();
         if (next_info.resume_kind == NOVA_TASK_RESUME_IRQ ||
             next_info.resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN) {
@@ -207,6 +216,7 @@ int nova_sched_start(void) {
 
             current_task_id = next;
             next_after_id = next;
+            failed_dispatches = 0U;
             current_quantum_ticks = 0U;
             preemption_pending = 0;
             execution_phase = NOVA_SCHED_TASK;
