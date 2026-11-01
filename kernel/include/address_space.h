@@ -17,10 +17,14 @@ struct nova_address_space_info {
 };
 
 /*
- * Metadata/lifetime registry only. The caller owns page-table allocation.
+ * Address-space roots are owned by the registry after create succeeds. The
+ * destroy hook is called exactly once when the final inactive reference is
+ * released; a failed hook leaves the registry entry intact for retry.
  * Mutations must be serialized; this prototype is single-core. ASIDs are limited
  * to 1..255 until 16-bit ASID support is enabled and architecture-tested.
  */
+typedef int (*nova_address_space_destroy_fn)(uintptr_t root_physical);
+int nova_address_space_set_destroy_hook(nova_address_space_destroy_fn destroy);
 int nova_address_space_create(uintptr_t root_physical, uint16_t asid,
                               uint32_t *address_space_id);
 int nova_address_space_retain(uint32_t address_space_id);
