@@ -25,7 +25,8 @@ static int fail_kernel_space_switch;
 static int fail_task_space_switch;
 static uint32_t fail_deactivate_id;
 
-static int destroy_mock_address_space(uintptr_t root) {
+static int destroy_mock_address_space(uintptr_t root, uint16_t asid) {
+    (void)asid;
     return root != 0U;
 }
 
