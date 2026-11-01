@@ -79,7 +79,7 @@ static void build_test_dtb(void) {
     {
         static const char second_uart[] = "vendor,uart\\0arm,pl011\\0";
         uint8_t second_reg[16] = {
-            0U, 0U, 0U, 0U, 0U, 0xb0U, 0U, 0U,
+            0U, 0U, 0U, 0U, 0x0bU, 0U, 0U, 0U,
             0U, 0U, 0U, 0U, 0U, 0U, 0x10U, 0U
         };
         append_property(0U, second_uart, sizeof(second_uart) - 1U);
