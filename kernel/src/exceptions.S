@@ -267,7 +267,7 @@ exception_vector_panic_el2:
 nova_user_test_payload_start:
     mov     x8, #0
     svc     #0
-    str     x0, [sp, #-8]!
+    str     x0, [sp, #-16]!
     mov     x8, #1
     mov     x0, #0
     svc     #0
