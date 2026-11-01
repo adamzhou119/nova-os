@@ -18,13 +18,7 @@
 #include "user_context.h"
 #include "user_memory.h"
 
-static void uart_write(const char *s);
-static void uart_write_hex64(uint64_t value);
-
-#define UART0_BASE       0x09000000UL
-#define UARTDR           (*(volatile uint32_t *)(UART0_BASE + 0x00))
-#define UARTFR           (*(volatile uint32_t *)(UART0_BASE + 0x18))
-#define UARTFR_TXFF      (1U << 5)
+#include "console.h"
 
 extern char __kernel_start[];
 extern char __text_start[];
@@ -125,25 +119,25 @@ static int test_el0_fault_containment(void) {
 
     healthy_result = (volatile uint64_t *)(healthy_stack + NOVA_PAGE_SIZE -
                                            2U * sizeof(uint64_t));
-    uart_write("EL0 data-fault task prepared; task id: ");
-    uart_write_hex64(data_task);
-    uart_write("EL0 instruction-fault task prepared; task id: ");
-    uart_write_hex64(instruction_task);
-    uart_write("EL0 healthy peer prepared; task id: ");
-    uart_write_hex64(healthy_task);
+    nova_console_write("EL0 data-fault task prepared; task id: ");
+    nova_console_write_hex64(data_task);
+    nova_console_write("EL0 instruction-fault task prepared; task id: ");
+    nova_console_write_hex64(instruction_task);
+    nova_console_write("EL0 healthy peer prepared; task id: ");
+    nova_console_write_hex64(healthy_task);
     if (!nova_sched_start()) {
-        uart_write("EL0 fault containment scheduler returned failure.\n");
+        nova_console_write("EL0 fault containment scheduler returned failure.\n");
         goto cleanup;
     }
 
-    uart_write("EL0 healthy peer marker: ");
-    uart_write_hex64(*healthy_result);
+    nova_console_write("EL0 healthy peer marker: ");
+    nova_console_write_hex64(*healthy_result);
     ok = *healthy_result == healthy_task &&
          !nova_task_get(data_task, &(struct nova_task_info){0}) &&
          !nova_task_get(instruction_task, &(struct nova_task_info){0}) &&
          !nova_task_get(healthy_task, &(struct nova_task_info){0});
     if (ok)
-        uart_write("EL0 data/instruction fault tasks reaped; healthy peer completed.\n");
+        nova_console_write("EL0 data/instruction fault tasks reaped; healthy peer completed.\n");
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
@@ -243,21 +237,21 @@ static int test_el0_svc_round_trip(void) {
         if (((volatile const uint8_t *)stack_page)[NOVA_PAGE_SIZE - 4U + i] != 0U)
             goto cleanup;
     }
-    uart_write("EL0 copyout valid marker passed.\\n");
-    uart_write("EL0 copyout cross-page range rejected.\\n");
+    nova_console_write("EL0 copyout valid marker passed.\\n");
+    nova_console_write("EL0 copyout cross-page range rejected.\\n");
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       2U * sizeof(uint64_t));
-    uart_write("EL0 test task prepared; task id: ");
-    uart_write_hex64(task_id);
+    nova_console_write("EL0 test task prepared; task id: ");
+    nova_console_write_hex64(task_id);
     if (!nova_sched_start()) {
-        uart_write("EL0 test scheduler returned failure.\n");
+        nova_console_write("EL0 test scheduler returned failure.\n");
         goto cleanup;
     }
-    uart_write("EL0 test scheduler returned; stack result: ");
-    uart_write_hex64(*result);
-    uart_write("EL0 test expected task id: ");
-    uart_write_hex64(task_id);
+    nova_console_write("EL0 test scheduler returned; stack result: ");
+    nova_console_write_hex64(*result);
+    nova_console_write("EL0 test expected task id: ");
+    nova_console_write_hex64(task_id);
     ok = *result == task_id;
 
 cleanup:
@@ -287,32 +281,6 @@ static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
 static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];
 static struct nova_memory_region allocator_reserved[NOVA_FDT_MAX_RESERVED_REGIONS + 2U];
 
-static void uart_putc(char c) {
-    while (UARTFR & UARTFR_TXFF) __asm__ volatile("nop");
-    UARTDR = (uint32_t)c;
-}
-
-static void uart_write(const char *s) {
-    while (*s) {
-        if (*s == '\n') uart_putc('\r');
-        uart_putc(*s++);
-    }
-}
-
-static void uart_write_hex64(uint64_t value) {
-    static const char digits[] = "0123456789ABCDEF";
-    int shift;
-    uart_write("0x");
-    for (shift = 60; shift >= 0; shift -= 4)
-        uart_putc(digits[(value >> shift) & 0x0fU]);
-    uart_putc('\n');
-}
-
-static void uart_write_current_el(uint64_t current_el) {
-    uart_write("CurrentEL: EL");
-    uart_putc((char)('0' + (current_el & 0x3U)));
-    uart_putc('\n');
-}
 
 static const char *exception_vector_name(uint64_t vector) {
     switch (vector) {
@@ -339,55 +307,55 @@ static const char *exception_vector_name(uint64_t vector) {
 static void exception_report_at_level(uint64_t level, uint64_t esr,
                                        uint64_t elr, uint64_t vector,
                                        uint64_t far, uint64_t spsr) {
-    uart_write("EXCEPTION: EL");
-    uart_putc((char)('0' + level));
-    uart_write(" vector captured.\n");
-    uart_write("Exception kind: ");
-    uart_write(nova_exception_kind(vector));
-    uart_putc('\n');
-    uart_write("Vector: ");
-    uart_write(exception_vector_name(vector));
-    uart_putc('\n');
-    uart_write("Vector slot: ");
-    uart_write_hex64(vector);
-    uart_write("ESR_EL");
-    uart_putc((char)('0' + level));
-    uart_write(": ");
-    uart_write_hex64(esr);
-    uart_write("ESR exception class: ");
-    uart_write_hex64((esr >> 26) & 0x3fU);
-    uart_write("ESR exception description: ");
-    uart_write(nova_exception_class_name(esr));
-    uart_putc('\n');
-    uart_write("ESR instruction-specific syndrome: ");
-    uart_write_hex64(esr & 0x01ffffffU);
+    nova_console_write("EXCEPTION: EL");
+    nova_console_putc((char)('0' + level));
+    nova_console_write(" vector captured.\n");
+    nova_console_write("Exception kind: ");
+    nova_console_write(nova_exception_kind(vector));
+    nova_console_putc('\n');
+    nova_console_write("Vector: ");
+    nova_console_write(exception_vector_name(vector));
+    nova_console_putc('\n');
+    nova_console_write("Vector slot: ");
+    nova_console_write_hex64(vector);
+    nova_console_write("ESR_EL");
+    nova_console_putc((char)('0' + level));
+    nova_console_write(": ");
+    nova_console_write_hex64(esr);
+    nova_console_write("ESR exception class: ");
+    nova_console_write_hex64((esr >> 26) & 0x3fU);
+    nova_console_write("ESR exception description: ");
+    nova_console_write(nova_exception_class_name(esr));
+    nova_console_putc('\n');
+    nova_console_write("ESR instruction-specific syndrome: ");
+    nova_console_write_hex64(esr & 0x01ffffffU);
     if (nova_exception_is_instruction_abort(esr) ||
         nova_exception_is_data_abort(esr)) {
-        uart_write("Abort fault status: ");
-        uart_write(nova_abort_fault_status_name(esr));
-        uart_putc('\n');
-        uart_write("Fault address valid: ");
-        uart_write(nova_exception_fault_address_valid(esr) ? "yes\n" : "no\n");
-        uart_write("Stage-1 page-table walk: ");
-        uart_write(nova_exception_is_stage1_page_walk(esr) ? "yes\n" : "no\n");
+        nova_console_write("Abort fault status: ");
+        nova_console_write(nova_abort_fault_status_name(esr));
+        nova_console_putc('\n');
+        nova_console_write("Fault address valid: ");
+        nova_console_write(nova_exception_fault_address_valid(esr) ? "yes\n" : "no\n");
+        nova_console_write("Stage-1 page-table walk: ");
+        nova_console_write(nova_exception_is_stage1_page_walk(esr) ? "yes\n" : "no\n");
         if (nova_exception_is_data_abort(esr)) {
-            uart_write("Data access: ");
-            uart_write(nova_exception_is_write_abort(esr) ? "write\n" : "read\n");
+            nova_console_write("Data access: ");
+            nova_console_write(nova_exception_is_write_abort(esr) ? "write\n" : "read\n");
         }
     }
-    uart_write("ELR_EL");
-    uart_putc((char)('0' + level));
-    uart_write(": ");
-    uart_write_hex64(elr);
-    uart_write("FAR_EL");
-    uart_putc((char)('0' + level));
-    uart_write(": ");
-    uart_write_hex64(far);
-    uart_write("SPSR_EL");
-    uart_putc((char)('0' + level));
-    uart_write(": ");
-    uart_write_hex64(spsr);
-    uart_write("System halted for diagnosis.\n");
+    nova_console_write("ELR_EL");
+    nova_console_putc((char)('0' + level));
+    nova_console_write(": ");
+    nova_console_write_hex64(elr);
+    nova_console_write("FAR_EL");
+    nova_console_putc((char)('0' + level));
+    nova_console_write(": ");
+    nova_console_write_hex64(far);
+    nova_console_write("SPSR_EL");
+    nova_console_putc((char)('0' + level));
+    nova_console_write(": ");
+    nova_console_write_hex64(spsr);
+    nova_console_write("System halted for diagnosis.\n");
     for (;;) __asm__ volatile("wfe");
 
 }
@@ -418,9 +386,9 @@ static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     copied = nova_user_copy_from(kernel_copy, user_buffer, length);
     if (copied < 0) return copied;
 
-    uart_write("EL0 user message: ");
+    nova_console_write("EL0 user message: ");
     for (i = 0U; i < (uint64_t)copied; ++i)
-        uart_putc(kernel_copy[i]);
+        nova_console_putc(kernel_copy[i]);
     return copied;
 }
 
@@ -459,17 +427,17 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
                              frame->far_el1, frame->spsr_el1);
             for (;;) __asm__ volatile("wfe");
         }
-        uart_write("EL0 fault contained; task id: ");
-        uart_write_hex64(task_id);
-        uart_write("ESR exception description: ");
-        uart_write(nova_exception_class_name(frame->esr_el1));
-        uart_write("\n");
-        uart_write("EL0 fault ESR: ");
-        uart_write_hex64(frame->esr_el1);
-        uart_write("EL0 fault FAR: ");
-        uart_write_hex64(frame->far_el1);
-        uart_write("EL0 fault ELR: ");
-        uart_write_hex64(frame->elr_el1);
+        nova_console_write("EL0 fault contained; task id: ");
+        nova_console_write_hex64(task_id);
+        nova_console_write("ESR exception description: ");
+        nova_console_write(nova_exception_class_name(frame->esr_el1));
+        nova_console_write("\n");
+        nova_console_write("EL0 fault ESR: ");
+        nova_console_write_hex64(frame->esr_el1);
+        nova_console_write("EL0 fault FAR: ");
+        nova_console_write_hex64(frame->far_el1);
+        nova_console_write("EL0 fault ELR: ");
+        nova_console_write_hex64(frame->elr_el1);
         nova_sched_task_exit();
         for (;;) __asm__ volatile("wfe");
     }
@@ -477,8 +445,8 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     /* Remaining eligible lower-EL synchronous traps are SVC calls. */
     if (frame->x[8] == 0U) {
 #ifdef NOVA_TEST_EL0_SVC
-        uart_write("EL0 SVC get-task-id; current task: ");
-        uart_write_hex64(nova_sched_current());
+        nova_console_write("EL0 SVC get-task-id; current task: ");
+        nova_console_write_hex64(nova_sched_current());
 #endif
         frame->x[0] = (uint64_t)nova_sched_current();
     } else if (frame->x[8] == 2U) {
@@ -486,17 +454,17 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
                                           frame->x[1]);
 #ifdef NOVA_TEST_EL0_SVC
         if (written == -14)
-            uart_write("EL0 write syscall rejected invalid pointer.\n");
+            nova_console_write("EL0 write syscall rejected invalid pointer.\n");
         if (written == -22)
-            uart_write("EL0 write syscall rejected excessive length.\n");
+            nova_console_write("EL0 write syscall rejected excessive length.\n");
 #endif
         frame->x[0] = (uint64_t)written;
     } else if (frame->x[8] == 1U) {
 #ifdef NOVA_TEST_EL0_SVC
-        uart_write("EL0 SVC exit; current task: ");
-        uart_write_hex64(nova_sched_current());
-        uart_write("EL0 SVC exit SP_EL0: ");
-        uart_write_hex64(frame->sp_el0);
+        nova_console_write("EL0 SVC exit; current task: ");
+        nova_console_write_hex64(nova_sched_current());
+        nova_console_write("EL0 SVC exit SP_EL0: ");
+        nova_console_write_hex64(frame->sp_el0);
 #endif
         uint32_t task_id = nova_sched_current();
         (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
@@ -534,7 +502,7 @@ static int test_pages(void) {
 
     if (!nova_page_init((uintptr_t)__page_pool_start,
                         (uintptr_t)__page_pool_end)) {
-        uart_write("Page test: initialization failed.\n");
+        nova_console_write("Page test: initialization failed.\n");
         return 0;
     }
 
@@ -542,48 +510,48 @@ static int test_pages(void) {
     first = nova_page_alloc();
     second = nova_page_alloc();
     if (first == NULL || second == NULL) {
-        uart_write("Page test: allocation returned NULL.\n");
+        nova_console_write("Page test: allocation returned NULL.\n");
         return 0;
     }
     if (first == second) {
-        uart_write("Page test: duplicate allocation address.\n");
+        nova_console_write("Page test: duplicate allocation address.\n");
         return 0;
     }
     if ((((uintptr_t)first & (NOVA_PAGE_SIZE - 1U)) != 0) ||
         (((uintptr_t)second & (NOVA_PAGE_SIZE - 1U)) != 0)) {
-        uart_write("Page test: returned address is not page aligned.\n");
+        nova_console_write("Page test: returned address is not page aligned.\n");
         return 0;
     }
 
     if (!nova_page_free(first)) {
-        uart_write("Page test: first free failed.\n");
+        nova_console_write("Page test: first free failed.\n");
         return 0;
     }
     if (nova_page_free(first)) {
-        uart_write("Page test: double free was accepted.\n");
+        nova_console_write("Page test: double free was accepted.\n");
         return 0;
     }
     if (nova_page_free((void *)((uintptr_t)second + 1U))) {
-        uart_write("Page test: unaligned free was accepted.\n");
+        nova_console_write("Page test: unaligned free was accepted.\n");
         return 0;
     }
 
     reused = nova_page_alloc();
     if (reused != first || nova_page_available() != initial - 2U) {
-        uart_write("Page test: freed page was not reused correctly.\n");
+        nova_console_write("Page test: freed page was not reused correctly.\n");
         return 0;
     }
 
     if (!nova_page_free(second) || !nova_page_free(reused)) {
-        uart_write("Page test: final free failed.\n");
+        nova_console_write("Page test: final free failed.\n");
         return 0;
     }
 
     if (nova_page_available() != initial) {
-        uart_write("Page test: free-page count did not recover.\n");
+        nova_console_write("Page test: free-page count did not recover.\n");
         return 0;
     }
-    uart_write("Page allocator checks passed individually.\n");
+    nova_console_write("Page allocator checks passed individually.\n");
     return 1;
 }
 
@@ -615,7 +583,7 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
 
     if (!nova_page_init_regions(detected_memory, (size_t)memory_regions,
                                 allocator_reserved, reserve_count)) {
-        uart_write("Firmware page test: map initialization failed.\n");
+        nova_console_write("Firmware page test: map initialization failed.\n");
         return 0;
     }
 
@@ -635,7 +603,7 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
                 (reserve_size != 0 && reserve_start <= UINT64_MAX - reserve_size &&
                  address < reserve_start &&
                  address + NOVA_PAGE_SIZE > reserve_start)) {
-                uart_write("Firmware page test: reserved page was allocated.\n");
+                nova_console_write("Firmware page test: reserved page was allocated.\n");
                 return 0;
             }
         }
@@ -644,7 +612,7 @@ static int test_firmware_pages(int memory_regions, int reserved_regions,
     for (i = 0; i < 3U; ++i)
         if (!nova_page_free(pages[i])) return 0;
     if (nova_page_available() != initial) return 0;
-    uart_write("Firmware RAM page allocator tests passed.\n");
+    nova_console_write("Firmware RAM page allocator tests passed.\n");
     return 1;
 }
 
@@ -1146,15 +1114,15 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int reserved_regions;
     uint64_t total_ram = 0;
     size_t region_index;
-    uart_write("Welcome to Nova OS\n");
-    uart_write("AArch64 kernel prototype is running.\n");
-    uart_write_current_el(current_el);
+    nova_console_write("Welcome to Nova OS\n");
+    nova_console_write("AArch64 kernel prototype is running.\n");
+    nova_console_write_current_el(current_el);
 
 #ifdef NOVA_TEST_EL2_BOOT
     if (current_el == 1U) {
-        uart_write("EL2-to-EL1 transition passed.\n");
+        nova_console_write("EL2-to-EL1 transition passed.\n");
     } else {
-        uart_write("ERROR: EL2 boot did not enter EL1.\n");
+        nova_console_write("ERROR: EL2 boot did not enter EL1.\n");
     }
     for (;;) __asm__ volatile("wfe");
 #endif
@@ -1164,64 +1132,64 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     if (memory_regions > 0) {
         for (region_index = 0; region_index < (size_t)memory_regions; ++region_index)
             total_ram += detected_memory[region_index].size;
-        uart_write("FDT memory map parsed. Regions: ");
-        uart_write_hex64((uint64_t)memory_regions);
-        uart_write("FDT total RAM bytes: ");
-        uart_write_hex64(total_ram);
+        nova_console_write("FDT memory map parsed. Regions: ");
+        nova_console_write_hex64((uint64_t)memory_regions);
+        nova_console_write("FDT total RAM bytes: ");
+        nova_console_write_hex64(total_ram);
     } else {
-        uart_write("WARNING: FDT memory map unavailable.\n");
+        nova_console_write("WARNING: FDT memory map unavailable.\n");
     }
 
     reserved_regions = nova_fdt_reserved_regions(
         dtb_address, reserved_memory, NOVA_FDT_MAX_RESERVED_REGIONS);
     if (reserved_regions >= 0) {
-        uart_write("FDT reserved ranges parsed: ");
-        uart_write_hex64((uint64_t)reserved_regions);
+        nova_console_write("FDT reserved ranges parsed: ");
+        nova_console_write_hex64((uint64_t)reserved_regions);
     } else {
-        uart_write("WARNING: FDT reserved ranges unavailable.\n");
+        nova_console_write("WARNING: FDT reserved ranges unavailable.\n");
     }
 
-    if (bss_probe == 0) uart_write("BSS zero initialization verified.\n");
-    else uart_write("ERROR: BSS zero initialization failed.\n");
+    if (bss_probe == 0) nova_console_write("BSS zero initialization verified.\n");
+    else nova_console_write("ERROR: BSS zero initialization failed.\n");
 
-    if (test_heap()) uart_write("Heap allocator tests passed.\n");
-    else uart_write("ERROR: heap allocator test failed.\n");
+    if (test_heap()) nova_console_write("Heap allocator tests passed.\n");
+    else nova_console_write("ERROR: heap allocator test failed.\n");
 
-    if (test_pages()) uart_write("Physical page allocator tests passed.\n");
-    else uart_write("ERROR: physical page allocator test failed.\n");
+    if (test_pages()) nova_console_write("Physical page allocator tests passed.\n");
+    else nova_console_write("ERROR: physical page allocator test failed.\n");
 
     if (memory_regions > 0 && reserved_regions >= 0 &&
         !test_firmware_pages(memory_regions, reserved_regions, dtb_address))
-        uart_write("ERROR: firmware RAM page allocator test failed.\n");
+        nova_console_write("ERROR: firmware RAM page allocator test failed.\n");
 
-    uart_write("Current page map total: ");
-    uart_write_hex64(nova_page_total());
-    uart_write("Current page map available: ");
-    uart_write_hex64(nova_page_available());
+    nova_console_write("Current page map total: ");
+    nova_console_write_hex64(nova_page_total());
+    nova_console_write("Current page map available: ");
+    nova_console_write_hex64(nova_page_available());
 
     if (nova_mmu_enable()) {
-        uart_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
+        nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
         if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
             nova_mmu_verify_identity((uintptr_t)UART0_BASE) &&
             nova_mmu_verify_identity(0x08000000U) &&
             nova_mmu_verify_identity(0x08010000U)) {
-            uart_write("MMU identity translation tests passed.\n");
+            nova_console_write("MMU identity translation tests passed.\n");
         } else {
-            uart_write("ERROR: MMU identity translation test failed.\n");
+            nova_console_write("ERROR: MMU identity translation test failed.\n");
         }
         if (nova_mmu_verify_identity(0x40000000U) &&
             nova_mmu_verify_identity(0x40000fffU) &&
             nova_mmu_verify_identity(0x40001000U) &&
             nova_mmu_verify_identity(0x47ffffffU)) {
-            uart_write("MMU 4 KiB RAM page boundary tests passed.\n");
+            nova_console_write("MMU 4 KiB RAM page boundary tests passed.\n");
         } else {
-            uart_write("ERROR: MMU 4 KiB RAM page boundary test failed.\n");
+            nova_console_write("ERROR: MMU 4 KiB RAM page boundary test failed.\n");
         }
         if (nova_mmu_verify_unmapped(0x1000U) &&
             nova_mmu_verify_unmapped(0x48000000U)) {
-            uart_write("MMU unmapped guard test passed.\n");
+            nova_console_write("MMU unmapped guard test passed.\n");
         } else {
-            uart_write("ERROR: MMU unmapped guard address unexpectedly translated.\n");
+            nova_console_write("ERROR: MMU unmapped guard address unexpectedly translated.\n");
         }
         if (nova_mmu_verify_executable((uintptr_t)&kernel_main) &&
             nova_mmu_verify_write_protected((uintptr_t)&kernel_main) &&
@@ -1229,9 +1197,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             nova_mmu_verify_execute_never((uintptr_t)__rodata_start) &&
             nova_mmu_verify_writable((uintptr_t)&bss_probe) &&
             nova_mmu_verify_execute_never((uintptr_t)&bss_probe)) {
-            uart_write("MMU kernel text/rodata/data permission tests passed.\n");
+            nova_console_write("MMU kernel text/rodata/data permission tests passed.\n");
         } else {
-            uart_write("ERROR: MMU kernel permission test failed.\n");
+            nova_console_write("ERROR: MMU kernel permission test failed.\n");
         }
         {
             uintptr_t root_a=0U,root_b=0U,frame_a,frame_b,translated=0U;
@@ -1263,76 +1231,76 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_user_unmap_page(root_a,1U,user_va)&&nova_mmu_user_unmap_page(root_b,2U,user_va)&&
                nova_mmu_address_space_destroy(root_a)&&nova_mmu_address_space_destroy(root_b)&&
                nova_page_free((void*)frame_a)&&nova_page_free((void*)frame_b))ok=1;
-            if(ok)uart_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
-            else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);uart_write("ERROR: private user mapping/isolation test failed.\n");}
+            if(ok)nova_console_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
+            else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);nova_console_write("ERROR: private user mapping/isolation test failed.\n");}
         }
         if (test_dynamic_virtual_pages()) {
-            uart_write("MMU dynamic map/unmap and permission tests passed.\n");
+            nova_console_write("MMU dynamic map/unmap and permission tests passed.\n");
         } else {
-            uart_write("ERROR: MMU dynamic virtual page test failed.\n");
+            nova_console_write("ERROR: MMU dynamic virtual page test failed.\n");
         }
         if (test_virtual_page_allocator()) {
-            uart_write("Kernel virtual page allocator tests passed.\n");
+            nova_console_write("Kernel virtual page allocator tests passed.\n");
         } else {
-            uart_write("ERROR: kernel virtual page allocator test failed.\n");
+            nova_console_write("ERROR: kernel virtual page allocator test failed.\n");
         }
         if (test_task_lifecycle()) {
-            uart_write("Kernel task lifecycle tests passed.\n");
+            nova_console_write("Kernel task lifecycle tests passed.\n");
         } else {
-            uart_write("ERROR: kernel task lifecycle test failed.\n");
+            nova_console_write("ERROR: kernel task lifecycle test failed.\n");
         }
         if (test_generic_timer()) {
-            uart_write("EL1 generic physical timer tests passed.\n");
+            nova_console_write("EL1 generic physical timer tests passed.\n");
         } else {
-            uart_write("ERROR: EL1 generic physical timer test failed.\n");
+            nova_console_write("ERROR: EL1 generic physical timer test failed.\n");
         }
         if (test_timer_irq()) {
-            uart_write("GICv2 physical timer IRQ tests passed.\n");
+            nova_console_write("GICv2 physical timer IRQ tests passed.\n");
         } else {
-            uart_write("ERROR: GICv2 physical timer IRQ test failed.\n");
+            nova_console_write("ERROR: GICv2 physical timer IRQ test failed.\n");
         }
         if (test_cooperative_scheduler()) {
-            uart_write("Kernel mixed-mode scheduler tests passed.\n");
+            nova_console_write("Kernel mixed-mode scheduler tests passed.\n");
         } else {
-            uart_write("ERROR: kernel cooperative scheduler test failed.\n");
+            nova_console_write("ERROR: kernel cooperative scheduler test failed.\n");
         }
         if (test_irq_preemptive_scheduler()) {
-            uart_write("Kernel cross-address-space CPU-bound IRQ preemption tests passed.\n");
+            nova_console_write("Kernel cross-address-space CPU-bound IRQ preemption tests passed.\n");
         } else {
-            uart_write("ERROR: kernel CPU-bound IRQ preemption test failed.\n");
+            nova_console_write("ERROR: kernel CPU-bound IRQ preemption test failed.\n");
         }
         if (test_arch_context_switch()) {
-            uart_write("AArch64 cooperative context switch test passed.\n");
+            nova_console_write("AArch64 cooperative context switch test passed.\n");
         } else {
-            uart_write("ERROR: AArch64 cooperative context switch test failed.\n");
+            nova_console_write("ERROR: AArch64 cooperative context switch test failed.\n");
         }
     } else {
-        uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
+        nova_console_write("ERROR: EL1 MMU initialization rejected current state.\n");
     }
 
 #ifdef NOVA_TEST_EL0_SVC
     if (current_el == 1U) {
-        uart_write("Starting real EL0 SVC round-trip test.\n");
+        nova_console_write("Starting real EL0 SVC round-trip test.\n");
         if (test_el0_svc_round_trip())
-            uart_write("QEMU EL0 SVC round-trip test passed.\n");
+            nova_console_write("QEMU EL0 SVC round-trip test passed.\n");
         else
-            uart_write("ERROR: QEMU EL0 SVC round-trip test failed.\n");
+            nova_console_write("ERROR: QEMU EL0 SVC round-trip test failed.\n");
     }
 #endif
 
 #ifdef NOVA_TEST_EL0_FAULT
     if (current_el == 1U) {
-        uart_write("Starting EL0 data/instruction-abort containment test.\n");
+        nova_console_write("Starting EL0 data/instruction-abort containment test.\n");
         if (test_el0_fault_containment())
-            uart_write("QEMU EL0 data/instruction-abort containment passed.\n");
+            nova_console_write("QEMU EL0 data/instruction-abort containment passed.\n");
         else
-            uart_write("ERROR: QEMU EL0 data-abort containment failed.\n");
+            nova_console_write("ERROR: QEMU EL0 data-abort containment failed.\n");
     }
 #endif
 
 #ifdef NOVA_TEST_EXCEPTION
     if (current_el == 1) {
-        uart_write("Triggering controlled SVC exception test.\n");
+        nova_console_write("Triggering controlled SVC exception test.\n");
         __asm__ volatile("svc #0" ::: "memory");
     }
 #endif
@@ -1340,10 +1308,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 #ifdef NOVA_TEST_MMU_FAULT
     if (current_el == 1) {
         volatile uint64_t fault_value;
-        uart_write("Triggering controlled MMU translation fault test.\n");
+        nova_console_write("Triggering controlled MMU translation fault test.\n");
         fault_value = *(volatile uint64_t *)0x1000U;
         (void)fault_value;
-        uart_write("ERROR: unmapped MMU read unexpectedly succeeded.\n");
+        nova_console_write("ERROR: unmapped MMU read unexpectedly succeeded.\n");
     }
 #endif
 
@@ -1352,16 +1320,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         uint32_t guard_task;
         struct nova_task_info guard_info;
         volatile uint64_t guard_value;
-        uart_write("Triggering controlled task stack guard fault test.\n");
+        nova_console_write("Triggering controlled task stack guard fault test.\n");
         if (!nova_task_create(test_task_entry, 0, &guard_task) ||
             !nova_task_get(guard_task, &guard_info)) {
-            uart_write("ERROR: task stack guard setup failed.\n");
+            nova_console_write("ERROR: task stack guard setup failed.\n");
             for (;;) __asm__ volatile("wfe");
         }
         guard_value = *(volatile uint64_t *)(guard_info.kernel_stack_base -
                                               NOVA_PAGE_SIZE);
         (void)guard_value;
-        uart_write("ERROR: task stack guard access unexpectedly succeeded.\n");
+        nova_console_write("ERROR: task stack guard access unexpectedly succeeded.\n");
     }
 #endif
 
