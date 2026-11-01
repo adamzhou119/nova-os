@@ -88,8 +88,8 @@ static int test_el0_fault_containment(void) {
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
                                0U, &fault_task) ||
-        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                               NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE,
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE,
+                               NOVA_USER_VA_BASE + 6U * NOVA_PAGE_SIZE,
                                0U, &healthy_task))
         goto cleanup;
 
@@ -130,7 +130,7 @@ cleanup:
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
-        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE);
         (void)nova_mmu_address_space_destroy(root);
     }
