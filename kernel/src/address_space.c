@@ -66,8 +66,9 @@ int nova_address_space_release(uint32_t address_space_id) {
     if (space == 0 || space->info.references == 0U) return 0;
     if (space->info.active_cpus >= space->info.references)
         return 0;
-    if (space->info.references == 1U && destroy_hook != 0 &&
-        !destroy_hook(space->info.root_physical))
+    /* Never discard the registry's final owner while the root is unowned. */
+    if (space->info.references == 1U &&
+        (destroy_hook == 0 || !destroy_hook(space->info.root_physical)))
         return 0;
     --space->info.references;
     if (space->info.references == 0U) {
