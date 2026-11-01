@@ -76,7 +76,7 @@ static void build_test_dtb(void) {
         uint8_t ranges[16] = {
             0U, 0U, 0U, 0U,
             0U, 0U, 0U, 0U, 0x10U, 0U, 0U, 0U,
-            0U, 0x10U, 0U, 0U
+            0U, 0x01U, 0U, 0U
         };
         append_property(11U, one, sizeof(one));
         append_property(26U, one, sizeof(one));
