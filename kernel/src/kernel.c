@@ -344,6 +344,7 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
 /* Bounded UART write: validate every covered user page before dereferencing. */
 static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     uintptr_t page, last_page;
+    char kernel_copy[128];
     uint64_t i;
 
     if (length > 128U) return -22; /* -EINVAL */
@@ -363,9 +364,13 @@ static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
         page += NOVA_PAGE_SIZE;
     }
 
+    /* Copy only after the entire user range has passed EL0 read checks. */
+    for (i = 0U; i < length; ++i)
+        kernel_copy[i] = ((volatile const char *)user_buffer)[i];
+
     uart_write("EL0 user message: ");
     for (i = 0U; i < length; ++i)
-        uart_putc(((volatile const char *)user_buffer)[i]);
+        uart_putc(kernel_copy[i]);
     return (int64_t)length;
 }
 
