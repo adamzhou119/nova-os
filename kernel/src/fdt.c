@@ -707,19 +707,19 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            if (target_interrupts == NULL || target_parent == 0U ||
-                target_interrupts_length < 12U ||
-                (target_interrupts_length % 12U) != 0U) return 0;
+            if (target_interrupts == NULL) return 0; /* No interrupts property. */
+            if (target_parent == 0U || target_interrupts_length < 12U ||
+                (target_interrupts_length % 12U) != 0U) return -13;
             for (i = 0U; i < controller_count; ++i) {
                 if (controller_phandles[i] == target_parent &&
                     controller_cells[i] == 3U) {
                     return nova_fdt_decode_gicv2_interrupt(
                         read_be32(target_interrupts),
                         read_be32(target_interrupts + 4U),
-                        read_be32(target_interrupts + 8U), interrupt_id);
+                        read_be32(target_interrupts + 8U), interrupt_id) ? 1 : -14;
                 }
             }
-            return 0;
+            return -15; /* Interrupt parent is unsupported or not present. */
         } else {
             return -11;
         }
