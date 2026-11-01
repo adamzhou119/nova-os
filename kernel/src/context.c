@@ -3,6 +3,13 @@
 #include "interrupt.h"
 #include "mmu.h"
 
+/*
+ * Host-side lifecycle tests do not link the AArch64 trampoline assembly.
+ * The real kernel's strong assembly definition overrides this weak stub.
+ */
+__attribute__((weak)) void nova_user_task_start_trampoline(void) {
+}
+
 int nova_arch_context_init(struct nova_cpu_context *context,
                            uintptr_t stack_top, uintptr_t entry,
                            uintptr_t argument0, uintptr_t argument1) {
