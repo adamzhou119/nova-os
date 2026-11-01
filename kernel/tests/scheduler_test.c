@@ -338,15 +338,15 @@ int main(void) {
     assert(nova_address_space_release(peer_space_id));
 
     /*
-     * If the return-to-kernel TTBR0 switch fails, the scheduler must not reap
-     * the blocked task or drop its active address-space reference.
+     * If releasing the old active-space reference fails after TTBR0 has
+     * switched to the kernel root, restore the task root and retain ownership.
      */
     {
         struct nova_address_space_info failure_info;
         assert(nova_address_space_create(0x4000U, 9U, &failure_space_id));
         assert(nova_task_create(dummy_entry, 0, &user_task));
         assert(nova_task_set_address_space(user_task, failure_space_id));
-        fail_kernel_space_switch = 1;
+        fail_deactivate_id = failure_space_id;
         failure_mode = 1;
         assert(!nova_sched_start());
         assert(nova_task_get(user_task, &info));
