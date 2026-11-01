@@ -35,6 +35,10 @@ struct nova_device_info {
 int nova_device_add(const struct nova_device_desc *device);
 int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
                              const char *compatible);
+int nova_device_discover_fdt_instance(uintptr_t dtb_address,
+                                      uint32_t device_id,
+                                      const char *compatible,
+                                      size_t instance_index);
 int nova_driver_register(const char *compatible,
                          nova_device_probe_fn probe,
                          nova_device_remove_fn remove);
