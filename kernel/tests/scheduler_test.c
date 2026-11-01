@@ -17,6 +17,7 @@ static uint32_t user_task;
 static uint32_t user_space_id;
 static uint32_t peer_space_id;
 static uint32_t failure_space_id;
+static int user_space_mode;
 static int failure_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
