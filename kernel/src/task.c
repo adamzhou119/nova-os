@@ -119,6 +119,10 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
+    tasks[i].fault_kind = NOVA_TASK_FAULT_NONE;
+    tasks[i].fault_esr = 0U;
+    tasks[i].fault_far = 0U;
+    tasks[i].fault_elr = 0U;
     tasks[i].irq_frame = frame;
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
