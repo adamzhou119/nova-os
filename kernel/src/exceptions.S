@@ -310,10 +310,28 @@ nova_user_test_payload_end:
 .type nova_user_fault_payload_start, %function
 nova_user_fault_payload_start:
     movz    x0, #0x8000, lsl #16
-    add     x0, x0, #0x4000
+    add     x0, x0, #6, lsl #12
     ldr     x1, [x0]
 1:
     b       1b
 nova_user_fault_payload_end:
 .size nova_user_fault_payload_start, nova_user_fault_payload_end - nova_user_fault_payload_start
+/* A healthy peer publishes its task ID and exits after another user task faults. */
+.section .text.user_healthy_test, "ax"
+.balign 4
+.global nova_user_healthy_payload_start
+.global nova_user_healthy_payload_end
+.type nova_user_healthy_payload_start, %function
+nova_user_healthy_payload_start:
+    mov     x8, #0
+    svc     #0
+    str     x0, [sp, #-16]!
+    mov     x8, #1
+    mov     x0, #0
+    svc     #0
+1:
+    b       1b
+nova_user_healthy_payload_end:
+.size nova_user_healthy_payload_start, nova_user_healthy_payload_end - nova_user_healthy_payload_start
+
 
