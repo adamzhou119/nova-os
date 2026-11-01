@@ -257,3 +257,23 @@ exception_vector_panic_el2:
     wfe
     b       1b
 .size exception_vector_panic_el2, . - exception_vector_panic_el2
+
+/* Tiny EL0 test payload: get task id, publish it, then exit via SVC. */
+.section .text.user_test, "ax"
+.balign 4
+.global nova_user_test_payload_start
+.global nova_user_test_payload_end
+.type nova_user_test_payload_start, %function
+nova_user_test_payload_start:
+    mov     x8, #0
+    svc     #0
+    movz    x1, #0x1000
+    movk    x1, #0x8000, lsl #16
+    str     x0, [x1]
+    mov     x8, #1
+    mov     x0, #0
+    svc     #0
+1:
+    b       1b
+nova_user_test_payload_end:
+.size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
