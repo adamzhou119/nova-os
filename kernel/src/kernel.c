@@ -81,9 +81,9 @@ static int test_el0_fault_containment(void) {
                                 fault_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
                                 fault_stack, NOVA_MMU_MAP_WRITABLE) ||
-        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                                healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE,
+                                healthy_code, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_map_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE,
                                 healthy_stack, NOVA_MMU_MAP_WRITABLE) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
@@ -131,7 +131,7 @@ cleanup:
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE);
-        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 4U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 5U * NOVA_PAGE_SIZE);
         (void)nova_mmu_address_space_destroy(root);
     }
     if (fault_code != 0U) (void)nova_page_free((void *)fault_code);
