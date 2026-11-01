@@ -77,7 +77,7 @@ static void build_test_dtb(void) {
     append_be32(2U);
     append_node("uart@b000000");
     {
-        static const char second_uart[] = "vendor,uart\\0arm,pl011\\0";
+        static const char second_uart[] = "vendor,uart\0arm,pl011";
         uint8_t second_reg[16] = {
             0U, 0U, 0U, 0U, 0x0bU, 0U, 0U, 0U,
             0U, 0U, 0U, 0U, 0U, 0U, 0x10U, 0U
@@ -85,7 +85,7 @@ static void build_test_dtb(void) {
         uint8_t parent[4] = {0U, 0U, 0U, 1U};
         uint8_t irq[12] = {0U, 0U, 0U, 0U, 0U, 0U, 0U, 5U,
                            0U, 0U, 0U, 4U};
-        append_property(0U, second_uart, sizeof(second_uart) - 1U);
+        append_property(0U, second_uart, sizeof(second_uart));
         append_property(38U, second_reg, sizeof(second_reg));
         append_property(49U, parent, sizeof(parent));
         append_property(66U, irq, sizeof(irq));
