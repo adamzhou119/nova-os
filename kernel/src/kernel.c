@@ -195,6 +195,10 @@ static int test_el0_svc_round_trip(void) {
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
+    const uint64_t copyout_value = 0x4E4F5641434F5059ULL;
+    const uint8_t cross_source[8] = {
+        0xA5U, 0xA5U, 0xA5U, 0xA5U, 0xA5U, 0xA5U, 0xA5U, 0xA5U
+    };
     size_t i;
     int ok = 0;
 
@@ -221,6 +225,26 @@ static int test_el0_svc_round_trip(void) {
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
                                0U, &task_id))
         goto cleanup;
+
+    if (!nova_mmu_switch_address_space(root, 31U))
+        goto cleanup;
+    if (nova_user_copy_to(NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE + 128U,
+                          &copyout_value, sizeof(copyout_value)) !=
+        (int64_t)sizeof(copyout_value))
+        goto cleanup;
+    if (nova_user_copy_to(NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE - 4U,
+                          cross_source, sizeof(cross_source)) != -14)
+        goto cleanup;
+    if (!nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U))
+        goto cleanup;
+    if (*(volatile const uint64_t *)(stack_page + 128U) != copyout_value)
+        goto cleanup;
+    for (i = 0U; i < 4U; ++i) {
+        if (((volatile const uint8_t *)stack_page)[NOVA_PAGE_SIZE - 4U + i] != 0U)
+            goto cleanup;
+    }
+    uart_write("EL0 copyout valid marker passed.\\n");
+    uart_write("EL0 copyout cross-page range rejected.\\n");
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       2U * sizeof(uint64_t));
