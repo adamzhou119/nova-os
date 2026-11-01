@@ -1057,10 +1057,10 @@ static int test_generic_timer(void) {
     return 1;
 }
 
-static int test_timer_irq(void) {
+static int test_timer_irq(uintptr_t dtb_address) {
     uint64_t frequency;
     uint64_t limit;
-    if (!nova_timer_init() || !nova_gic_init()) return 0;
+    if (!nova_timer_init() || !nova_gic_init(dtb_address)) return 0;
     frequency = nova_timer_frequency();
     if (frequency < 100U || !nova_timer_start_irq(frequency / 100U)) return 0;
     __asm__ volatile("msr daifclr, #2\n\tisb" ::: "memory");
@@ -1305,7 +1305,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         } else {
             nova_console_write("ERROR: EL1 generic physical timer test failed.\n");
         }
-        if (test_timer_irq()) {
+        if (test_timer_irq(dtb_address)) {
             nova_console_write("GICv2 physical timer IRQ tests passed.\n");
         } else {
             nova_console_write("ERROR: GICv2 physical timer IRQ test failed.\n");
