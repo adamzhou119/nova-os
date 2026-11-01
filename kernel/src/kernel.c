@@ -30,6 +30,75 @@ extern char __heap_start[];
 extern char __heap_end[];
 extern char __page_pool_start[];
 extern char __page_pool_end[];
+
+extern const uint8_t nova_user_test_payload_start[];
+extern const uint8_t nova_user_test_payload_end[];
+
+static int test_el0_svc_round_trip(void) {
+    uintptr_t root = 0U;
+    uintptr_t code_page = 0U, result_page = 0U, stack_page = 0U;
+    uint32_t space_id = 0U, task_id = 0U;
+    uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
+                                      nova_user_test_payload_start);
+    volatile uint64_t *result;
+    size_t i;
+    int ok = 0;
+
+    if (code_size == 0U || code_size > NOVA_PAGE_SIZE) return 0;
+    code_page = (uintptr_t)nova_page_alloc();
+    result_page = (uintptr_t)nova_page_alloc();
+    stack_page = (uintptr_t)nova_page_alloc();
+    if (code_page == 0U || result_page == 0U || stack_page == 0U ||
+        !nova_mmu_address_space_create(&root) ||
+        !nova_address_space_create(root, 31U, &space_id))
+        goto cleanup;
+
+    for (i = 0; i < NOVA_PAGE_SIZE; ++i) {
+        ((volatile uint8_t *)code_page)[i] = 0U;
+        ((volatile uint8_t *)result_page)[i] = 0U;
+        ((volatile uint8_t *)stack_page)[i] = 0U;
+    }
+    for (i = 0; i < code_size; ++i)
+        ((volatile uint8_t *)code_page)[i] = nova_user_test_payload_start[i];
+
+    if (!nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE,
+                                code_page, NOVA_MMU_MAP_EXECUTABLE) ||
+        !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
+                                result_page, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
+                                stack_page, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_task_create_user(space_id, NOVA_USER_VA_BASE,
+                               NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
+                               0U, &task_id))
+        goto cleanup;
+
+    result = (volatile uint64_t *)result_page;
+    if (!nova_sched_start()) goto cleanup;
+    ok = *result == task_id;
+
+cleanup:
+    (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
+    if (task_id != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(task_id, &info) &&
+            info.state == NOVA_TASK_READY)
+            (void)nova_task_destroy(task_id);
+    }
+    if (space_id != 0U) {
+        (void)nova_address_space_release(space_id);
+        if (root != 0U) {
+            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE);
+            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
+            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
+            (void)nova_mmu_address_space_destroy(root);
+        }
+    }
+    if (code_page != 0U) (void)nova_page_free((void *)code_page);
+    if (result_page != 0U) (void)nova_page_free((void *)result_page);
+    if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
+    return ok;
+}
+
 static volatile uint64_t bss_probe;
 static struct nova_memory_region detected_memory[NOVA_FDT_MAX_MEMORY_REGIONS];
 static struct nova_memory_region reserved_memory[NOVA_FDT_MAX_RESERVED_REGIONS];
@@ -978,6 +1047,16 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     } else {
         uart_write("ERROR: EL1 MMU initialization rejected current state.\n");
     }
+
+#ifdef NOVA_TEST_EL0_SVC
+    if (current_el == 1U) {
+        uart_write("Starting real EL0 SVC round-trip test.\\n");
+        if (test_el0_svc_round_trip())
+            uart_write("QEMU EL0 SVC round-trip test passed.\\n");
+        else
+            uart_write("ERROR: QEMU EL0 SVC round-trip test failed.\\n");
+    }
+#endif
 
 #ifdef NOVA_TEST_EXCEPTION
     if (current_el == 1) {
