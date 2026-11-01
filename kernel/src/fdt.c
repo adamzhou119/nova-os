@@ -597,7 +597,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     int depth = -1;
     uint32_t i;
 
-    if (dtb_address == 0U || compatible == NULL || compatible[0] == '\\0' ||
+    if (dtb_address == 0U || compatible == NULL || compatible[0] == '\0' ||
         interrupt_id == NULL) return -1;
     if (read_be32(base) != FDT_MAGIC) return -2;
     total_size = read_be32(base + 4U);
@@ -678,6 +678,9 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             } else if (fdt_string_equals(strings, strings_size, name_offset, "#interrupt-cells") &&
                        length == 4U) {
                 interrupt_cells[depth] = read_be32(data);
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "interrupt-controller") && length == 0U) {
+                node_is_interrupt_controller[depth] = 1;
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "interrupt-controller") && length == 0U) {
                 node_is_interrupt_controller[depth] = 1;
