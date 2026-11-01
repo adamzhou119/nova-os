@@ -60,9 +60,7 @@ static int test_el0_svc_round_trip(void) {
     for (i = 0; i < code_size; ++i)
         ((volatile uint8_t *)code_page)[i] = nova_user_test_payload_start[i];
 
-    if (!nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE,
-                                result_page, NOVA_MMU_MAP_WRITABLE) ||
-        !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
+    if (!nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                 code_page, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
                                 stack_page, NOVA_MMU_MAP_WRITABLE) ||
