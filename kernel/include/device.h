@@ -39,6 +39,15 @@ int nova_device_discover_fdt_instance(uintptr_t dtb_address,
                                       uint32_t device_id,
                                       const char *compatible,
                                       size_t instance_index);
+/* Atomically register every matching node (reg tuple zero). Returns 1 on
+ * success, including zero matches; returns 0 without changing the registry
+ * on malformed input, ID collision/overflow, or insufficient capacity.
+ * discovered_count receives the number registered on success.
+ */
+int nova_device_discover_fdt_all(uintptr_t dtb_address,
+                                 uint32_t first_device_id,
+                                 const char *compatible,
+                                 size_t *discovered_count);
 int nova_driver_register(const char *compatible,
                          nova_device_probe_fn probe,
                          nova_device_remove_fn remove);
