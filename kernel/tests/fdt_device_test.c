@@ -100,6 +100,7 @@ static void build_test_dtb(void) {
         uint8_t phandle[4] = {0U, 0U, 0U, 1U};
         uint8_t cells[4] = {0U, 0U, 0U, 3U};
         static const uint8_t empty = 0U;
+        append_property(0U, gic_compatible, sizeof(gic_compatible));
         append_property(77U, phandle, sizeof(phandle));
         append_property(85U, cells, sizeof(cells));
         append_property(102U, &empty, 0U);
