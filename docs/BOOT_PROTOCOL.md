@@ -74,7 +74,7 @@ boot specification.
   and add EL2/EL3 vector tables plus trap handling.
 - Add typed synchronous, FIQ, and SError handlers with explicit recovery or
   terminal-fault policies.
-- Pin and document a supported QEMU/toolchain version matrix.
+- [x] Pin and document the CI-supported toolchain set: Ubuntu 26.04 runner, Clang/LLD 21.1.6-71, and QEMU 10.2.1+ds-1ubuntu3.3.
 - Validate the boot contract on a second virtual platform or documented
   physical development board.
 - Add per-CPU state before enabling secondary processors.
