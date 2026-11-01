@@ -243,14 +243,18 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         for (;;) __asm__ volatile("wfe");
     }
     if (frame->x[8] == 0U) {
+#ifdef NOVA_TEST_EL0_SVC
         uart_write("EL0 SVC get-task-id; current task: ");
         uart_write_hex64(nova_sched_current());
+#endif
         frame->x[0] = (uint64_t)nova_sched_current();
     } else if (frame->x[8] == 1U) {
+#ifdef NOVA_TEST_EL0_SVC
         uart_write("EL0 SVC exit; current task: ");
         uart_write_hex64(nova_sched_current());
         uart_write("EL0 SVC exit SP_EL0: ");
         uart_write_hex64(frame->sp_el0);
+#endif
         uint32_t task_id = nova_sched_current();
         (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
         nova_sched_task_exit();
