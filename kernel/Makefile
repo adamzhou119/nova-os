@@ -46,7 +46,7 @@ host-test: | $(BUILD)
 	$(BUILD)/page-allocator-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vm_test.c src/vm.c -o $(BUILD)/vm-test
 	$(BUILD)/vm-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/device_test.c src/device.c -o $(BUILD)/device-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/device_test.c src/device.c src/fdt.c -o $(BUILD)/device-test
 	$(BUILD)/device-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fdt_device_test.c src/fdt.c src/device.c -o $(BUILD)/fdt-device-test
 	$(BUILD)/fdt-device-test
