@@ -86,12 +86,12 @@ cleanup:
     }
     if (space_id != 0U) {
         (void)nova_address_space_release(space_id);
-        if (root != 0U) {
-            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE);
-            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
-            (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
-            (void)nova_mmu_address_space_destroy(root);
-        }
+    }
+    if (root != 0U) {
+        (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE);
+        (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
+        (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
+        (void)nova_mmu_address_space_destroy(root);
     }
     if (code_page != 0U) (void)nova_page_free((void *)code_page);
     if (result_page != 0U) (void)nova_page_free((void *)result_page);
@@ -1050,11 +1050,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 
 #ifdef NOVA_TEST_EL0_SVC
     if (current_el == 1U) {
-        uart_write("Starting real EL0 SVC round-trip test.\\n");
+        uart_write("Starting real EL0 SVC round-trip test.\n");
         if (test_el0_svc_round_trip())
-            uart_write("QEMU EL0 SVC round-trip test passed.\\n");
+            uart_write("QEMU EL0 SVC round-trip test passed.\n");
         else
-            uart_write("ERROR: QEMU EL0 SVC round-trip test failed.\\n");
+            uart_write("ERROR: QEMU EL0 SVC round-trip test failed.\n");
     }
 #endif
 
