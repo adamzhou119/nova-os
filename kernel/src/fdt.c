@@ -548,3 +548,23 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
     }
     return -17;
 }
+
+
+int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
+                                    uint32_t flags, uint32_t *interrupt_id) {
+    uint32_t id;
+    if (interrupt_id == NULL || (flags != 1U && flags != 2U &&
+                                 flags != 4U && flags != 8U))
+        return 0;
+    if (type == 0U) { /* SPI: INTID = number + 32. */
+        if (number > 987U) return 0; /* GICv2 INTIDs end at 1019. */
+        id = number + 32U;
+    } else if (type == 1U) { /* PPI: INTID = number + 16. */
+        if (number > 15U) return 0;
+        id = number + 16U;
+    } else {
+        return 0;
+    }
+    *interrupt_id = id;
+    return 1;
+}
