@@ -123,6 +123,30 @@ int main(void) {
     blob[0] = 0U;
     assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                 &device) < 0);
-    puts("FDT device discovery host tests passed.");
+    {
+        uint32_t interrupt_id = 0U;
+        assert(nova_fdt_decode_gicv2_interrupt(0U, 1U, 4U,
+                                               &interrupt_id) == 1);
+        assert(interrupt_id == 33U);
+        assert(nova_fdt_decode_gicv2_interrupt(1U, 14U, 4U,
+                                               &interrupt_id) == 1);
+        assert(interrupt_id == 30U);
+        assert(nova_fdt_decode_gicv2_interrupt(1U, 15U, 1U,
+                                               &interrupt_id) == 1);
+        assert(interrupt_id == 31U);
+        assert(nova_fdt_decode_gicv2_interrupt(0U, 987U, 8U,
+                                               &interrupt_id) == 1);
+        assert(interrupt_id == 1019U);
+        assert(nova_fdt_decode_gicv2_interrupt(0U, 988U, 4U,
+                                               &interrupt_id) == 0);
+        assert(nova_fdt_decode_gicv2_interrupt(1U, 16U, 4U,
+                                               &interrupt_id) == 0);
+        assert(nova_fdt_decode_gicv2_interrupt(2U, 0U, 4U,
+                                               &interrupt_id) == 0);
+        assert(nova_fdt_decode_gicv2_interrupt(0U, 1U, 0U,
+                                               &interrupt_id) == 0);
+        assert(nova_fdt_decode_gicv2_interrupt(0U, 1U, 4U, NULL) == 0);
+    }
+    puts("FDT device discovery and GICv2 decoding host tests passed.");
     return 0;
 }
