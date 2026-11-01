@@ -82,6 +82,7 @@ Remaining:
 - [x] Make user map/unmap/protect alias accounting reject counter overflow and inconsistent pin/permission counts before mutating descriptors (CI run 634).
 - [x] Verify final-reference teardown reclaims a still-mapped writable user frame and a new address space can safely reuse the released ASID with no inherited user translation (QEMU run 635).
 - [x] Track mapped-frame references separately from generic page pins; final teardown preflights that every mapped alias has a corresponding pin before releasing any mapping (CI run 640).
+- [x] Validate EL0 task entry/stack alignment, user address bounds, and actual page-table execute/write permissions before allocating a kernel stack or retaining the address space; host rejection tests and QEMU permission checks passed (CI run 649).
 
 Exit criteria: documented memory, exception, timer, and scheduling behavior under the virtual platform, with repeatable host and QEMU evidence. The current prototype remains single-core and QEMU-specific.
 
