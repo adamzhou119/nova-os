@@ -651,6 +651,35 @@ int nova_mmu_verify_user_access(uintptr_t va,int write) {
 }
 
 
+int nova_mmu_user_verify_page(uintptr_t root_physical, uint16_t asid,
+                              uintptr_t va, unsigned int flags) {
+    uint64_t *l2, *l3, desc;
+    size_t i2, i3;
+    int writable = (flags & NOVA_MMU_MAP_WRITABLE) != 0U;
+    int executable = (flags & NOVA_MMU_MAP_EXECUTABLE) != 0U;
+
+    if (asid == 0U || asid > 255U ||
+        (flags & ~(NOVA_MMU_MAP_WRITABLE | NOVA_MMU_MAP_EXECUTABLE)) != 0U ||
+        (writable && executable) ||
+        (va & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
+        !user_va_indices(va, &i2, &i3))
+        return 0;
+    l2 = user_l2_for_root(root_physical);
+    if (l2 == NULL ||
+        (l2[i2] & (DESC_VALID | DESC_TABLE)) != (DESC_VALID | DESC_TABLE))
+        return 0;
+    l3 = (uint64_t *)(uintptr_t)(l2[i2] & DESC_ADDR_MASK);
+    if (!nova_page_is_allocated(l3)) return 0;
+    desc = l3[i3];
+    if ((desc & (DESC_VALID | DESC_PAGE)) != (DESC_VALID | DESC_PAGE) ||
+        (desc & DESC_AP_MASK) !=
+            (writable ? DESC_AP_USER_RW : DESC_AP_USER_RO) ||
+        (desc & DESC_PXN) == 0U ||
+        descriptor_is_executable(desc) != executable)
+        return 0;
+    return 1;
+}
+
 int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
                                uintptr_t va, unsigned int flags) {
     uint64_t *l2, *l3, *slot, old_desc, new_desc;
