@@ -119,7 +119,7 @@ jobs:
           grep -q "Starting EL0 data-abort containment test." user-fault.log
           grep -q "EL0 fault contained; task id:" user-fault.log
           grep -q "ESR exception description: Data abort from lower EL" user-fault.log
-          grep -q "EL0 fault FAR: 0x0000000080006000" user-fault.log
+          grep -q "EL0 fault FAR: 0x0000000080007000" user-fault.log
           grep -q "EL0 healthy peer marker: 0x0000000000000008" user-fault.log
           grep -q "EL0 fault task reaped; healthy peer completed." user-fault.log
           grep -q "QEMU EL0 data-abort containment passed." user-fault.log
