@@ -165,7 +165,7 @@ int main(void) {
     {
         int instance_result = nova_fdt_find_device_instance(
             (uintptr_t)blob, "arm,pl011", 1U, 0U, &device);
-        printf("second compatible node lookup: result=%d base=%lx size=%lx\\n",
+        fprintf(stderr, "second compatible node lookup: result=%d base=%lx size=%lx\\n",
                instance_result, (unsigned long)device.mmio_base,
                (unsigned long)device.mmio_size);
         assert(instance_result == 1);
