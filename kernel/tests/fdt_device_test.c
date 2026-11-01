@@ -68,6 +68,7 @@ static void build_test_dtb(void) {
     cells[14] = 0x10U;
     cells[15] = 0x00U;
     append_property(38U, cells, sizeof(cells));
+    append_be32(2U);
     append_node("soc");
     {
         uint8_t one[4] = {0U, 0U, 0U, 1U};
