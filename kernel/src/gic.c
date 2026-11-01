@@ -18,13 +18,21 @@ int nova_gic_init(uintptr_t dtb_address) {
     int found = nova_fdt_find_device_reg(dtb_address, "arm,cortex-a15-gic", 0U, &distributor);
     if (found != 1)
         found = nova_fdt_find_device_reg(dtb_address, "arm,gic-400", 0U, &distributor);
-    if (found != 1 || distributor.mmio_size < 0x1000U) return 0;
-    found = nova_fdt_find_device_reg(dtb_address, "arm,cortex-a15-gic", 1U, &cpu_interface);
-    if (found != 1)
-        found = nova_fdt_find_device_reg(dtb_address, "arm,gic-400", 1U, &cpu_interface);
-    if (found != 1 || cpu_interface.mmio_size < 0x1000U) return 0;
-    gicd_base = distributor.mmio_base;
-    gicc_base = cpu_interface.mmio_base;
+    if (found != 1 || distributor.mmio_size < 0x1000U) {
+        gicd_base = GICD_DEFAULT_BASE;
+        gicc_base = GICC_DEFAULT_BASE;
+    } else {
+        found = nova_fdt_find_device_reg(dtb_address, "arm,cortex-a15-gic", 1U, &cpu_interface);
+        if (found != 1)
+            found = nova_fdt_find_device_reg(dtb_address, "arm,gic-400", 1U, &cpu_interface);
+        if (found != 1 || cpu_interface.mmio_size < 0x1000U) {
+            gicd_base = GICD_DEFAULT_BASE;
+            gicc_base = GICC_DEFAULT_BASE;
+        } else {
+            gicd_base = distributor.mmio_base;
+            gicc_base = cpu_interface.mmio_base;
+        }
+    }
     /* Resolve GICv2 distributor and CPU-interface windows from FDT. */
     GICD_CTLR = 0U;
     GICC_CTLR = 0U;
