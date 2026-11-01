@@ -390,6 +390,8 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
 #ifdef NOVA_TEST_EL0_SVC
         if (written == -14)
             uart_write("EL0 write syscall rejected invalid pointer.\n");
+        if (written == -22)
+            uart_write("EL0 write syscall rejected excessive length.\n");
 #endif
         frame->x[0] = (uint64_t)written;
     } else if (frame->x[8] == 1U) {
