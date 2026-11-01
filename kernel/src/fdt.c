@@ -597,8 +597,10 @@ int nova_fdt_decode_gicv2_interrupt(uint32_t type, uint32_t number,
 
 #define FDT_MAX_GIC_CONTROLLERS 16U
 
-int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
-                            uint32_t *interrupt_id) {
+static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
+                                       const char *compatible,
+                                       size_t instance_index,
+                                       uint32_t *interrupt_id) {
     const uint8_t *base = (const uint8_t *)dtb_address;
     const uint8_t *structure;
     const uint8_t *strings;
@@ -617,6 +619,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     uint32_t controller_count = 0U;
     uint32_t target_parent = 0U;
     int target_found = 0;
+    size_t matched_targets = 0U;
     const uint8_t *target_interrupts = NULL;
     uint32_t target_interrupts_length = 0U;
     int depth = -1;
@@ -658,15 +661,16 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
             node_interrupts_length[depth] = 0U;
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -7;
-            if (!target_found && node_compatible[depth] != NULL &&
+            if (node_compatible[depth] != NULL &&
                 compatible_list_contains(node_compatible[depth],
                                          node_compatible_length[depth],
-                                         compatible) &&
-                node_interrupts[depth] != NULL) {
-                target_parent = current_parent[depth];
-                target_interrupts = node_interrupts[depth];
-                target_interrupts_length = node_interrupts_length[depth];
-                target_found = 1;
+                                         compatible)) {
+                if (matched_targets++ == instance_index) {
+                    target_parent = current_parent[depth];
+                    target_interrupts = node_interrupts[depth];
+                    target_interrupts_length = node_interrupts_length[depth];
+                    target_found = 1;
+                }
             }
             if (node_is_interrupt_controller[depth] && node_phandle[depth] != 0U &&
                 interrupt_cells[depth] == 3U && node_compatible[depth] != NULL &&
@@ -720,7 +724,7 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            if (target_interrupts == NULL) return 0; /* No interrupts property. */
+            if (!target_found || target_interrupts == NULL) return 0; /* No matching node or IRQ property. */
             if (target_parent == 0U || target_interrupts_length < 12U ||
                 (target_interrupts_length % 12U) != 0U) return -13;
             for (i = 0U; i < controller_count; ++i) {
@@ -739,3 +743,19 @@ int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
     }
     return -12;
 }
+
+
+int nova_fdt_find_gicv2_irq(uintptr_t dtb_address, const char *compatible,
+                            uint32_t *interrupt_id) {
+    return fdt_find_gicv2_irq_instance(dtb_address, compatible, 0U,
+                                       interrupt_id);
+}
+
+int nova_fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
+                                     const char *compatible,
+                                     size_t instance_index,
+                                     uint32_t *interrupt_id) {
+    return fdt_find_gicv2_irq_instance(dtb_address, compatible,
+                                       instance_index, interrupt_id);
+}
+
