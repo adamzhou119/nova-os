@@ -167,7 +167,7 @@ cleanup:
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 8U * NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 32U, NOVA_USER_VA_BASE + 9U * NOVA_PAGE_SIZE);
         if (space_id != 0U) (void)nova_address_space_release(space_id);
-        else (void)nova_mmu_address_space_destroy(root);
+        else (void)nova_mmu_address_space_destroy(root, 32U);
     }
     if (data_code != 0U) (void)nova_page_free((void *)data_code);
     if (data_stack != 0U) (void)nova_page_free((void *)data_stack);
@@ -266,7 +266,7 @@ cleanup:
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE);
         if (space_id != 0U) (void)nova_address_space_release(space_id);
-        else (void)nova_mmu_address_space_destroy(root);
+        else (void)nova_mmu_address_space_destroy(root, 31U);
     }
     if (code_page != 0U) (void)nova_page_free((void *)code_page);
     if (stack_page != 0U) (void)nova_page_free((void *)stack_page);
@@ -1006,7 +1006,7 @@ cleanup:
         if (!nova_address_space_release(space_a))
             result = 0;
     } else if (space_a == 0U && root_a != 0U) {
-        if (!nova_mmu_address_space_destroy(root_a)) result = 0;
+        if (!nova_mmu_address_space_destroy(root_a, 11U)) result = 0;
     }
     if (space_b != 0U &&
         nova_address_space_get(space_b, &address_space) &&
@@ -1014,7 +1014,7 @@ cleanup:
         if (!nova_address_space_release(space_b))
             result = 0;
     } else if (space_b == 0U && root_b != 0U) {
-        if (!nova_mmu_address_space_destroy(root_b)) result = 0;
+        if (!nova_mmu_address_space_destroy(root_b, 12U)) result = 0;
     }
     return result;
 }
