@@ -79,7 +79,7 @@ Exit criteria: documented memory, exception, timer, and scheduling behavior unde
 ## Milestone 3 — System service model
 
 - [x] Write the initial driver and service lifecycle, resource ownership, trust-boundary, and validation contracts in [DRIVER_SERVICE_FOUNDATIONS.md](DRIVER_SERVICE_FOUNDATIONS.md). This is design-only; no generic driver registry, IPC transport, or service manager is implemented.
-- [x] Extract early console output behind a small kernel console API with a QEMU virt PL011 backend; generic device discovery and driver registration remain unimplemented.
+- [x] Extract early console output behind a small kernel console API with a QEMU virt PL011 backend; all 17 build, host, and QEMU checks passed in run 613. Generic device discovery and driver registration remain unimplemented.
 - Define process and service boundaries.
 - Design capability-based access control.
 - Define IPC and service lifecycle.
