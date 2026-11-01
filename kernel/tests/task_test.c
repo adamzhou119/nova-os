@@ -11,7 +11,8 @@ static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
 static int fail_first_space_destroy = 1;
-static int destroy_test_space(uintptr_t root) {
+static int destroy_test_space(uintptr_t root, uint16_t asid) {
+    (void)asid;
     if (root == 0x40008000U && fail_first_space_destroy) {
         fail_first_space_destroy = 0;
         return 0;
