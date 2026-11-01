@@ -28,7 +28,7 @@ Model output is not authorization. Each tool call must be checked against a capa
 
 ## Kernel prototype boundary
 
-The `kernel/` directory is an experimental bare-metal AArch64 kernel for QEMU `virt`. It now includes FDT-backed physical memory allocation, a bounded kernel virtual mapping window with W^X checks, EL1 exception diagnostics, a GICv2/generic-timer path, task lifecycle management, cooperative switching, and single-core timer-driven IRQ preemption. It does not yet provide SMP, user-mode processes, per-process address spaces, a general driver model, networking/storage, or the system-service and application layers.
+The `kernel/` directory is an experimental bare-metal AArch64 kernel for QEMU `virt`. It now includes FDT-backed physical memory allocation, a bounded kernel virtual mapping window with W^X checks, EL1 exception diagnostics, a GICv2/generic-timer path, task lifecycle management, cooperative switching, and single-core timer-driven IRQ preemption. It remains single-core. It has EL0 tasks and private address spaces, but does not yet provide SMP, a general driver model, networking/storage, or the system-service and application layers.
 
 ## Platform assumptions to validate
 
