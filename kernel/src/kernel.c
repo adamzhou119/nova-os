@@ -74,11 +74,11 @@ static int test_el0_fault_containment(void) {
     uart_write("EL0 fault test task prepared; task id: ");
     uart_write_hex64(task_id);
     if (!nova_sched_start()) {
-        uart_write("EL0 fault test scheduler returned failure.\\n");
+        uart_write("EL0 fault test scheduler returned failure.\n");
         goto cleanup;
     }
     ok = !nova_task_get(task_id, &(struct nova_task_info){0});
-    if (ok) uart_write("EL0 fault task was reaped; kernel continued.\\n");
+    if (ok) uart_write("EL0 fault task was reaped; kernel continued.\n");
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
@@ -1184,11 +1184,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 
 #ifdef NOVA_TEST_EL0_FAULT
     if (current_el == 1U) {
-        uart_write("Starting EL0 data-abort containment test.\\n");
+        uart_write("Starting EL0 data-abort containment test.\n");
         if (test_el0_fault_containment())
-            uart_write("QEMU EL0 data-abort containment passed.\\n");
+            uart_write("QEMU EL0 data-abort containment passed.\n");
         else
-            uart_write("ERROR: QEMU EL0 data-abort containment failed.\\n");
+            uart_write("ERROR: QEMU EL0 data-abort containment failed.\n");
     }
 #endif
 
