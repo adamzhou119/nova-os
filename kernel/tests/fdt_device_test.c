@@ -42,7 +42,7 @@ static void append_property(uint32_t name_offset, const void *data,
 
 static void build_test_dtb(void) {
     static const char strings[] =
-        "compatible\\0#address-cells\\0#size-cells\\0reg\\0ranges\\0interrupt-parent\\0interrupts\\0phandle\\0#interrupt-cells\\0interrupt-controller\\0";
+        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0";
     static const char compatibles[] = "vendor,uart\0arm,pl011\0";
     uint8_t cells[16];
     uint32_t structure_offset = 56U;
