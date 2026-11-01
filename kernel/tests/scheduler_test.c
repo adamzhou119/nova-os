@@ -22,6 +22,7 @@ static int failure_mode;
 static uintptr_t mock_ttbr_root = 0x1000U;
 static uint16_t mock_ttbr_asid;
 static int fail_kernel_space_switch;
+static int fail_task_space_switch;
 static uint32_t fail_deactivate_id;
 
 int nova_sched_address_space_activate(uint32_t id) {
@@ -41,6 +42,8 @@ void nova_task_start_trampoline(void) {}
 uintptr_t nova_mmu_kernel_root(void) { return 0x1000U; }
 int nova_mmu_switch_address_space(uintptr_t root, uint16_t asid) {
     if (fail_kernel_space_switch && root == 0x1000U && asid == 0U)
+        return 0;
+    if (fail_task_space_switch && root == 0x5000U && asid == 10U)
         return 0;
     mock_ttbr_root = root;
     mock_ttbr_asid = asid;
@@ -336,6 +339,29 @@ int main(void) {
     assert(space.references == 1U && space.active_cpus == 0U);
     assert(nova_address_space_release(user_space_id));
     assert(nova_address_space_release(peer_space_id));
+
+    /*
+     * A failed task-space TTBR0 install must drop the just-acquired active
+     * reference, leave the task READY, and keep the kernel translation root.
+     */
+    {
+        struct nova_address_space_info entry_info;
+        assert(nova_address_space_create(0x5000U, 10U, &failure_space_id));
+        assert(nova_task_create(dummy_entry, 0, &user_task));
+        assert(nova_task_set_address_space(user_task, failure_space_id));
+        fail_task_space_switch = 1;
+        assert(nova_sched_start());
+        fail_task_space_switch = 0;
+        assert(nova_task_get(user_task, &info));
+        assert(info.state == NOVA_TASK_READY);
+        assert(nova_address_space_get(failure_space_id, &entry_info));
+        assert(entry_info.references == 2U && entry_info.active_cpus == 0U);
+        assert(mock_ttbr_root == 0x1000U && mock_ttbr_asid == 0U);
+        assert(nova_task_transition(user_task, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(user_task));
+        assert(nova_address_space_release(failure_space_id));
+    }
 
     /*
      * If releasing the old active-space reference fails after TTBR0 has
