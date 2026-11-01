@@ -150,10 +150,41 @@ exception_user_sync_entry:
     str     x16, [sp, #280]
     mov     x0, sp
     bl      nova_user_sync_dispatch
-1:
-    wfe
-    b       1b
+    bl      nova_user_sync_dispatch
+    b       nova_arch_user_sync_resume
 .size exception_user_sync_entry, . - exception_user_sync_entry
+
+.section .text, "ax"
+/* Restore a complete 288-byte EL0 trap frame and return with ERET. */
+.global nova_arch_user_sync_resume
+.type nova_arch_user_sync_resume, %function
+nova_arch_user_sync_resume:
+    mov     sp, x0
+    ldr     x16, [sp, #256]
+    msr     SPSR_EL1, x16
+    ldr     x16, [sp, #248]
+    msr     ELR_EL1, x16
+    ldr     x16, [sp, #264]
+    msr     SP_EL0, x16
+    ldp x2, x3, [sp, #16]
+    ldp x4, x5, [sp, #32]
+    ldp x6, x7, [sp, #48]
+    ldp x8, x9, [sp, #64]
+    ldp x10, x11, [sp, #80]
+    ldp x12, x13, [sp, #96]
+    ldp x14, x15, [sp, #112]
+    ldp x16, x17, [sp, #128]
+    ldp x18, x19, [sp, #144]
+    ldp x20, x21, [sp, #160]
+    ldp x22, x23, [sp, #176]
+    ldp x24, x25, [sp, #192]
+    ldp x26, x27, [sp, #208]
+    ldp x28, x29, [sp, #224]
+    ldr x30, [sp, #240]
+    ldp x0, x1, [sp, #0]
+    add     sp, sp, #288
+    eret
+.size nova_arch_user_sync_resume, . - nova_arch_user_sync_resume
 
 .section .text, "ax"
 .global exception_vector_panic

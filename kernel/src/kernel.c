@@ -151,17 +151,25 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
 }
 
 /*
- * Initial lower-EL synchronous trap policy is deliberately fail-closed.
- * The assembly entry captures the complete user frame; syscall dispatch and
- * task-local fault recovery are enabled only after user task lifecycle exists.
+ * Minimal EL0 SVC ABI: x8 selects the syscall; x0 is the return value.
+ * Syscall 0 returns the current task ID. Unknown calls return -ENOSYS (-38).
+ * Other synchronous exceptions remain terminal until fault isolation exists.
  */
-__attribute__((noreturn))
-void nova_user_sync_dispatch(uintptr_t frame_address) {
-    const struct nova_user_trap_frame *frame =
-        (const struct nova_user_trap_frame *)frame_address;
-    exception_report(frame->esr_el1, frame->elr_el1, 8U,
-                     frame->far_el1, frame->spsr_el1);
-    for (;;) __asm__ volatile("wfe");
+uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
+    struct nova_user_trap_frame *frame =
+        (struct nova_user_trap_frame *)frame_address;
+    uint32_t exception_class = (uint32_t)((frame->esr_el1 >> 26) & 0x3fU);
+    if ((frame->spsr_el1 & 0xfU) != 0U || exception_class != 0x15U) {
+        exception_report(frame->esr_el1, frame->elr_el1, 8U,
+                         frame->far_el1, frame->spsr_el1);
+        for (;;) __asm__ volatile("wfe");
+    }
+    if (frame->x[8] == 0U)
+        frame->x[0] = (uint64_t)nova_sched_current();
+    else
+        frame->x[0] = (uint64_t)(int64_t)-38;
+    frame->elr_el1 += 4U;
+    return frame_address;
 }
 
 static int test_heap(void) {
