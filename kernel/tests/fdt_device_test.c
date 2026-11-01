@@ -162,8 +162,14 @@ int main(void) {
     assert(device.mmio_base == (uintptr_t)0x0a000000U);
     assert(device.mmio_size == 0x2000U);
     assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,pl011", 2U, &device) == 0);
-    assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
-                                         1U, 0U, &device) == 1);
+    {
+        int instance_result = nova_fdt_find_device_instance(
+            (uintptr_t)blob, "arm,pl011", 1U, 0U, &device);
+        printf("second compatible node lookup: result=%d base=%lx size=%lx\\n",
+               instance_result, (unsigned long)device.mmio_base,
+               (unsigned long)device.mmio_size);
+        assert(instance_result == 1);
+    }
     assert(device.mmio_base == (uintptr_t)0x0b000000U);
     assert(device.mmio_size == 0x1000U);
     assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
