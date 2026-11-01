@@ -241,10 +241,10 @@ int nova_device_discover_fdt_all(uintptr_t dtb_address,
         desc->mmio_base = fdt_device.mmio_base;
         desc->mmio_size = fdt_device.mmio_size;
         desc->irq = result == 1 ? irq : NOVA_DEVICE_NO_IRQ;
-        for (free_slots = 0U; compatible_copy[free_slots] != '\\0';
+        for (free_slots = 0U; compatible_copy[free_slots] != '\0';
              ++free_slots)
             desc->compatible[free_slots] = compatible_copy[free_slots];
-        desc->compatible[free_slots] = '\\0';
+        desc->compatible[free_slots] = '\0';
         ++count;
     }
 
