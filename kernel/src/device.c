@@ -1,4 +1,5 @@
 #include "device.h"
+#include "fdt.h"
 
 #include <stddef.h>
 
@@ -168,4 +169,28 @@ int nova_device_get(uint32_t device_id, struct nova_device_info *info) {
     if (device == 0 || info == 0) return 0;
     *info = device->info;
     return 1;
+}
+
+
+int nova_device_discover_fdt(uintptr_t dtb_address, uint32_t device_id,
+                             const char *compatible) {
+    struct nova_fdt_device fdt_device;
+    struct nova_device_desc desc;
+    uint32_t irq = NOVA_DEVICE_NO_IRQ;
+    int result;
+    size_t i;
+    if (device_id == 0U || compatible == NULL || compatible[0] == '\0') return 0;
+    result = nova_fdt_find_device(dtb_address, compatible, &fdt_device);
+    if (result != 1) return 0;
+    result = nova_fdt_find_gicv2_irq(dtb_address, compatible, &irq);
+    if (result < 0) return 0;
+    for (i = 0U; compatible[i] != '\0' && i < NOVA_DEVICE_COMPATIBLE_MAX; ++i)
+        desc.compatible[i] = compatible[i];
+    if (i == 0U || i >= NOVA_DEVICE_COMPATIBLE_MAX) return 0;
+    desc.compatible[i] = '\0';
+    desc.id = device_id;
+    desc.mmio_base = fdt_device.mmio_base;
+    desc.mmio_size = fdt_device.mmio_size;
+    desc.irq = result == 1 ? irq : NOVA_DEVICE_NO_IRQ;
+    return nova_device_add(&desc);
 }
