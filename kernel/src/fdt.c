@@ -368,6 +368,52 @@ static int compatible_list_contains(const uint8_t *data, uint32_t length,
     return 0;
 }
 
+static int translate_fdt_bus_address(
+    uint64_t *address, uint64_t device_size, int bus_depth,
+    const uint32_t *parent_address_cells,
+    const uint32_t *child_address_cells,
+    const uint32_t *child_size_cells,
+    const uint8_t *const *ranges_data,
+    const uint32_t *ranges_length) {
+    int depth;
+    for (depth = bus_depth; depth > 0; --depth) {
+        uint32_t child_ac = child_address_cells[depth];
+        uint32_t parent_ac = parent_address_cells[depth];
+        uint32_t size_cells = child_size_cells[depth];
+        uint32_t tuple_cells, tuple_bytes, pos;
+        int matched = 0;
+        if (ranges_data[depth] == NULL) return 0;
+        if (ranges_length[depth] == 0U) continue; /* Empty ranges: identity. */
+        if (child_ac == 0U || child_ac > 2U || parent_ac == 0U ||
+            parent_ac > 2U || size_cells == 0U || size_cells > 2U)
+            return 0;
+        tuple_cells = child_ac + parent_ac + size_cells;
+        tuple_bytes = tuple_cells * 4U;
+        if (ranges_length[depth] == 0U ||
+            ranges_length[depth] % tuple_bytes != 0U) return 0;
+        for (pos = 0U; pos < ranges_length[depth]; pos += tuple_bytes) {
+            uint64_t child_base, parent_base, span, offset;
+            const uint8_t *tuple = ranges_data[depth] + pos;
+            if (!read_cells(tuple, child_ac, &child_base) ||
+                !read_cells(tuple + child_ac * 4U, parent_ac, &parent_base) ||
+                !read_cells(tuple + (child_ac + parent_ac) * 4U,
+                            size_cells, &span) || span == 0U ||
+                child_base > UINT64_MAX - span ||
+                parent_base > UINT64_MAX - span)
+                return 0;
+            if (*address < child_base) continue;
+            offset = *address - child_base;
+            if (offset >= span || device_size > span - offset) continue;
+            if (parent_base > UINT64_MAX - offset) return 0;
+            *address = parent_base + offset;
+            matched = 1;
+            break;
+        }
+        if (!matched) return 0;
+    }
+    return 1;
+}
+
 int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                          struct nova_fdt_device *device) {
     const uint8_t *base = (const uint8_t *)dtb_address;
@@ -383,6 +429,8 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
     uint32_t compatible_length[FDT_MAX_DEPTH];
     const uint8_t *reg_data[FDT_MAX_DEPTH];
     uint32_t reg_length[FDT_MAX_DEPTH];
+    const uint8_t *ranges_data[FDT_MAX_DEPTH];
+    uint32_t ranges_length[FDT_MAX_DEPTH];
     int depth = -1;
 
     if (dtb_address == 0U || compatible == NULL || device == NULL ||
@@ -421,6 +469,8 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
             compatible_length[depth] = 0U;
             reg_data[depth] = NULL;
             reg_length[depth] = 0U;
+            ranges_data[depth] = NULL;
+            ranges_length[depth] = 0U;
         } else if (token == FDT_END_NODE) {
             uint32_t ac, sc, tuple_bytes;
             uint64_t address, size;
@@ -441,7 +491,11 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                 if (!read_cells(reg_data[depth], ac, &address) ||
                     !read_cells(reg_data[depth] + ac * 4U, sc, &size) ||
                     size == 0U || address > UINT64_MAX - size ||
-                    address > UINTPTR_MAX || size > SIZE_MAX)
+                    address > UINTPTR_MAX || size > SIZE_MAX ||
+                    !translate_fdt_bus_address(&address, size, depth - 1,
+                        parent_address_cells, child_address_cells,
+                        child_size_cells, ranges_data, ranges_length) ||
+                    address > UINTPTR_MAX || address > UINT64_MAX - size)
                     return -10;
                 device->mmio_base = (uintptr_t)address;
                 device->mmio_size = (size_t)size;
@@ -466,6 +520,10 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                                          "reg")) {
                 reg_data[depth] = data;
                 reg_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "ranges")) {
+                ranges_data[depth] = data;
+                ranges_length[depth] = length;
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
