@@ -106,7 +106,14 @@ static void build_test_dtb(void) {
         uint8_t phandle[4] = {0U, 0U, 0U, 1U};
         uint8_t cells[4] = {0U, 0U, 0U, 3U};
         static const uint8_t empty = 0U;
+        static const uint8_t gic_regs[32] = {
+            0U, 0U, 0x08U, 0U,  0U, 0U, 1U, 0U,
+            0U, 0U, 0x08U, 1U,  0U, 0U, 0x20U, 0U,
+            0U, 0U, 0x08U, 2U,  0U, 0U, 1U, 0U,
+            0U, 0U, 0x08U, 3U,  0U, 0U, 1U, 0U
+        };
         append_property(0U, gic_compatible, sizeof(gic_compatible));
+        append_property(38U, gic_regs, sizeof(gic_regs));
         append_property(77U, phandle, sizeof(phandle));
         append_property(85U, cells, sizeof(cells));
         append_property(102U, &empty, 0U);
@@ -142,6 +149,20 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,gic-400", 0U,
+                                    &device) == 1);
+    assert(device.mmio_base == (uintptr_t)0x08000000U);
+    assert(device.mmio_size == 0x10000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,gic-400", 1U,
+                                    &device) == 1);
+    assert(device.mmio_base == (uintptr_t)0x08010000U);
+    assert(device.mmio_size == 0x2000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,gic-400", 2U,
+                                    &device) == 1);
+    assert(device.mmio_base == (uintptr_t)0x08020000U);
+    assert(device.mmio_size == 0x1000U);
+    assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,gic-400", 4U,
+                                    &device) == 0);
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,missing",
                                 &device) == 0);
     {
