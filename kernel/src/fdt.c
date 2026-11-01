@@ -414,8 +414,8 @@ static int translate_fdt_bus_address(
     return 1;
 }
 
-int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
-                         struct nova_fdt_device *device) {
+static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
+                               size_t reg_index, struct nova_fdt_device *device) {
     const uint8_t *base = (const uint8_t *)dtb_address;
     const uint8_t *structure;
     const uint8_t *strings;
@@ -488,8 +488,9 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
                 if (reg_length[depth] < tuple_bytes ||
                     reg_length[depth] % tuple_bytes != 0U)
                     return -9;
-                if (!read_cells(reg_data[depth], ac, &address) ||
-                    !read_cells(reg_data[depth] + ac * 4U, sc, &size) ||
+                if (reg_index >= reg_length[depth] / tuple_bytes) return 0;
+                if (!read_cells(reg_data[depth] + reg_index * tuple_bytes, ac, &address) ||
+                    !read_cells(reg_data[depth] + reg_index * tuple_bytes + ac * 4U, sc, &size) ||
                     size == 0U || address > UINT64_MAX - size ||
                     address > UINTPTR_MAX || size > SIZE_MAX ||
                     !translate_fdt_bus_address(&address, size, depth - 1,
@@ -547,6 +548,17 @@ int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
         }
     }
     return -17;
+}
+
+
+int nova_fdt_find_device(uintptr_t dtb_address, const char *compatible,
+                         struct nova_fdt_device *device) {
+    return fdt_find_device_reg(dtb_address, compatible, 0U, device);
+}
+
+int nova_fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
+                             size_t reg_index, struct nova_fdt_device *device) {
+    return fdt_find_device_reg(dtb_address, compatible, reg_index, device);
 }
 
 
