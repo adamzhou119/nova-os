@@ -422,14 +422,21 @@ int nova_task_destroy(uint32_t task_id) {
             task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN))))
         return 0;
     stack = task->kernel_stack_base;
+    /*
+     * Free the non-runnable task's kernel stack before dropping its final
+     * address-space reference: the release hook may irreversibly destroy the
+     * page-table root. If teardown then fails, keep a stackless ZOMBIE record
+     * so a later destroy call can retry without resurrecting freed resources.
+     */
+    if (stack != 0U && !nova_vmap_free_guarded_page((void *)stack))
+        return 0;
+    task->kernel_stack_base = 0U;
+    task->kernel_stack_top = 0U;
+    task->irq_frame = 0;
+    task->state = NOVA_TASK_ZOMBIE;
     if (task->address_space_id != 0U &&
         !nova_address_space_release(task->address_space_id))
         return 0;
-    if (!nova_vmap_free_guarded_page((void *)stack)) {
-        if (task->address_space_id != 0U)
-            (void)nova_address_space_retain(task->address_space_id);
-        return 0;
-    }
     task->id = 0;
     task->address_space_id = 0U;
     task->state = NOVA_TASK_UNUSED;
