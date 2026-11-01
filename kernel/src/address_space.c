@@ -38,7 +38,10 @@ int nova_address_space_create(uintptr_t root_physical, uint16_t asid,
         return 0;
 
     for (i = 0; i < NOVA_ADDRESS_SPACE_MAX; ++i) {
-        if (spaces[i].used && spaces[i].info.asid == asid) return 0;
+        if (spaces[i].used &&
+            (spaces[i].info.asid == asid ||
+             spaces[i].info.root_physical == root_physical))
+            return 0;
     }
     for (i = 0; i < NOVA_ADDRESS_SPACE_MAX; ++i)
         if (!spaces[i].used) break;
