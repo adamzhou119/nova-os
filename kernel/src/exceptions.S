@@ -275,3 +275,18 @@ nova_user_test_payload_start:
     b       1b
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
+/* Deliberately read an unmapped EL0 address to exercise task fault containment. */
+.section .text.user_fault_test, "ax"
+.balign 4
+.global nova_user_fault_payload_start
+.global nova_user_fault_payload_end
+.type nova_user_fault_payload_start, %function
+nova_user_fault_payload_start:
+    movz    x0, #0x8000, lsl #16
+    add     x0, x0, #0x4000
+    ldr     x1, [x0]
+1:
+    b       1b
+nova_user_fault_payload_end:
+.size nova_user_fault_payload_start, nova_user_fault_payload_end - nova_user_fault_payload_start
+
