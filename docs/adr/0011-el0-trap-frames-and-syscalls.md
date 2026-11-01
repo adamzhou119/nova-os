@@ -52,12 +52,13 @@ the user policy:
   malformed frames remain fatal.
 
 The first syscall ABI is intentionally tiny and versioned. It uses x8 as the
-syscall number and x0-x5 as arguments; x0 is the return value. The initial
-syscall set is limited to write to the existing diagnostic UART and exit.
-All pointers and lengths must be validated against the current address space
-before dereference. No user pointer may be passed directly to an unbounded
-kernel string routine. Unknown syscall numbers return a defined negative
-error and do not panic the kernel.
+syscall number and x0-x5 as arguments; x0 is the return value. The bootstrap syscall set is deliberately narrower than the eventual
+service ABI: syscall 0 returns the current task ID for bring-up verification,
+and syscall 1 exits the current task with the value in x0. A bounded UART
+write syscall is deferred until user-pointer and length validation exist.
+No user pointer may be passed directly to an unbounded kernel string routine.
+Unknown syscall numbers return a defined negative error and do not panic the
+kernel.
 
 ## Entry and scheduling invariants
 
