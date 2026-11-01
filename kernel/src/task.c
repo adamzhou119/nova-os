@@ -10,6 +10,7 @@
 #include "vm.h"
 
 extern void nova_task_start_trampoline(void);
+extern void nova_user_task_start_trampoline(void);
 
 #define NOVA_TASK_STACK_SIZE 4096U
 
@@ -117,10 +118,15 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].irq_frame = frame;
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
-    {
-        size_t reg;
-        for (reg = 0; reg < 12U; ++reg) tasks[i].context.x19_x30[reg] = 0U;
-        tasks[i].context.sp = 0U;
+    if (!nova_arch_context_init(&tasks[i].context,
+                                tasks[i].kernel_stack_top,
+                                (uintptr_t)nova_user_task_start_trampoline,
+                                (uintptr_t)frame, 0U)) {
+        (void)nova_address_space_release(address_space_id);
+        (void)nova_vmap_free_guarded_page(stack);
+        tasks[i].id = 0U;
+        tasks[i].state = NOVA_TASK_UNUSED;
+        return 0;
     }
     *task_id = id;
     return 1;
