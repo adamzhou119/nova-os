@@ -6,7 +6,8 @@
 
 static uintptr_t destroyed_root;
 static int destroy_calls;
-static int destroy_root(uintptr_t root) {
+static int destroy_root(uintptr_t root, uint16_t asid) {
+    (void)asid;
     ++destroy_calls;
     destroyed_root = root;
     return root != 0xDEAD000U;
