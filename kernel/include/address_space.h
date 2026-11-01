@@ -23,7 +23,7 @@ struct nova_address_space_info {
  * Mutations must be serialized; this prototype is single-core. ASIDs are limited
  * to 1..255 until 16-bit ASID support is enabled and architecture-tested.
  */
-typedef int (*nova_address_space_destroy_fn)(uintptr_t root_physical);
+typedef int (*nova_address_space_destroy_fn)(uintptr_t root_physical, uint16_t asid);
 int nova_address_space_set_destroy_hook(nova_address_space_destroy_fn destroy);
 int nova_address_space_create(uintptr_t root_physical, uint16_t asid,
                               uint32_t *address_space_id);
