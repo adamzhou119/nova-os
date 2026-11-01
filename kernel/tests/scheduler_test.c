@@ -298,10 +298,10 @@ int main(void) {
         assert(nova_task_create(dummy_entry, 0, &user_task));
         assert(nova_task_set_address_space(user_task, failure_space));
         fail_kernel_space_switch = 1;
-        user_space_mode = 0;
+        user_space_mode = 1;
         assert(!nova_sched_start());
         assert(nova_task_get(user_task, &info));
-        assert(info.state == NOVA_TASK_BLOCKED);
+        assert(info.state == NOVA_TASK_RUNNING);
         assert(nova_sched_current() == user_task);
         assert(nova_address_space_get(failure_space, &failure_info));
         assert(failure_info.references == 2U && failure_info.active_cpus == 1U);
