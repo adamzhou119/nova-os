@@ -1233,6 +1233,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             size_t pages_before = nova_page_available();
             frame_a=(uintptr_t)nova_page_alloc(); frame_b=(uintptr_t)nova_page_alloc();
             frame_shared=(uintptr_t)nova_page_alloc();
+            /* Make the allocated data frame deterministically unlike an L1 root. */
+            if(frame_a)((uint64_t*)frame_a)[0]=0U;
             if(frame_a&&frame_b&&frame_shared&&nova_mmu_address_space_create(&root_a)&&
                nova_mmu_address_space_create(&root_b)&&
                nova_address_space_create(root_a,1U,&id_a)&&nova_address_space_create(root_b,2U,&id_b)&&
