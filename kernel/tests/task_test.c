@@ -57,7 +57,7 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, third, address_space_id, user_space_id, user_first;
+    uint32_t first, second, third, fourth, fifth, address_space_id, user_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -324,6 +324,21 @@ int main(void) {
         assert(!nova_task_get(third, &info));
     }
     assert(freed_stacks == 4);
+
+    /* Zombie reaping must continue past one failed release and retry it later. */
+    assert(nova_task_create(dummy_entry, 0, &fourth));
+    assert(nova_task_create(dummy_entry, 0, &fifth));
+    assert(nova_task_transition(fourth, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(fourth, NOVA_TASK_ZOMBIE));
+    assert(nova_task_transition(fifth, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(fifth, NOVA_TASK_ZOMBIE));
+    fail_next_stack_free = 1;
+    assert(nova_task_reap_zombies() == 1);
+    assert(nova_task_get(fourth, &info) && info.state == NOVA_TASK_ZOMBIE);
+    assert(!nova_task_get(fifth, &info));
+    assert(nova_task_reap_zombies() == 1);
+    assert(!nova_task_get(fourth, &info));
+    assert(freed_stacks == 6);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
