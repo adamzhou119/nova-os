@@ -265,9 +265,12 @@ int main(void) {
                                     ((uint32_t)blob[9U] << 16) |
                                     ((uint32_t)blob[10U] << 8) |
                                     (uint32_t)blob[11U];
+        uint32_t irq = UINT32_MAX;
         put_be32(12U, structure_offset + 4U);
         assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                     &device) < 0);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "arm,pl011",
+                                       &irq) < 0);
         put_be32(12U, strings_offset);
     }
     {
