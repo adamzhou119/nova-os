@@ -220,6 +220,27 @@ static void build_test_dtb(void) {
 int main(void) {
     struct nova_fdt_device device = {0U, 0U};
     build_test_dtb();
+    {
+        struct nova_memory_region reserved[8];
+        uint32_t original_reserve_offset =
+            ((uint32_t)blob[16U] << 24) |
+            ((uint32_t)blob[17U] << 16) |
+            ((uint32_t)blob[18U] << 8) |
+            (uint32_t)blob[19U];
+        /* The fixture has an empty, aligned reservation map before structure. */
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) == 0);
+        put_be32(16U, 44U); /* Reservation map must be 8-byte aligned. */
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+        put_be32(16U, 32U); /* It must not overlap the header. */
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+        put_be32(16U, 56U); /* It must not overlap the structure block. */
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+        put_be32(16U, original_reserve_offset);
+        /* A non-terminating entry cannot run into the structure block. */
+        put_be32(original_reserve_offset, 1U);
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+        put_be32(original_reserve_offset, 0U);
+    }
     assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x09000000U);
     assert(device.mmio_size == 0x1000U);
