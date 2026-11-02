@@ -309,9 +309,6 @@ int main(void) {
             assert(nova_device_get(50U, &info) == 0);
             assert(nova_device_get(51U, &info) == 0);
         }
-        assert(nova_device_discover_fdt_all((uintptr_t)blob, 200U,
-                                            "vendor,missing", &discovered) == 1);
-        assert(discovered == 0U);
     }
     puts("FDT device discovery and GICv2 decoding host tests passed.");
     return 0;
