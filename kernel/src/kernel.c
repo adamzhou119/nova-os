@@ -1244,6 +1244,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_user_map_page(root_b,2U,shared_va,frame_shared,0U)&&
                nova_mmu_user_map_page(root_b,2U,shared_va+NOVA_PAGE_SIZE,frame_shared,0U)&&
                nova_page_pin_count((const void*)frame_shared)==3U&&
+               nova_page_unpin((const void*)frame_shared)&&
+               !nova_mmu_user_unmap_page(root_b,2U,shared_va)&&
+               nova_page_pin((const void*)frame_shared)&&
+               nova_page_pin_count((const void*)frame_shared)==3U&&
                !nova_mmu_user_protect_page(root_b,2U,shared_va,NOVA_MMU_MAP_WRITABLE)&&
                nova_mmu_switch_address_space(root_a,1U)&&nova_mmu_translate(user_va,&translated)&&translated==frame_a&&
                nova_mmu_verify_user_access(user_va,0)&&nova_mmu_verify_user_access(user_va,1)&&
