@@ -451,6 +451,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
     const uint8_t *status_data[FDT_MAX_DEPTH];
     uint32_t status_length[FDT_MAX_DEPTH];
     int depth = -1;
+    int found = 0;
     size_t matched_instances = 0U;
 
     if (dtb_address == 0U || compatible == NULL || device == NULL ||
@@ -530,7 +531,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                         return -10;
                     device->mmio_base = (uintptr_t)address;
                     device->mmio_size = (size_t)size;
-                    return 1;
+                    found = 1;
                 }
             }
             --depth;
@@ -577,7 +578,9 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            return 0;
+            /* Do not accept a match until the complete structure block has
+             * been checked; malformed trailing nodes must fail discovery. */
+            return depth == -1 ? found : -17;
         } else {
             return -16;
         }
