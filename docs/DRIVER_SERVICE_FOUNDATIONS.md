@@ -85,3 +85,17 @@ specified, explicit user confirmation.
 This milestone does not promise Android compatibility, phone hardware support,
 SMP, DMA isolation, a production IPC transport, or an operational AI agent.
 Those require separate designs and hardware-backed validation.
+
+
+### Disabled-node filtering and atomic batch discovery
+
+FDT device discovery now skips nodes whose `status` property is not exactly
+`"okay"` or `"ok"`; a missing `status` property retains the Device Tree
+default of enabled. The IRQ-instance scanner applies the same enabled-node and
+`reg`-presence filters as MMIO discovery so instance indices stay aligned.
+
+The batch registration path validates all matching enabled nodes, generated
+IDs, and available registry slots before changing the registry. Host coverage
+includes disabled-node exclusion, empty matches, ID collision/overflow, and
+insufficient registry capacity. The implementation remains limited to the
+currently supported GICv2 `interrupts` binding and first `reg` tuple.
