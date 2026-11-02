@@ -273,6 +273,12 @@ int nova_sched_start(void) {
             nova_arch_context_switch(&scheduler_context, context);
         }
 
+        /*
+         * Reaching this point means the selected task successfully ran and
+         * yielded/blocked/exited back to the scheduler. Do not count successful
+         * dispatches against the bounded budget for repeatedly failing tasks.
+         */
+        failed_dispatches = 0U;
         execution_phase = NOVA_SCHED_SCHEDULER;
         if (!scheduler_return_to_kernel_space()) {
             irq_restore(saved_daif);
