@@ -91,6 +91,19 @@ static void build_test_dtb(void) {
         append_property(66U, irq, sizeof(irq));
     }
     append_be32(2U);
+    append_node("uart@c000000");
+    {
+        static const char disabled_uart[] = "vendor,uart\\0arm,pl011";
+        static const char disabled_status[] = "disabled";
+        uint8_t disabled_reg[16] = {
+            0U, 0U, 0U, 0U, 0x0cU, 0U, 0U, 0U,
+            0U, 0U, 0U, 0U, 0U, 0U, 0x10U, 0U
+        };
+        append_property(0U, disabled_uart, sizeof(disabled_uart));
+        append_property(38U, disabled_reg, sizeof(disabled_reg));
+        append_property(123U, disabled_status, sizeof(disabled_status));
+    }
+    append_be32(2U);
     append_node("soc");
     {
         uint8_t one[4] = {0U, 0U, 0U, 1U};
@@ -217,6 +230,8 @@ int main(void) {
             assert(nova_device_discover_fdt_all((uintptr_t)blob, 20U,
                                                 "arm,pl011", &discovered) == 1);
             assert(discovered == 2U);
+            assert(nova_fdt_find_device_instance((uintptr_t)blob, "arm,pl011",
+                                                 2U, 0U, &device) == 0);
             assert(nova_device_get(20U, &first) == 1);
             assert(first.desc.mmio_base == (uintptr_t)0x09000000U);
             assert(first.desc.irq == NOVA_DEVICE_NO_IRQ);
