@@ -469,7 +469,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
 
     structure = base + struct_offset;
     strings = base + strings_offset;
-    while (cursor + 4U <= struct_size) {
+    while (cursor <= struct_size && struct_size - cursor >= 4U) {
         uint32_t token = read_be32(structure + cursor);
         cursor += 4U;
         if (token == FDT_BEGIN_NODE) {
@@ -477,6 +477,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
             while (cursor < struct_size && structure[cursor] != 0U) ++cursor;
             if (cursor >= struct_size) return -5;
             ++cursor;
+            if (cursor > UINT32_MAX - 3U) return -6;
             cursor = (cursor + 3U) & ~3U;
             if (cursor > struct_size) return -6;
             ++depth;
@@ -519,26 +520,29 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                     if (reg_length[depth] < tuple_bytes ||
                         reg_length[depth] % tuple_bytes != 0U)
                         return -9;
-                    if (reg_index >= reg_length[depth] / tuple_bytes) return 0;
-                    if (!read_cells(reg_data[depth] + reg_index * tuple_bytes, ac, &address) ||
+                    if (reg_index < reg_length[depth] / tuple_bytes &&
+                        (!read_cells(reg_data[depth] + reg_index * tuple_bytes, ac, &address) ||
                         !read_cells(reg_data[depth] + reg_index * tuple_bytes + ac * 4U, sc, &size) ||
                         size == 0U || address > UINT64_MAX - size ||
                         address > UINTPTR_MAX || size > SIZE_MAX ||
                         !translate_fdt_bus_address(&address, size, depth - 1,
                             parent_address_cells, child_address_cells,
                             child_size_cells, ranges_data, ranges_length) ||
-                        address > UINTPTR_MAX || address > UINT64_MAX - size)
+                        address > UINTPTR_MAX || address > UINT64_MAX - size))
                         return -10;
-                    device->mmio_base = (uintptr_t)address;
-                    device->mmio_size = (size_t)size;
-                    found = 1;
+                    if (reg_index < reg_length[depth] / tuple_bytes) {
+                        device->mmio_base = (uintptr_t)address;
+                        device->mmio_size = (size_t)size;
+                        found = 1;
+                    }
                 }
             }
             --depth;
         } else if (token == FDT_PROP) {
             uint32_t length, name_offset;
             const uint8_t *data;
-            if (depth < 0 || cursor + 8U > struct_size) return -11;
+            if (depth < 0 || cursor > struct_size ||
+                struct_size - cursor < 8U) return -11;
             length = read_be32(structure + cursor);
             name_offset = read_be32(structure + cursor + 4U);
             cursor += 8U;
@@ -573,6 +577,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                 child_size_cells[depth] = cells;
             }
             cursor += length;
+            if (cursor > UINT32_MAX - 3U) return -15;
             cursor = (cursor + 3U) & ~3U;
             if (cursor > struct_size) return -15;
         } else if (token == FDT_NOP) {
