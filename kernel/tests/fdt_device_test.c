@@ -41,6 +41,47 @@ static void append_property(uint32_t name_offset, const void *data,
     append_bytes(data, length);
 }
 
+static uint8_t *find_first_status_value(uint32_t *length_out) {
+    uint32_t cursor = 56U;
+    uint32_t end = 56U + 0U;
+    end = read_be32(blob + 36U) + 56U;
+    while (cursor + 4U <= end) {
+        uint32_t token = ((uint32_t)blob[cursor] << 24) |
+                         ((uint32_t)blob[cursor + 1U] << 16) |
+                         ((uint32_t)blob[cursor + 2U] << 8) |
+                         (uint32_t)blob[cursor + 3U];
+        cursor += 4U;
+        if (token == 1U) {
+            while (cursor < end && blob[cursor] != 0U) ++cursor;
+            if (cursor >= end) return NULL;
+            ++cursor;
+            cursor = (cursor + 3U) & ~3U;
+        } else if (token == 3U) {
+            uint32_t length = ((uint32_t)blob[cursor] << 24) |
+                              ((uint32_t)blob[cursor + 1U] << 16) |
+                              ((uint32_t)blob[cursor + 2U] << 8) |
+                              (uint32_t)blob[cursor + 3U];
+            uint32_t name_offset = ((uint32_t)blob[cursor + 4U] << 24) |
+                                  ((uint32_t)blob[cursor + 5U] << 16) |
+                                  ((uint32_t)blob[cursor + 6U] << 8) |
+                                  (uint32_t)blob[cursor + 7U];
+            uint32_t data_offset = cursor + 8U;
+            if (length > end - data_offset) return NULL;
+            if (name_offset == 123U) {
+                *length_out = length;
+                return blob + data_offset;
+            }
+            cursor = data_offset + length;
+            cursor = (cursor + 3U) & ~3U;
+        } else if (token == 2U || token == 4U) {
+            continue;
+        } else {
+            break;
+        }
+    }
+    return NULL;
+}
+
 static void build_test_dtb(void) {
     static const char strings[] =
         "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0status\0";
@@ -317,6 +358,29 @@ int main(void) {
             assert(nova_device_get(50U, &info) == 0);
             assert(nova_device_get(51U, &info) == 0);
         }
+    }
+    {
+        uint32_t status_length = 0U;
+        uint8_t *status = find_first_status_value(&status_length);
+        uint8_t saved_last;
+        size_t discovered = 99U;
+        struct nova_fdt_device malformed_device;
+        struct nova_device_info info;
+        assert(status != NULL && status_length == 5U);
+        saved_last = status[status_length - 1U];
+        status[status_length - 1U] = (uint8_t)'X';
+        assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
+                                    &malformed_device) < 0);
+        {
+            uint32_t irq = UINT32_MAX;
+            assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "arm,pl011",
+                                           &irq) < 0);
+        }
+        assert(nova_device_discover_fdt_all((uintptr_t)blob, 60U,
+                                            "arm,pl011", &discovered) == 0);
+        assert(discovered == 0U);
+        assert(nova_device_get(60U, &info) == 0);
+        status[status_length - 1U] = saved_last;
     }
     puts("FDT device discovery and GICv2 decoding host tests passed.");
     return 0;
