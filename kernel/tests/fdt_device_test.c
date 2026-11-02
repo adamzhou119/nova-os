@@ -8,6 +8,7 @@
 
 static uint8_t blob[1024];
 static uint32_t structure_cursor;
+static uint32_t memory_reg_data_offset;
 
 static void put_be32(uint32_t offset, uint32_t value) {
     blob[offset] = (uint8_t)(value >> 24);
@@ -199,6 +200,21 @@ static void build_test_dtb(void) {
         append_property(102U, &empty, 0U);
     }
     append_be32(2U); /* Close the intc node. */
+    append_node("memory@40000000");
+    {
+        /* Root bus widths are 2/2, so this reg is four cells wide.
+         * The memory node's own 1/1 properties apply only to its children. */
+        uint8_t memory_reg[16] = {
+            0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U,
+            0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U
+        };
+        uint8_t one[4] = {0U, 0U, 0U, 1U};
+        memory_reg_data_offset = structure_cursor + 12U;
+        append_property(38U, memory_reg, sizeof(memory_reg));
+        append_property(11U, one, sizeof(one));
+        append_property(26U, one, sizeof(one));
+    }
+    append_be32(2U); /* Close the memory node. */
     append_be32(2U); /* Close the root node. */
     append_be32(9U);
 
@@ -221,6 +237,19 @@ int main(void) {
     struct nova_fdt_device device = {0U, 0U};
     struct nova_memory_region memory[8];
     build_test_dtb();
+    assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) == 1);
+    assert(memory[0].start == 0x40000000ULL);
+    assert(memory[0].size == 0x40000000ULL);
+    {
+        uint8_t saved_size[8];
+        memcpy(saved_size, blob + memory_reg_data_offset + 8U,
+               sizeof(saved_size));
+        /* A wrapping physical range is malformed, not silently discarded. */
+        memset(blob + memory_reg_data_offset + 8U, 0xff, sizeof(saved_size));
+        assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
+        memcpy(blob + memory_reg_data_offset + 8U, saved_size,
+               sizeof(saved_size));
+    }
     {
         uint8_t saved_root_begin[4];
         struct nova_memory_region regions[8];
