@@ -219,6 +219,7 @@ static void build_test_dtb(void) {
 
 int main(void) {
     struct nova_fdt_device device = {0U, 0U};
+    struct nova_memory_region memory[8];
     build_test_dtb();
     {
         struct nova_memory_region reserved[8];
