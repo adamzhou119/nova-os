@@ -207,7 +207,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            return found > capacity ? -1 : (int)found;
+            return depth == -1 ? (found > capacity ? -1 : (int)found) : -18;
         } else {
             return -16;
         }
@@ -377,7 +377,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            return (int)found;
+            return depth == -1 ? (int)found : -19;
         } else {
             return -18;
         }
