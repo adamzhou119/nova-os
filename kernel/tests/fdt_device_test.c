@@ -257,6 +257,20 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,missing",
                                 &device) == 0);
     {
+        uint32_t strings_offset = ((uint32_t)blob[12U] << 24) |
+                                  ((uint32_t)blob[13U] << 16) |
+                                  ((uint32_t)blob[14U] << 8) |
+                                  (uint32_t)blob[15U];
+        uint32_t structure_offset = ((uint32_t)blob[8U] << 24) |
+                                    ((uint32_t)blob[9U] << 16) |
+                                    ((uint32_t)blob[10U] << 8) |
+                                    (uint32_t)blob[11U];
+        put_be32(12U, structure_offset + 4U);
+        assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
+                                    &device) < 0);
+        put_be32(12U, strings_offset);
+    }
+    {
         uint32_t end_offset = 56U +
             (((uint32_t)blob[36U] << 24) |
              ((uint32_t)blob[37U] << 16) |
