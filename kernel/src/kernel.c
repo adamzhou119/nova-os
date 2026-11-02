@@ -1270,6 +1270,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_address_space_create(root_c,1U,&id_c)&&
                nova_mmu_switch_address_space(root_c,1U)&&
                !nova_mmu_verify_user_access(user_va,0)&&
+               !nova_mmu_address_space_destroy(root_c,1U)&&
+               nova_address_space_get(id_c,&teardown_info)&&
+               teardown_info.root_physical==root_c&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
                nova_address_space_release(id_c)&&
                 nova_page_unpin((const void*)frame_b)&&!nova_address_space_release(id_b)&&
