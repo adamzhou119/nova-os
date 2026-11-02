@@ -198,7 +198,8 @@ static void build_test_dtb(void) {
         append_property(85U, cells, sizeof(cells));
         append_property(102U, &empty, 0U);
     }
-    append_be32(2U);
+    append_be32(2U); /* Close the intc node. */
+    append_be32(2U); /* Close the root node. */
     append_be32(9U);
 
     memcpy(blob + structure_cursor, strings, sizeof(strings));
