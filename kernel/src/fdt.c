@@ -16,6 +16,15 @@ static uint32_t read_be32(const uint8_t *p) {
            (uint32_t)p[3];
 }
 
+/* These parsers consume the v17 structure-size header field. Reject older
+ * layouts and blobs requiring a newer incompatible format revision. */
+static int fdt_header_version_supported(const uint8_t *base) {
+    uint32_t version = read_be32(base + 20U);
+    uint32_t last_compatible = read_be32(base + 24U);
+    return version >= 17U && last_compatible <= 17U &&
+           last_compatible <= version;
+}
+
 /* Returns 1 for enabled, 0 for a well-formed disabled/unknown state,
  * and -1 when the property is not exactly one NUL-terminated string. */
 static int fdt_node_status_enabled(const uint8_t *status, uint32_t length) {
@@ -86,6 +95,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
     if (dtb_address == 0 || regions == NULL || capacity == 0) return -1;
     if (read_be32(base) != FDT_MAGIC) return -2;
+    if (!fdt_header_version_supported(base)) return -3;
 
     total_size = read_be32(base + 4U);
     struct_offset = read_be32(base + 8U);
@@ -234,6 +244,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
 
     if (dtb_address == 0 || regions == NULL || capacity == 0) return -1;
     if (read_be32(base) != FDT_MAGIC) return -2;
+    if (!fdt_header_version_supported(base)) return -3;
     total_size = read_be32(base + 4U);
     reserve_offset = read_be32(base + 16U);
     struct_offset = read_be32(base + 8U);
@@ -372,7 +383,8 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
 size_t nova_fdt_total_size(uintptr_t dtb_address) {
     const uint8_t *base = (const uint8_t *)dtb_address;
     uint32_t total;
-    if (dtb_address == 0 || read_be32(base) != FDT_MAGIC) return 0;
+    if (dtb_address == 0 || read_be32(base) != FDT_MAGIC ||
+        !fdt_header_version_supported(base)) return 0;
     total = read_be32(base + 4U);
     if (total < FDT_HEADER_SIZE) return 0;
     return (size_t)total;
@@ -474,6 +486,7 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
     if (dtb_address == 0U || compatible == NULL || device == NULL ||
         compatible[0] == '\0') return -1;
     if (read_be32(base) != FDT_MAGIC) return -2;
+    if (!fdt_header_version_supported(base)) return -3;
     total_size = read_be32(base + 4U);
     struct_offset = read_be32(base + 8U);
     strings_offset = read_be32(base + 12U);
@@ -691,6 +704,7 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
     if (dtb_address == 0U || compatible == NULL || compatible[0] == '\0' ||
         interrupt_id == NULL) return -1;
     if (read_be32(base) != FDT_MAGIC) return -2;
+    if (!fdt_header_version_supported(base)) return -3;
     total_size = read_be32(base + 4U);
     struct_offset = read_be32(base + 8U);
     strings_offset = read_be32(base + 12U);
