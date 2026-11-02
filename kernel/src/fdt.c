@@ -463,8 +463,14 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
     strings_size = read_be32(base + 32U);
     struct_size = read_be32(base + 36U);
     if (total_size < FDT_HEADER_SIZE ||
+        struct_offset < FDT_HEADER_SIZE || strings_offset < FDT_HEADER_SIZE ||
         struct_offset > total_size || struct_size > total_size - struct_offset ||
-        strings_offset > total_size || strings_size > total_size - strings_offset)
+        strings_offset > total_size || strings_size > total_size - strings_offset ||
+        (struct_offset < strings_offset &&
+         struct_size > strings_offset - struct_offset) ||
+        (strings_offset < struct_offset &&
+         strings_size > struct_offset - strings_offset) ||
+        (struct_offset & 3U) != 0U)
         return -3;
 
     structure = base + struct_offset;
