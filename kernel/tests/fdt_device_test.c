@@ -209,10 +209,10 @@ static void build_test_dtb(void) {
             0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U
         };
         uint8_t one[4] = {0U, 0U, 0U, 1U};
-        memory_reg_data_offset = structure_cursor + 12U;
-        append_property(38U, memory_reg, sizeof(memory_reg));
         append_property(11U, one, sizeof(one));
         append_property(26U, one, sizeof(one));
+        memory_reg_data_offset = structure_cursor + 12U;
+        append_property(38U, memory_reg, sizeof(memory_reg));
     }
     append_be32(2U); /* Close the memory node. */
     append_be32(2U); /* Close the root node. */
@@ -251,17 +251,13 @@ int main(void) {
                sizeof(saved_size));
     }
     {
-        uint8_t saved_size[8];
-        memset(blob + memory_reg_data_offset + 8U, 0, sizeof(saved_size));
+        const uint8_t valid_size[8] =
+            {0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U};
+        memset(blob + memory_reg_data_offset + 8U, 0, sizeof(valid_size));
         /* A memory reg tuple with no usable bytes must be rejected. */
         assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
-        {
-            const uint8_t valid_size[8] =
-                {0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U};
-            memcpy(blob + memory_reg_data_offset + 8U, valid_size,
-                   sizeof(valid_size));
-        }
-        (void)saved_size;
+        memcpy(blob + memory_reg_data_offset + 8U, valid_size,
+               sizeof(valid_size));
     }
     {
         uint8_t saved_root_begin[4];
