@@ -471,6 +471,7 @@ static uint64_t *validated_user_l2(uintptr_t root_physical) {
 }
 
 int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
+    uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
     uint64_t current_ttbr0;
     size_t i, j;
