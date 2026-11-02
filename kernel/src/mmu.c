@@ -444,7 +444,17 @@ int nova_mmu_address_space_create(uintptr_t *root_physical) {
 int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
+    uint64_t current_ttbr0;
     size_t i, j;
+
+    /*
+     * The address-space registry tracks software users, but this low-level
+     * entry is also callable directly. Never reclaim the root currently
+     * installed in TTBR0_EL1, even if a caller bypasses the registry.
+     */
+    __asm__ volatile("mrs %0, ttbr0_el1" : "=r"(current_ttbr0));
+    if ((current_ttbr0 & DESC_ADDR_MASK) == (uint64_t)root_physical)
+        return 0;
 
     if (asid == 0U || asid > 255U || root_physical == 0U ||
         root_physical == (uintptr_t)level1_table ||
