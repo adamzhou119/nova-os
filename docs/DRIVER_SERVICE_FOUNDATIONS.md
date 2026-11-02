@@ -99,3 +99,18 @@ IDs, and available registry slots before changing the registry. Host coverage
 includes disabled-node exclusion, empty matches, ID collision/overflow, and
 insufficient registry capacity. The implementation remains limited to the
 currently supported GICv2 `interrupts` binding and first `reg` tuple.
+
+
+### FDT status validation and complete-structure scanning
+
+The device-instance MMIO scanner treats a missing `status` property as enabled,
+accepts only the single-string values `"okay"` and `"ok"` as enabled, and
+skips other well-formed status strings. Empty values, missing terminal NULs,
+and embedded NULs are rejected as malformed input. A matching node is not
+returned early: the scanner continues through the complete structure block and
+rejects malformed trailing tokens or unbalanced node depth, so a valid early
+device cannot hide a damaged later node. Cursor alignment and property/token
+bounds use subtraction-based checks or guarded alignment arithmetic. Host tests
+cover malformed status encodings and malformed trailing structure after a
+matching device. The full AArch64 build, host suite, ELF inspection, and all
+QEMU checks passed for commit `7ceacc0` (CI run 755).
