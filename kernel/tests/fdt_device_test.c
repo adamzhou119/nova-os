@@ -43,8 +43,10 @@ static void append_property(uint32_t name_offset, const void *data,
 
 static uint8_t *find_first_status_value(uint32_t *length_out) {
     uint32_t cursor = 56U;
-    uint32_t end = 56U + 0U;
-    end = read_be32(blob + 36U) + 56U;
+    uint32_t end = (((uint32_t)blob[36U] << 24) |
+                    ((uint32_t)blob[37U] << 16) |
+                    ((uint32_t)blob[38U] << 8) |
+                    (uint32_t)blob[39U]) + 56U;
     while (cursor + 4U <= end) {
         uint32_t token = ((uint32_t)blob[cursor] << 24) |
                          ((uint32_t)blob[cursor + 1U] << 16) |
