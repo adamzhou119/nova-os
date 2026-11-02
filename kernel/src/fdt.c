@@ -95,6 +95,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
     int root_seen = 0;
     uint32_t address_cells[FDT_MAX_DEPTH];
     uint32_t size_cells[FDT_MAX_DEPTH];
+    uint32_t reg_address_cells[FDT_MAX_DEPTH];
+    uint32_t reg_size_cells[FDT_MAX_DEPTH];
     int memory_node[FDT_MAX_DEPTH];
     const uint8_t *reg_data[FDT_MAX_DEPTH];
     uint32_t reg_length[FDT_MAX_DEPTH];
@@ -145,6 +147,10 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             ++depth;
             address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
             size_cells[depth] = depth == 0 ? 1U : size_cells[depth - 1];
+            /* A node's reg uses its parent's cell widths; its own cell
+             * properties describe the nodes below it. */
+            reg_address_cells[depth] = address_cells[depth];
+            reg_size_cells[depth] = size_cells[depth];
             memory_node[depth] = node_is_memory((const char *)(structure + name_start));
             reg_data[depth] = NULL;
             reg_length[depth] = 0;
@@ -152,10 +158,10 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -7;
             if (memory_node[depth] && reg_data[depth] != NULL) {
-                uint32_t tuple_cells = address_cells[depth] + size_cells[depth];
+                uint32_t tuple_cells = reg_address_cells[depth] + reg_size_cells[depth];
                 uint32_t tuple_bytes;
                 uint32_t pos = 0;
-                if (address_cells[depth] == 0 || size_cells[depth] == 0 ||
+                if (reg_address_cells[depth] == 0 || reg_size_cells[depth] == 0 ||
                     tuple_cells > 4U) return -8;
                 tuple_bytes = tuple_cells * 4U;
                 if (reg_length[depth] == 0 ||
@@ -165,10 +171,10 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                     uint64_t start;
                     uint64_t size;
                     if (!read_cells(reg_data[depth] + pos,
-                                    address_cells[depth], &start) ||
+                                    reg_address_cells[depth], &start) ||
                         !read_cells(reg_data[depth] + pos +
-                                    address_cells[depth] * 4U,
-                                    size_cells[depth], &size))
+                                    reg_address_cells[depth] * 4U,
+                                    reg_size_cells[depth], &size))
                         return -10;
                     if (size != 0 && start <= UINT64_MAX - size) {
                         if (found < capacity) {
@@ -252,6 +258,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
     uint32_t total_size, reserve_offset, struct_offset, strings_offset;
     uint32_t struct_size, strings_size, cursor = 0;
     uint32_t address_cells[FDT_MAX_DEPTH], size_cells[FDT_MAX_DEPTH];
+    uint32_t reg_address_cells[FDT_MAX_DEPTH], reg_size_cells[FDT_MAX_DEPTH];
     uint32_t reg_length[FDT_MAX_DEPTH];
     const uint8_t *reg_data[FDT_MAX_DEPTH];
     int reserved_root[FDT_MAX_DEPTH], reserved_child[FDT_MAX_DEPTH];
@@ -335,6 +342,9 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
             ++depth;
             address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
             size_cells[depth] = depth == 0 ? 1U : size_cells[depth - 1];
+            /* Child reg tuples are encoded with the parent bus widths. */
+            reg_address_cells[depth] = address_cells[depth];
+            reg_size_cells[depth] = size_cells[depth];
             reserved_root[depth] = is_reserved_memory;
             reserved_child[depth] = parent_reserved_root;
             reg_data[depth] = NULL;
@@ -342,8 +352,8 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -9;
             if (reserved_child[depth] && reg_data[depth] != NULL) {
-                uint32_t ac = address_cells[depth];
-                uint32_t sc = size_cells[depth];
+                uint32_t ac = reg_address_cells[depth];
+                uint32_t sc = reg_size_cells[depth];
                 uint32_t tuple_cells = ac + sc;
                 uint32_t tuple_bytes, pos = 0;
                 if (ac == 0 || ac > 2U || sc == 0 || sc > 2U ||
