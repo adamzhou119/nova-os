@@ -93,7 +93,7 @@ static void build_test_dtb(void) {
     append_be32(2U);
     append_node("uart@c000000");
     {
-        static const char disabled_uart[] = "vendor,uart\\0arm,pl011";
+        static const char disabled_uart[] = "vendor,uart\0arm,pl011";
         static const char disabled_status[] = "disabled";
         uint8_t disabled_reg[16] = {
             0U, 0U, 0U, 0U, 0x0cU, 0U, 0U, 0U,
