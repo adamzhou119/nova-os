@@ -290,6 +290,29 @@ int main(void) {
                                                &interrupt_id) == 0);
         assert(nova_fdt_decode_gicv2_interrupt(0U, 1U, 4U, NULL) == 0);
     }
+    {
+        size_t discovered = 99U;
+        struct nova_device_desc filler;
+        uint32_t id;
+        memset(&filler, 0, sizeof(filler));
+        filler.irq = NOVA_DEVICE_NO_IRQ;
+        strcpy(filler.compatible, "test,dummy");
+        for (id = 100U; id < 112U; ++id) {
+            filler.id = id;
+            assert(nova_device_add(&filler) == 1);
+        }
+        assert(nova_device_discover_fdt_all((uintptr_t)blob, 50U,
+                                            "arm,pl011", &discovered) == 0);
+        assert(discovered == 0U);
+        {
+            struct nova_device_info info;
+            assert(nova_device_get(50U, &info) == 0);
+            assert(nova_device_get(51U, &info) == 0);
+        }
+        assert(nova_device_discover_fdt_all((uintptr_t)blob, 200U,
+                                            "vendor,missing", &discovered) == 1);
+        assert(discovered == 0U);
+    }
     puts("FDT device discovery and GICv2 decoding host tests passed.");
     return 0;
 }
