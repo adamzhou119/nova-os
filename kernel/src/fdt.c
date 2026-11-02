@@ -16,13 +16,18 @@ static uint32_t read_be32(const uint8_t *p) {
            (uint32_t)p[3];
 }
 
+/* Returns 1 for enabled, 0 for a well-formed disabled/unknown state,
+ * and -1 when the property is not exactly one NUL-terminated string. */
 static int fdt_node_status_enabled(const uint8_t *status, uint32_t length) {
+    uint32_t i;
     if (status == NULL) return 1; /* Device-tree default is enabled. */
+    if (length == 0U || status[length - 1U] != 0U) return -1;
+    for (i = 0U; i + 1U < length; ++i)
+        if (status[i] == 0U) return -1;
     if (length == 5U && status[0] == 'o' && status[1] == 'k' &&
-        status[2] == 'a' && status[3] == 'y' && status[4] == 0U)
+        status[2] == 'a' && status[3] == 'y')
         return 1;
-    if (length == 3U && status[0] == 'o' && status[1] == 'k' &&
-        status[2] == 0U)
+    if (length == 3U && status[0] == 'o' && status[1] == 'k')
         return 1;
     return 0;
 }
@@ -496,9 +501,11 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                 compatible_list_contains(compatible_data[depth],
                                           compatible_length[depth],
                                           compatible) &&
-                reg_data[depth] != NULL &&
-                fdt_node_status_enabled(status_data[depth], status_length[depth])) {
-                if (matched_instances++ != instance_index) {
+                reg_data[depth] != NULL) {
+                int enabled = fdt_node_status_enabled(status_data[depth],
+                                                      status_length[depth]);
+                if (enabled < 0) return -18;
+                if (enabled == 1 && matched_instances++ != instance_index) {
                     --depth;
                     continue;
                 }
@@ -688,11 +695,13 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -7;
             if (node_compatible[depth] != NULL && node_has_reg[depth] &&
-                fdt_node_status_enabled(node_status[depth], node_status_length[depth]) &&
                 compatible_list_contains(node_compatible[depth],
                                          node_compatible_length[depth],
                                          compatible)) {
-                if (matched_targets++ == instance_index) {
+                int enabled = fdt_node_status_enabled(node_status[depth],
+                                                       node_status_length[depth]);
+                if (enabled < 0) return -16;
+                if (enabled == 1 && matched_targets++ == instance_index) {
                     target_parent = current_parent[depth];
                     target_interrupts = node_interrupts[depth];
                     target_interrupts_length = node_interrupts_length[depth];
