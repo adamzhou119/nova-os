@@ -53,6 +53,12 @@ static int fdt_string_equals(const uint8_t *strings, uint32_t strings_size,
            expected[i] == 0;
 }
 
+static int fdt_align_cursor(uint32_t *cursor, uint32_t limit) {
+    if (*cursor > UINT32_MAX - 3U) return 0;
+    *cursor = (*cursor + 3U) & ~3U;
+    return *cursor <= limit;
+}
+
 static int node_is_memory(const char *name) {
     static const char prefix[] = "memory";
     size_t i;
@@ -118,7 +124,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
     structure = base + struct_offset;
     strings = base + strings_offset;
 
-    while (cursor + 4U <= struct_size) {
+    while (cursor <= struct_size && struct_size - cursor >= 4U) {
         uint32_t token = read_be32(structure + cursor);
         cursor += 4U;
 
@@ -134,8 +140,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             if (cursor >= struct_size) return -5;
             name_length = cursor - name_start;
             ++cursor;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -6;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -6;
 
             ++depth;
             address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
@@ -180,7 +185,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             uint32_t length;
             uint32_t name_offset;
             const uint8_t *data;
-            if (depth < 0 || cursor + 8U > struct_size) return -11;
+            if (depth < 0 || cursor > struct_size ||
+                struct_size - cursor < 8U) return -11;
             length = read_be32(structure + cursor);
             name_offset = read_be32(structure + cursor + 4U);
             cursor += 8U;
@@ -207,8 +213,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
             }
 
             cursor += length;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -15;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -15;
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
@@ -326,8 +331,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
                     is_reserved_memory = 0;
             }
             ++cursor;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -8;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -8;
             ++depth;
             address_cells[depth] = depth == 0 ? 2U : address_cells[depth - 1];
             size_cells[depth] = depth == 0 ? 1U : size_cells[depth - 1];
@@ -360,7 +364,8 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
         } else if (token == FDT_PROP) {
             uint32_t length, name_offset;
             const uint8_t *data;
-            if (depth < 0 || cursor + 8U > struct_size) return -13;
+            if (depth < 0 || cursor > struct_size ||
+                struct_size - cursor < 8U) return -13;
             length = read_be32(structure + cursor);
             name_offset = read_be32(structure + cursor + 4U);
             cursor += 8U;
@@ -383,8 +388,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
                 reg_length[depth] = length;
             }
             cursor += length;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -17;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -17;
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
