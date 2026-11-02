@@ -21,7 +21,7 @@ static uint32_t read_be32(const uint8_t *p) {
 static int fdt_node_status_enabled(const uint8_t *status, uint32_t length) {
     uint32_t i;
     if (status == NULL) return 1; /* Device-tree default is enabled. */
-    if (length == 0U || status[length - 1U] != 0U) return -1;
+    if (length <= 1U || status[length - 1U] != 0U) return -1;
     for (i = 0U; i + 1U < length; ++i)
         if (status[i] == 0U) return -1;
     if (length == 5U && status[0] == 'o' && status[1] == 'k' &&
