@@ -16,6 +16,17 @@ static uint32_t read_be32(const uint8_t *p) {
            (uint32_t)p[3];
 }
 
+static int fdt_node_status_enabled(const uint8_t *status, uint32_t length) {
+    if (status == NULL) return 1; /* Device-tree default is enabled. */
+    if (length == 5U && status[0] == 'o' && status[1] == 'k' &&
+        status[2] == 'a' && status[3] == 'y' && status[4] == 0U)
+        return 1;
+    if (length == 3U && status[0] == 'o' && status[1] == 'k' &&
+        status[2] == 0U)
+        return 1;
+    return 0;
+}
+
 static int fdt_string_equals(const uint8_t *strings, uint32_t strings_size,
                              uint32_t offset, const char *expected) {
     size_t i = 0;
@@ -432,6 +443,8 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
     uint32_t reg_length[FDT_MAX_DEPTH];
     const uint8_t *ranges_data[FDT_MAX_DEPTH];
     uint32_t ranges_length[FDT_MAX_DEPTH];
+    const uint8_t *status_data[FDT_MAX_DEPTH];
+    uint32_t status_length[FDT_MAX_DEPTH];
     int depth = -1;
     size_t matched_instances = 0U;
 
@@ -473,6 +486,8 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
             reg_length[depth] = 0U;
             ranges_data[depth] = NULL;
             ranges_length[depth] = 0U;
+            status_data[depth] = NULL;
+            status_length[depth] = 0U;
         } else if (token == FDT_END_NODE) {
             uint32_t ac, sc, tuple_bytes;
             uint64_t address, size;
@@ -481,7 +496,8 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                 compatible_list_contains(compatible_data[depth],
                                           compatible_length[depth],
                                           compatible) &&
-                reg_data[depth] != NULL) {
+                reg_data[depth] != NULL &&
+                fdt_node_status_enabled(status_data[depth], status_length[depth])) {
                 if (matched_instances++ != instance_index) {
                     --depth;
                     continue;
@@ -531,6 +547,10 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                                          "ranges")) {
                 ranges_data[depth] = data;
                 ranges_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset,
+                                         "status")) {
+                status_data[depth] = data;
+                status_length[depth] = length;
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "#address-cells") && length == 4U) {
                 uint32_t cells = read_be32(data);
@@ -614,6 +634,9 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
     uint32_t node_compatible_length[FDT_MAX_DEPTH];
     const uint8_t *node_interrupts[FDT_MAX_DEPTH];
     uint32_t node_interrupts_length[FDT_MAX_DEPTH];
+    const uint8_t *node_status[FDT_MAX_DEPTH];
+    uint32_t node_status_length[FDT_MAX_DEPTH];
+    int node_has_reg[FDT_MAX_DEPTH];
     uint32_t controller_phandles[FDT_MAX_GIC_CONTROLLERS];
     uint32_t controller_cells[FDT_MAX_GIC_CONTROLLERS];
     uint32_t controller_count = 0U;
@@ -659,9 +682,13 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
             node_compatible_length[depth] = 0U;
             node_interrupts[depth] = NULL;
             node_interrupts_length[depth] = 0U;
+            node_status[depth] = NULL;
+            node_status_length[depth] = 0U;
+            node_has_reg[depth] = 0;
         } else if (token == FDT_END_NODE) {
             if (depth < 0) return -7;
-            if (node_compatible[depth] != NULL &&
+            if (node_compatible[depth] != NULL && node_has_reg[depth] &&
+                fdt_node_status_enabled(node_status[depth], node_status_length[depth]) &&
                 compatible_list_contains(node_compatible[depth],
                                          node_compatible_length[depth],
                                          compatible)) {
@@ -705,6 +732,11 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
             } else if (fdt_string_equals(strings, strings_size, name_offset, "interrupts")) {
                 node_interrupts[depth] = data;
                 node_interrupts_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "reg")) {
+                node_has_reg[depth] = 1;
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "status")) {
+                node_status[depth] = data;
+                node_status_length[depth] = length;
             } else if (fdt_string_equals(strings, strings_size, name_offset, "interrupt-parent") && length == 4U) {
                 current_parent[depth] = read_be32(data);
             } else if ((fdt_string_equals(strings, strings_size, name_offset, "phandle") ||
