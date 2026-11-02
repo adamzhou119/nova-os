@@ -337,6 +337,19 @@ int main(void) {
         assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                     &device) < 0);
         memcpy(blob + end_offset, saved_end, sizeof(saved_end));
+        {
+            uint8_t saved_root_end[4];
+            struct nova_memory_region regions[8];
+            uint32_t root_end_offset = end_offset - 4U;
+            memcpy(saved_root_end, blob + root_end_offset,
+                   sizeof(saved_root_end));
+            /* FDT_END is invalid while the root node remains open. */
+            put_be32(root_end_offset, 4U); /* FDT_NOP */
+            assert(nova_fdt_memory_regions((uintptr_t)blob, regions, 8U) < 0);
+            assert(nova_fdt_reserved_regions((uintptr_t)blob, regions, 8U) < 0);
+            memcpy(blob + root_end_offset, saved_root_end,
+                   sizeof(saved_root_end));
+        }
     }
     {
         uint32_t irq = UINT32_MAX;
