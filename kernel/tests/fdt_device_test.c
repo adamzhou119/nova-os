@@ -74,6 +74,10 @@ static void build_test_dtb(void) {
     cells[24] = 0x00U; cells[25] = 0x00U; cells[26] = 0x00U; cells[27] = 0x00U;
     cells[28] = 0x00U; cells[29] = 0x00U; cells[30] = 0x20U; cells[31] = 0x00U;
     append_property(38U, cells, sizeof(cells));
+    {
+        static const char enabled_status[] = "okay";
+        append_property(123U, enabled_status, sizeof(enabled_status));
+    }
     append_be32(2U);
     append_node("uart@b000000");
     {
@@ -89,6 +93,10 @@ static void build_test_dtb(void) {
         append_property(38U, second_reg, sizeof(second_reg));
         append_property(49U, parent, sizeof(parent));
         append_property(66U, irq, sizeof(irq));
+        {
+            static const char enabled_status[] = "ok";
+            append_property(123U, enabled_status, sizeof(enabled_status));
+        }
     }
     append_be32(2U);
     append_node("uart@c000000");
