@@ -293,6 +293,11 @@ nova_user_test_payload_start:
     svc     #0
     cmn     x0, #22
     b.ne    1f
+    /* Unknown syscall numbers must return -ENOSYS without killing the task. */
+    mov     x8, #99
+    svc     #0
+    cmn     x0, #38
+    b.ne    1f
     mov     x0, #0
     mov     x8, #1
     svc     #0
