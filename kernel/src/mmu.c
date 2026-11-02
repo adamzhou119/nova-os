@@ -441,6 +441,35 @@ int nova_mmu_address_space_create(uintptr_t *root_physical) {
     return 1;
 }
 
+/*
+ * Validate the complete ownership shape before dereferencing a private table.
+ * A live address space owns exactly one pin on its root, L2, and each L3.
+ */
+static uint64_t *validated_user_l2(uintptr_t root_physical) {
+    uint64_t *root;
+    uint64_t *user_l2;
+    size_t i;
+
+    if (root_physical == 0U ||
+        root_physical == (uintptr_t)level1_table ||
+        (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
+        !nova_page_is_allocated((const void *)root_physical) ||
+        nova_page_pin_count((const void *)root_physical) != 1U)
+        return NULL;
+
+    root = (uint64_t *)root_physical;
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
+        if (i != 2U && root[i] != level1_table[i]) return NULL;
+    if ((root[2] & (DESC_VALID | DESC_TABLE)) !=
+        (DESC_VALID | DESC_TABLE)) return NULL;
+
+    user_l2 = (uint64_t *)(uintptr_t)(root[2] & DESC_ADDR_MASK);
+    if (!nova_page_is_allocated(user_l2) ||
+        nova_page_pin_count(user_l2) != 1U)
+        return NULL;
+    return user_l2;
+}
+
 int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
@@ -456,18 +485,9 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     if ((current_ttbr0 & DESC_ADDR_MASK) == (uint64_t)root_physical)
         return 0;
 
-    if (asid == 0U || asid > 255U || root_physical == 0U ||
-        root_physical == (uintptr_t)level1_table ||
-        (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
-        !nova_page_is_allocated(root)) return 0;
-    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i)
-        if (i != 2U && root[i] != level1_table[i]) return 0;
-    if ((root[2] & (DESC_VALID | DESC_TABLE)) !=
-        (DESC_VALID | DESC_TABLE)) return 0;
-    user_l2 = (uint64_t *)(uintptr_t)(root[2] & DESC_ADDR_MASK);
-    if (!nova_page_is_allocated(user_l2) ||
-        nova_page_pin_count(root) != 1U ||
-        nova_page_pin_count(user_l2) != 1U) return 0;
+    if (asid == 0U || asid > 255U) return 0;
+    user_l2 = validated_user_l2(root_physical);
+    if (user_l2 == NULL) return 0;
 
     /*
      * Preflight the complete private user tree before changing a descriptor.
@@ -546,12 +566,10 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
 int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid) {
     uint64_t ttbr;
     uint64_t operand;
-    if ((root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
-        asid > 255U ||
-        (root_physical != (uintptr_t)level1_table &&
-         !nova_page_is_allocated((const void *)root_physical)) ||
+    if (asid > 255U ||
         (root_physical == (uintptr_t)level1_table && asid != 0U) ||
-        (root_physical != (uintptr_t)level1_table && asid == 0U))
+        (root_physical != (uintptr_t)level1_table &&
+         (asid == 0U || validated_user_l2(root_physical) == NULL)))
         return 0;
     ttbr = ((uint64_t)asid << 48) |
            ((uint64_t)root_physical & DESC_ADDR_MASK);
@@ -569,14 +587,7 @@ int nova_mmu_switch_address_space(uintptr_t root_physical, uint16_t asid) {
 #define DESC_AP_USER_RW  (1ULL << 6)
 #define DESC_AP_USER_RO  (3ULL << 6)
 static uint64_t *user_l2_for_root(uintptr_t root_physical) {
-    uint64_t *root = (uint64_t *)root_physical; size_t i;
-    if (root_physical == 0U || root_physical == (uintptr_t)level1_table ||
-        (root_physical & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U ||
-        !nova_page_is_allocated(root)) return NULL;
-    for (i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)
-        if (i!=2U && root[i]!=level1_table[i]) return NULL;
-    if ((root[2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE)) return NULL;
-    return (uint64_t *)(uintptr_t)(root[2]&DESC_ADDR_MASK);
+    return validated_user_l2(root_physical);
 }
 static int user_va_indices(uintptr_t va,size_t *l2,size_t *l3) {
     uintptr_t off;
@@ -638,7 +649,10 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
     if(l2==NULL||(l2[i2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE))return 0;
     l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK); if(!nova_page_is_allocated(l3))return 0;
     slot=&l3[i3]; if((*slot&DESC_VALID)==0U)return 0;
-    pa=(uintptr_t)(*slot&DESC_ADDR_MASK); fi=physical_frame_index(pa);
+    pa=(uintptr_t)(*slot&DESC_ADDR_MASK);
+    if(pa<NOVA_MMU_RAM_BASE || pa>=NOVA_MMU_RAM_BASE+NOVA_MMU_RAM_SIZE)
+        return 0;
+    fi=physical_frame_index(pa);
     if(!nova_page_is_allocated((const void*)pa) ||
        nova_page_pin_count((const void*)pa)==0U || mapped_aliases[fi]==0U ||
        (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
@@ -717,6 +731,9 @@ int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
         return 0;
 
     pa = (uintptr_t)(old_desc & DESC_ADDR_MASK);
+    if (pa < NOVA_MMU_RAM_BASE ||
+        pa >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE)
+        return 0;
     frame_index = physical_frame_index(pa);
     old_writable = descriptor_is_writable(old_desc);
     old_executable = descriptor_is_executable(old_desc);
