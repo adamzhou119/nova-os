@@ -222,6 +222,16 @@ int main(void) {
     struct nova_memory_region memory[8];
     build_test_dtb();
     {
+        uint8_t saved_root_begin[4];
+        struct nova_memory_region regions[8];
+        memcpy(saved_root_begin, blob + 56U, sizeof(saved_root_begin));
+        /* An FDT_END token cannot substitute for the mandatory root node. */
+        put_be32(56U, 9U);
+        assert(nova_fdt_memory_regions((uintptr_t)blob, regions, 8U) < 0);
+        assert(nova_fdt_reserved_regions((uintptr_t)blob, regions, 8U) < 0);
+        memcpy(blob + 56U, saved_root_begin, sizeof(saved_root_begin));
+    }
+    {
         struct nova_memory_region reserved[8];
         uint32_t original_reserve_offset =
             ((uint32_t)blob[16U] << 24) |
