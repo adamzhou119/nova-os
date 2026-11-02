@@ -1230,6 +1230,8 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             uint32_t id_a=0U,id_b=0U,id_c=0U; const uintptr_t user_va=0x80000000U;
             const uintptr_t shared_va=user_va+2U*NOVA_PAGE_SIZE; int ok=0;
             struct nova_address_space_info teardown_info;
+            uint64_t *root_c_l2;
+            uint64_t saved_l2_entry;
             size_t pages_before = nova_page_available();
             frame_a=(uintptr_t)nova_page_alloc(); frame_b=(uintptr_t)nova_page_alloc();
             frame_shared=(uintptr_t)nova_page_alloc();
@@ -1274,6 +1276,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_page_pin_count((const void*)frame_a)==0U&&
                nova_mmu_address_space_create(&root_c)&&
                nova_address_space_create(root_c,1U,&id_c)&&
+               nova_mmu_user_map_page(root_c,1U,user_va,frame_shared,0U)&&
                nova_mmu_switch_address_space(root_c,1U)&&
                !nova_mmu_verify_user_access(user_va,0)&&
                !nova_mmu_switch_address_space((uintptr_t)frame_a,3U)&&
@@ -1282,6 +1285,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_address_space_get(id_c,&teardown_info)&&
                teardown_info.root_physical==root_c&&
                nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U)&&
+               (root_c_l2=(uint64_t*)(uintptr_t)(((uint64_t*)root_c)[2]&0x0000FFFFFFFFF000ULL))!=0&&
+               (saved_l2_entry=root_c_l2[1],root_c_l2[1]=root_c_l2[0],
+                !nova_mmu_user_unmap_page(root_c,1U,user_va+0x00200000U))&&
+               (root_c_l2[1]=saved_l2_entry,nova_address_space_get(id_c,&teardown_info))&&
                nova_address_space_release(id_c)&&
                 nova_page_unpin((const void*)frame_b)&&!nova_address_space_release(id_b)&&
                 nova_address_space_get(id_b,&teardown_info)&&teardown_info.references==1U&&
