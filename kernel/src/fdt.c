@@ -241,15 +241,32 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
     strings_size = read_be32(base + 32U);
     struct_size = read_be32(base + 36U);
     if (total_size < FDT_HEADER_SIZE ||
+        reserve_offset < FDT_HEADER_SIZE || (reserve_offset & 7U) != 0U ||
         reserve_offset > total_size || total_size - reserve_offset < 16U ||
+        struct_offset < FDT_HEADER_SIZE || strings_offset < FDT_HEADER_SIZE ||
         struct_offset > total_size || struct_size > total_size - struct_offset ||
-        strings_offset > total_size || strings_size > total_size - strings_offset)
+        strings_offset > total_size || strings_size > total_size - strings_offset ||
+        (struct_offset < strings_offset &&
+         struct_size > strings_offset - struct_offset) ||
+        (strings_offset < struct_offset &&
+         strings_size > struct_offset - strings_offset))
         return -3;
 
     reserve_cursor = reserve_offset;
     for (;;) {
         uint64_t start, size;
         if (reserve_cursor > total_size || total_size - reserve_cursor < 16U)
+            return -4;
+        /* Every reservation-map entry, including its terminator, must stay
+         * outside the header-described structure and strings blocks. */
+        if ((reserve_cursor < struct_offset &&
+             16U > struct_offset - reserve_cursor) ||
+            (struct_offset < reserve_cursor &&
+             struct_size > reserve_cursor - struct_offset) ||
+            (reserve_cursor < strings_offset &&
+             16U > strings_offset - reserve_cursor) ||
+            (strings_offset < reserve_cursor &&
+             strings_size > reserve_cursor - strings_offset))
             return -4;
         start = read_be64(base + reserve_cursor);
         size = read_be64(base + reserve_cursor + 8U);
