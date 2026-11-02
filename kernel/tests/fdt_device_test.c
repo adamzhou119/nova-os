@@ -363,14 +363,22 @@ int main(void) {
         uint32_t status_length = 0U;
         uint8_t *status = find_first_status_value(&status_length);
         uint8_t saved_last;
+        uint8_t saved_first;
         size_t discovered = 99U;
         struct nova_fdt_device malformed_device;
         struct nova_device_info info;
         assert(status != NULL && status_length == 5U);
         saved_last = status[status_length - 1U];
+        saved_first = status[0];
         status[status_length - 1U] = (uint8_t)'X';
         assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                     &malformed_device) < 0);
+        status[status_length - 1U] = saved_last;
+        status[0] = 0U; /* Embedded/leading NUL is not a valid status string. */
+        assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
+                                    &malformed_device) < 0);
+        status[0] = saved_first;
+        status[status_length - 1U] = (uint8_t)'X';
         {
             uint32_t irq = UINT32_MAX;
             assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "arm,pl011",
