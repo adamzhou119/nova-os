@@ -251,6 +251,19 @@ int main(void) {
                sizeof(saved_size));
     }
     {
+        uint8_t saved_size[8];
+        memset(blob + memory_reg_data_offset + 8U, 0, sizeof(saved_size));
+        /* A memory reg tuple with no usable bytes must be rejected. */
+        assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
+        {
+            const uint8_t valid_size[8] =
+                {0U, 0U, 0U, 0U, 0x40U, 0U, 0U, 0U};
+            memcpy(blob + memory_reg_data_offset + 8U, valid_size,
+                   sizeof(valid_size));
+        }
+        (void)saved_size;
+    }
+    {
         uint8_t saved_root_begin[4];
         struct nova_memory_region regions[8];
         memcpy(saved_root_begin, blob + 56U, sizeof(saved_root_begin));
