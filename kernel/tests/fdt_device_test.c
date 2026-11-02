@@ -256,6 +256,20 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,missing",
                                 &device) == 0);
     {
+        uint32_t end_offset = 56U +
+            (((uint32_t)blob[36U] << 24) |
+             ((uint32_t)blob[37U] << 16) |
+             ((uint32_t)blob[38U] << 8) |
+             (uint32_t)blob[39U]) - 4U;
+        uint8_t saved_end[4];
+        memcpy(saved_end, blob + end_offset, sizeof(saved_end));
+        /* A valid early match must not hide a malformed trailing token. */
+        memset(blob + end_offset, 0xff, sizeof(saved_end));
+        assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
+                                    &device) < 0);
+        memcpy(blob + end_offset, saved_end, sizeof(saved_end));
+    }
+    {
         uint32_t irq = UINT32_MAX;
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested",
                                        &irq) == 1);
