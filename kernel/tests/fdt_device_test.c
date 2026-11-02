@@ -227,6 +227,31 @@ int main(void) {
             ((uint32_t)blob[17U] << 16) |
             ((uint32_t)blob[18U] << 8) |
             (uint32_t)blob[19U];
+        /* The parser relies on the v17 size_dt_struct header field. */
+        {
+            uint32_t irq = UINT32_MAX;
+            uint32_t saved_version =
+                ((uint32_t)blob[20U] << 24) |
+                ((uint32_t)blob[21U] << 16) |
+                ((uint32_t)blob[22U] << 8) | (uint32_t)blob[23U];
+            uint32_t saved_compat =
+                ((uint32_t)blob[24U] << 24) |
+                ((uint32_t)blob[25U] << 16) |
+                ((uint32_t)blob[26U] << 8) | (uint32_t)blob[27U];
+            put_be32(20U, 16U);
+            assert(nova_fdt_total_size((uintptr_t)blob) == 0U);
+            assert(nova_fdt_memory_regions((uintptr_t)blob, reserved, 8U) < 0);
+            assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+            assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
+                                        &device) < 0);
+            assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "arm,pl011",
+                                           &irq) < 0);
+            put_be32(20U, saved_version);
+            put_be32(24U, 18U);
+            assert(nova_fdt_total_size((uintptr_t)blob) == 0U);
+            assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
+            put_be32(24U, saved_compat);
+        }
         /* The fixture has an empty, aligned reservation map before structure. */
         assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) == 0);
         put_be32(16U, 44U); /* Reservation map must be 8-byte aligned. */
