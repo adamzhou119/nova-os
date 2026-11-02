@@ -307,7 +307,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
 
     structure = base + struct_offset;
     strings = base + strings_offset;
-    while (cursor + 4U <= struct_size) {
+    while (cursor <= struct_size && struct_size - cursor >= 4U) {
         uint32_t token = read_be32(structure + cursor);
         cursor += 4U;
         if (token == FDT_BEGIN_NODE) {
