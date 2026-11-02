@@ -128,10 +128,6 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                 if (root_seen) return -20;
                 root_seen = 1;
             }
-            if (depth == -1) {
-                if (root_seen) return -19;
-                root_seen = 1;
-            }
             uint32_t name_length;
             if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
             while (cursor < struct_size && structure[cursor] != 0) ++cursor;
@@ -315,6 +311,10 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
             int parent_reserved_root = depth >= 0 && reserved_root[depth];
             int is_reserved_memory;
             uint32_t i;
+            if (depth == -1) {
+                if (root_seen) return -20;
+                root_seen = 1;
+            }
             if (depth + 1 >= (int)FDT_MAX_DEPTH) return -6;
             while (cursor < struct_size && structure[cursor] != 0) ++cursor;
             if (cursor >= struct_size) return -7;
