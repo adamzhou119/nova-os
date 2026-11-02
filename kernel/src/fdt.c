@@ -505,31 +505,33 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                 int enabled = fdt_node_status_enabled(status_data[depth],
                                                       status_length[depth]);
                 if (enabled < 0) return -18;
-                if (enabled == 1 && matched_instances++ != instance_index) {
-                    --depth;
-                    continue;
+                if (enabled == 1) {
+                    if (matched_instances++ != instance_index) {
+                        --depth;
+                        continue;
+                    }
+                    ac = parent_address_cells[depth];
+                    sc = parent_size_cells[depth];
+                    if (ac == 0U || ac > 2U || sc == 0U || sc > 2U)
+                        return -8;
+                    tuple_bytes = (ac + sc) * 4U;
+                    if (reg_length[depth] < tuple_bytes ||
+                        reg_length[depth] % tuple_bytes != 0U)
+                        return -9;
+                    if (reg_index >= reg_length[depth] / tuple_bytes) return 0;
+                    if (!read_cells(reg_data[depth] + reg_index * tuple_bytes, ac, &address) ||
+                        !read_cells(reg_data[depth] + reg_index * tuple_bytes + ac * 4U, sc, &size) ||
+                        size == 0U || address > UINT64_MAX - size ||
+                        address > UINTPTR_MAX || size > SIZE_MAX ||
+                        !translate_fdt_bus_address(&address, size, depth - 1,
+                            parent_address_cells, child_address_cells,
+                            child_size_cells, ranges_data, ranges_length) ||
+                        address > UINTPTR_MAX || address > UINT64_MAX - size)
+                        return -10;
+                    device->mmio_base = (uintptr_t)address;
+                    device->mmio_size = (size_t)size;
+                    return 1;
                 }
-                ac = parent_address_cells[depth];
-                sc = parent_size_cells[depth];
-                if (ac == 0U || ac > 2U || sc == 0U || sc > 2U)
-                    return -8;
-                tuple_bytes = (ac + sc) * 4U;
-                if (reg_length[depth] < tuple_bytes ||
-                    reg_length[depth] % tuple_bytes != 0U)
-                    return -9;
-                if (reg_index >= reg_length[depth] / tuple_bytes) return 0;
-                if (!read_cells(reg_data[depth] + reg_index * tuple_bytes, ac, &address) ||
-                    !read_cells(reg_data[depth] + reg_index * tuple_bytes + ac * 4U, sc, &size) ||
-                    size == 0U || address > UINT64_MAX - size ||
-                    address > UINTPTR_MAX || size > SIZE_MAX ||
-                    !translate_fdt_bus_address(&address, size, depth - 1,
-                        parent_address_cells, child_address_cells,
-                        child_size_cells, ranges_data, ranges_length) ||
-                    address > UINTPTR_MAX || address > UINT64_MAX - size)
-                    return -10;
-                device->mmio_base = (uintptr_t)address;
-                device->mmio_size = (size_t)size;
-                return 1;
             }
             --depth;
         } else if (token == FDT_PROP) {
