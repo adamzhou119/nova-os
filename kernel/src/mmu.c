@@ -656,7 +656,8 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
         return 0;
     fi=physical_frame_index(pa);
     if(!nova_page_is_allocated((const void*)pa) ||
-       nova_page_pin_count((const void*)pa)==0U || mapped_aliases[fi]==0U ||
+       mapped_aliases[fi]==0U ||
+       nova_page_pin_count((const void*)pa)<mapped_aliases[fi] ||
        (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
        (descriptor_is_executable(*slot)&&executable_aliases[fi]==0U))
         return 0;
@@ -742,8 +743,8 @@ int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
     old_writable = descriptor_is_writable(old_desc);
     old_executable = descriptor_is_executable(old_desc);
     if (!nova_page_is_allocated((const void *)pa) ||
-        nova_page_pin_count((const void *)pa) == 0U ||
         mapped_aliases[frame_index] == 0U ||
+        nova_page_pin_count((const void *)pa) < mapped_aliases[frame_index] ||
         (old_writable && writable_aliases[frame_index] == 0U) ||
         (old_executable && executable_aliases[frame_index] == 0U))
         return 0;
