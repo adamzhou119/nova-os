@@ -11,6 +11,7 @@
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
+static int fail_next_stack_free;
 static int reject_user_mapping;
 int nova_mmu_user_verify_page(uintptr_t root, uint16_t asid,
                               uintptr_t va, unsigned int flags) {
@@ -47,12 +48,16 @@ void *nova_vmap_alloc_guarded_page(unsigned int flags) {
     return nova_vmap_alloc_page(flags);
 }
 int nova_vmap_free_guarded_page(void *address) {
+    if (fail_next_stack_free) {
+        fail_next_stack_free = 0;
+        return 0;
+    }
     return nova_vmap_free_page(address);
 }
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, address_space_id, user_space_id, user_first;
+    uint32_t first, second, third, address_space_id, user_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -302,7 +307,23 @@ int main(void) {
 
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
-    assert(freed_stacks == 3);
+
+    /* A transient kernel-stack release failure must preserve the task for retry. */
+    assert(nova_task_create(dummy_entry, 0, &third));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(nova_task_get(third, &info));
+    {
+        uintptr_t retained_stack = info.kernel_stack_base;
+        fail_next_stack_free = 1;
+        assert(!nova_task_destroy(third));
+        assert(nova_task_get(third, &info));
+        assert(info.state == NOVA_TASK_ZOMBIE);
+        assert(info.kernel_stack_base == retained_stack);
+        assert(nova_task_destroy(third));
+        assert(!nova_task_get(third, &info));
+    }
+    assert(freed_stacks == 4);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
