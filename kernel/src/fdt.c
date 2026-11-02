@@ -176,7 +176,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
                                     reg_address_cells[depth] * 4U,
                                     reg_size_cells[depth], &size))
                         return -10;
-                    if (size != 0 && start <= UINT64_MAX - size) {
+                    if (size != 0) {
+                        if (start > UINT64_MAX - size) return -10;
                         if (found < capacity) {
                             regions[found].start = start;
                             regions[found].size = size;
