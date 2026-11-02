@@ -240,7 +240,7 @@ int main(void) {
                 ((uint32_t)blob[26U] << 8) | (uint32_t)blob[27U];
             put_be32(20U, 16U);
             assert(nova_fdt_total_size((uintptr_t)blob) == 0U);
-            assert(nova_fdt_memory_regions((uintptr_t)blob, reserved, 8U) < 0);
+            assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
             assert(nova_fdt_reserved_regions((uintptr_t)blob, reserved, 8U) < 0);
             assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                         &device) < 0);
