@@ -609,15 +609,15 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
        pa>=NOVA_MMU_RAM_BASE+NOVA_MMU_RAM_SIZE||!nova_page_is_allocated((const void*)pa)||
        !user_va_indices(va,&i2,&i3)) return 0;
     l2=user_l2_for_root(root_physical); if(l2==NULL)return 0;
-    if((l2[i2]&DESC_VALID)==0U){
+    if(l2[i2]==0U){
         l3=(uint64_t*)nova_page_alloc(); if(l3==NULL)return 0; zero_table(l3);
         if(!nova_page_pin(l3)){(void)nova_page_free(l3);return 0;}
         l2[i2]=((uintptr_t)l3&DESC_ADDR_MASK)|DESC_VALID|DESC_TABLE;
         created_l3=1;
     } else {
-        if((l2[i2]&DESC_TABLE)==0U)return 0;
+        if((l2[i2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE))return 0;
         l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK);
-        if(!nova_page_is_allocated(l3))return 0;
+        if(!nova_page_is_allocated(l3)||nova_page_pin_count(l3)!=1U)return 0;
     }
     slot=&l3[i3]; fi=physical_frame_index(pa);
     if((*slot&DESC_VALID)!=0U ||
@@ -646,8 +646,10 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
     if(asid==0U||asid>255U||!user_va_indices(va,&i2,&i3))return 0;
     l2=user_l2_for_root(root_physical);
     if(l2==NULL||(l2[i2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE))return 0;
-    l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK); if(!nova_page_is_allocated(l3))return 0;
-    slot=&l3[i3]; if((*slot&DESC_VALID)==0U)return 0;
+    l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK);
+    if(!nova_page_is_allocated(l3)||nova_page_pin_count(l3)!=1U)return 0;
+    slot=&l3[i3];
+    if((*slot&(DESC_VALID|DESC_PAGE))!=(DESC_VALID|DESC_PAGE))return 0;
     pa=(uintptr_t)(*slot&DESC_ADDR_MASK);
     if(pa<NOVA_MMU_RAM_BASE || pa>=NOVA_MMU_RAM_BASE+NOVA_MMU_RAM_SIZE)
         return 0;
@@ -692,7 +694,8 @@ int nova_mmu_user_verify_page(uintptr_t root_physical, uint16_t asid,
         (l2[i2] & (DESC_VALID | DESC_TABLE)) != (DESC_VALID | DESC_TABLE))
         return 0;
     l3 = (uint64_t *)(uintptr_t)(l2[i2] & DESC_ADDR_MASK);
-    if (!nova_page_is_allocated(l3)) return 0;
+    if (!nova_page_is_allocated(l3) ||
+        nova_page_pin_count(l3) != 1U) return 0;
     desc = l3[i3];
     if ((desc & (DESC_VALID | DESC_PAGE)) != (DESC_VALID | DESC_PAGE) ||
         (desc & DESC_AP_MASK) !=
@@ -723,7 +726,8 @@ int nova_mmu_user_protect_page(uintptr_t root_physical, uint16_t asid,
         (l2[i2] & (DESC_VALID | DESC_TABLE)) != (DESC_VALID | DESC_TABLE))
         return 0;
     l3 = (uint64_t *)(uintptr_t)(l2[i2] & DESC_ADDR_MASK);
-    if (!nova_page_is_allocated(l3)) return 0;
+    if (!nova_page_is_allocated(l3) ||
+        nova_page_pin_count(l3) != 1U) return 0;
     slot = &l3[i3];
     old_desc = *slot;
     if ((old_desc & (DESC_VALID | DESC_PAGE)) != (DESC_VALID | DESC_PAGE))
