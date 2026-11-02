@@ -86,6 +86,7 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
     uint32_t strings_size;
     uint32_t cursor = 0;
     int depth = -1;
+    int root_seen = 0;
     uint32_t address_cells[FDT_MAX_DEPTH];
     uint32_t size_cells[FDT_MAX_DEPTH];
     int memory_node[FDT_MAX_DEPTH];
@@ -123,6 +124,14 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
 
         if (token == FDT_BEGIN_NODE) {
             uint32_t name_start = cursor;
+            if (depth == -1) {
+                if (root_seen) return -20;
+                root_seen = 1;
+            }
+            if (depth == -1) {
+                if (root_seen) return -19;
+                root_seen = 1;
+            }
             uint32_t name_length;
             if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
             while (cursor < struct_size && structure[cursor] != 0) ++cursor;
@@ -207,7 +216,8 @@ int nova_fdt_memory_regions(uintptr_t dtb_address,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            return depth == -1 ? (found > capacity ? -1 : (int)found) : -18;
+            return (root_seen && depth == -1)
+                ? (found > capacity ? -1 : (int)found) : -18;
         } else {
             return -16;
         }
@@ -245,6 +255,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
     const uint8_t *reg_data[FDT_MAX_DEPTH];
     int reserved_root[FDT_MAX_DEPTH], reserved_child[FDT_MAX_DEPTH];
     int depth = -1;
+    int root_seen = 0;
     size_t found = 0;
     uint32_t reserve_cursor;
 
@@ -377,7 +388,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
-            return depth == -1 ? (int)found : -19;
+            return (root_seen && depth == -1) ? (int)found : -19;
         } else {
             return -18;
         }
