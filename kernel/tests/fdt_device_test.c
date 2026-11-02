@@ -312,15 +312,16 @@ int main(void) {
                                     ((uint32_t)blob[10U] << 8) |
                                     (uint32_t)blob[11U];
         uint32_t irq = UINT32_MAX;
+        struct nova_memory_region memory[8];
         put_be32(12U, structure_offset + 4U);
-        assert(nova_fdt_memory_regions((uintptr_t)blob, reserved, 8U) < 0);
+        assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
         assert(nova_fdt_find_device((uintptr_t)blob, "arm,pl011",
                                     &device) < 0);
         assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "arm,pl011",
                                        &irq) < 0);
         put_be32(12U, strings_offset);
         put_be32(8U, structure_offset + 1U);
-        assert(nova_fdt_memory_regions((uintptr_t)blob, reserved, 8U) < 0);
+        assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) < 0);
         put_be32(8U, structure_offset);
     }
     {
