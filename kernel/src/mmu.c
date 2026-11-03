@@ -346,9 +346,7 @@ int nova_mmu_unmap_page(uintptr_t virtual_address) {
      * has already lost the pin that protects it from physical-page reuse.
      */
     if (!nova_page_is_allocated((const void *)physical_address) ||
-        mapped_aliases[frame_index] == 0U ||
-        nova_page_pin_count((const void *)physical_address) <
-            mapped_aliases[frame_index] ||
+        nova_page_pin_count((const void *)physical_address) == 0U ||
         (descriptor_is_writable(old_descriptor) &&
          writable_aliases[frame_index] == 0U) ||
         (descriptor_is_executable(old_descriptor) &&
@@ -735,7 +733,6 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical, uint16_t asid,
     *slot = 0U;
     invalidate_user_page(va, asid);
     if (!nova_page_unpin((const void *)pa)) {
-        /* Restore the translation if its physical-frame pin cannot be released. */
         *slot = old_descriptor;
         invalidate_user_page(va, asid);
         return 0;
@@ -751,20 +748,16 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical, uint16_t asid,
             break;
         }
     }
-    if (!empty) return 1;
-
-    /*
-     * Detach and free an empty L3 table transactionally. If free unexpectedly
-     * fails, restore both its ownership pin and the parent descriptor so the
-     * address space never retains a dangling table pointer.
-     */
-    if (!nova_page_unpin(l3)) return 0;
-    l2[i2] = 0U;
-    if (!nova_page_free(l3)) {
-        if (!nova_page_pin(l3)) return 0;
-        l2[i2] = l2_descriptor;
-        invalidate_user_page(va, asid);
-        return 0;
+    if (empty) {
+        l2[i2] = 0U;
+        if (!nova_page_unpin(l3)) {
+            l2[i2] = l2_descriptor;
+            return 0;
+        }
+        if (!nova_page_free(l3)) {
+            if (nova_page_pin(l3)) l2[i2] = l2_descriptor;
+            return 0;
+        }
     }
     return 1;
 }
