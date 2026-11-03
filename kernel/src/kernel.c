@@ -548,14 +548,36 @@ static int test_pages(void) {
     }
 
     reused = nova_page_alloc();
-    if (reused != first || nova_page_available() != initial - 2U) {
-        nova_console_write("Page test: freed page was not reused correctly.\n");
+    if (reused == NULL || reused == first || reused == second ||
+        nova_page_available() != initial - 2U) {
+        nova_console_write("Page test: next-fit did not advance past the allocated prefix.\n");
         return 0;
     }
 
     if (!nova_page_free(second) || !nova_page_free(reused)) {
         nova_console_write("Page test: final free failed.\n");
         return 0;
+    }
+
+    /* The freed first page is reusable after the next-fit cursor wraps. */
+    {
+        size_t scanned;
+        void *page;
+        int found_first = 0;
+        for (scanned = 0; scanned < initial; ++scanned) {
+            page = nova_page_alloc();
+            if (page == NULL) break;
+            if (page == first) found_first = 1;
+            if (!nova_page_free(page)) {
+                nova_console_write("Page test: wraparound allocation cleanup failed.\n");
+                return 0;
+            }
+            if (found_first) break;
+        }
+        if (!found_first) {
+            nova_console_write("Page test: next-fit did not reuse the freed page after wraparound.\n");
+            return 0;
+        }
     }
 
     if (nova_page_available() != initial) {
