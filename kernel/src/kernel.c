@@ -673,6 +673,24 @@ static int test_dynamic_virtual_pages(void) {
     }
 
     /*
+     * Corrupt the mapping's pin accounting deliberately. Unmap must reject
+     * the inconsistent owner state without clearing the live translation;
+     * restoring the pin must make the same unmap succeed normally.
+     */
+    if (!nova_page_unpin(physical_page) ||
+        nova_page_pin_count(physical_page) != 0U ||
+        nova_mmu_unmap_page(alias) ||
+        !nova_mmu_verify_translation(alias, physical_address) ||
+        !nova_page_pin(physical_page) ||
+        nova_page_pin_count(physical_page) != 1U) {
+        if (nova_page_pin_count(physical_page) == 0U)
+            (void)nova_page_pin(physical_page);
+        (void)nova_mmu_unmap_page(alias);
+        (void)nova_page_free(physical_page);
+        return 0;
+    }
+
+    /*
      * Global W^X: a second executable alias must block writable permission
      * on the first alias, and vice versa.
      */
