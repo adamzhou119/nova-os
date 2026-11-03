@@ -145,7 +145,6 @@ int nova_page_free(void *page) {
     if ((page_bitmap[word] & mask) == 0 || page_pin_counts[index] != 0) return 0;
     page_bitmap[word] &= ~mask;
     ++page_free_count;
-    if (index < page_next_hint) page_next_hint = index;
     return 1;
 }
 
