@@ -691,74 +691,33 @@ int nova_mmu_user_map_page(uintptr_t root_physical,uint16_t asid,uintptr_t va,
     if(ex)++executable_aliases[fi];
     invalidate_user_page(va,asid); return 1;
 }
-int nova_mmu_user_unmap_page(uintptr_t root_physical, uint16_t asid,
-                             uintptr_t va) {
-    uint64_t *l2, *l3, *slot;
-    uint64_t old_descriptor, l2_descriptor;
-    uintptr_t pa;
-    size_t i2, i3, i, fi;
-    int empty = 1;
-
-    if (asid == 0U || asid > 255U || !user_va_indices(va, &i2, &i3))
+int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va) {
+    uint64_t *l2,*l3,*slot; uintptr_t pa; size_t i2,i3,i,fi; int empty=1;
+    if(asid==0U||asid>255U||!user_va_indices(va,&i2,&i3))return 0;
+    l2=user_l2_for_root(root_physical);
+    if(l2==NULL||(l2[i2]&(DESC_VALID|DESC_TABLE))!=(DESC_VALID|DESC_TABLE))return 0;
+    l3=(uint64_t*)(uintptr_t)(l2[i2]&DESC_ADDR_MASK);
+    if(!nova_page_is_allocated(l3)||nova_page_pin_count(l3)!=1U||
+       !user_l3_is_unique(l2,i2,l3,root_physical))return 0;
+    slot=&l3[i3];
+    if((*slot&(DESC_VALID|DESC_PAGE))!=(DESC_VALID|DESC_PAGE))return 0;
+    pa=(uintptr_t)(*slot&DESC_ADDR_MASK);
+    if(pa<NOVA_MMU_RAM_BASE || pa>=NOVA_MMU_RAM_BASE+NOVA_MMU_RAM_SIZE)
         return 0;
-    l2 = user_l2_for_root(root_physical);
-    if (l2 == NULL ||
-        (l2[i2] & (DESC_VALID | DESC_TABLE)) != (DESC_VALID | DESC_TABLE))
+    fi=physical_frame_index(pa);
+    if(!nova_page_is_allocated((const void*)pa) ||
+       mapped_aliases[fi]==0U ||
+       nova_page_pin_count((const void*)pa)<mapped_aliases[fi] ||
+       (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
+       (descriptor_is_executable(*slot)&&executable_aliases[fi]==0U))
         return 0;
-    l2_descriptor = l2[i2];
-    l3 = (uint64_t *)(uintptr_t)(l2_descriptor & DESC_ADDR_MASK);
-    if (!nova_page_is_allocated(l3) || nova_page_pin_count(l3) != 1U ||
-        !user_l3_is_unique(l2, i2, l3, root_physical))
-        return 0;
-
-    slot = &l3[i3];
-    old_descriptor = *slot;
-    if ((old_descriptor & (DESC_VALID | DESC_PAGE)) !=
-        (DESC_VALID | DESC_PAGE))
-        return 0;
-    pa = (uintptr_t)(old_descriptor & DESC_ADDR_MASK);
-    if (pa < NOVA_MMU_RAM_BASE ||
-        pa >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE)
-        return 0;
-    fi = physical_frame_index(pa);
-    if (!nova_page_is_allocated((const void *)pa) ||
-        mapped_aliases[fi] == 0U ||
-        nova_page_pin_count((const void *)pa) < mapped_aliases[fi] ||
-        (descriptor_is_writable(old_descriptor) &&
-         writable_aliases[fi] == 0U) ||
-        (descriptor_is_executable(old_descriptor) &&
-         executable_aliases[fi] == 0U))
-        return 0;
-
-    *slot = 0U;
-    invalidate_user_page(va, asid);
-    if (!nova_page_unpin((const void *)pa)) {
-        *slot = old_descriptor;
-        invalidate_user_page(va, asid);
-        return 0;
-    }
-
-    if (descriptor_is_writable(old_descriptor)) --writable_aliases[fi];
-    if (descriptor_is_executable(old_descriptor)) --executable_aliases[fi];
+    if(descriptor_is_writable(*slot))--writable_aliases[fi];
+    if(descriptor_is_executable(*slot))--executable_aliases[fi];
+    *slot=0U; invalidate_user_page(va,asid);
+    if(!nova_page_unpin((const void*)pa))return 0;
     --mapped_aliases[fi];
-
-    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
-        if (l3[i] != 0U) {
-            empty = 0;
-            break;
-        }
-    }
-    if (empty) {
-        l2[i2] = 0U;
-        if (!nova_page_unpin(l3)) {
-            l2[i2] = l2_descriptor;
-            return 0;
-        }
-        if (!nova_page_free(l3)) {
-            if (nova_page_pin(l3)) l2[i2] = l2_descriptor;
-            return 0;
-        }
-    }
+    for(i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)if(l3[i]!=0U){empty=0;break;}
+    if(empty){l2[i2]=0U;if(!nova_page_unpin(l3))return 0;return nova_page_free(l3);}
     return 1;
 }
 int nova_mmu_verify_user_access(uintptr_t va,int write) {
