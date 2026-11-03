@@ -710,11 +710,29 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
        (descriptor_is_writable(*slot)&&writable_aliases[fi]==0U) ||
        (descriptor_is_executable(*slot)&&executable_aliases[fi]==0U))
         return 0;
-    if(descriptor_is_writable(*slot))--writable_aliases[fi];
-    if(descriptor_is_executable(*slot))--executable_aliases[fi];
-    *slot=0U; invalidate_user_page(va,asid);
-    if(!nova_page_unpin((const void*)pa))return 0;
-    --mapped_aliases[fi];
+    /*
+     * Remove the translation before releasing its frame pin. If ownership
+     * validation and the allocator ever disagree at release time, restore
+     * the exact descriptor and alias accounting rather than leaving a live
+     * frame detached from its address space.
+     */
+    {
+        uint64_t original_desc = *slot;
+        int was_writable = descriptor_is_writable(original_desc);
+        int was_executable = descriptor_is_executable(original_desc);
+        *slot = 0U;
+        invalidate_user_page(va, asid);
+        if (!nova_page_unpin((const void *)pa)) {
+            *slot = original_desc;
+            if (was_writable) ++writable_aliases[fi];
+            if (was_executable) ++executable_aliases[fi];
+            invalidate_user_page(va, asid);
+            return 0;
+        }
+        if (was_writable) --writable_aliases[fi];
+        if (was_executable) --executable_aliases[fi];
+        --mapped_aliases[fi];
+    }
     for(i=0;i<NOVA_MMU_TABLE_ENTRIES;++i)if(l3[i]!=0U){empty=0;break;}
     if(empty){l2[i2]=0U;if(!nova_page_unpin(l3))return 0;return nova_page_free(l3);}
     return 1;
