@@ -64,6 +64,10 @@ host-test: | $(BUILD)
 	$(BUILD)/user-context-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/user_memory_test.c src/user_memory.c -o $(BUILD)/user-memory-test
 	$(BUILD)/user-memory-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fs_test.c src/fs.c -o $(BUILD)/fs-test
+	$(BUILD)/fs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/plan_test.c ../services/ai/plan.c -o $(BUILD)/ai-plan-test
+	$(BUILD)/ai-plan-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
