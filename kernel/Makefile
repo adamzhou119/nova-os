@@ -38,7 +38,7 @@ USER_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-test.o
 USER_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-fault-test.o
 EL3_TEST_BOOT_OBJECT := $(BUILD)/el3-test-boot.o
 
-.PHONY: all test host-test clean
+.PHONY: all test host-test benchmark clean
 all: $(BUILD)/nova.elf
 
 host-test: | $(BUILD)
@@ -64,6 +64,10 @@ host-test: | $(BUILD)
 	$(BUILD)/user-context-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/user_memory_test.c src/user_memory.c -o $(BUILD)/user-memory-test
 	$(BUILD)/user-memory-test
+
+benchmark: | $(BUILD)
+	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -Iinclude tests/page_allocator_bench.c src/page.c -o $(BUILD)/page-allocator-bench
+	$(BUILD)/page-allocator-bench
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
