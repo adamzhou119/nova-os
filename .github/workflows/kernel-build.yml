@@ -34,6 +34,18 @@ jobs:
         run: |
           make -C kernel host-test
 
+      - name: Run non-gating scheduler ready-selection benchmark
+        run: |
+          set -o pipefail
+          make -C kernel scheduler-benchmark | tee kernel/build/scheduler-selection-benchmark.txt
+
+      - name: Upload scheduler benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduler-selection-benchmark
+          path: kernel/build/scheduler-selection-benchmark.txt
+          if-no-files-found: error
+
       - name: Inspect ELF images
         run: |
           file kernel/build/nova.elf

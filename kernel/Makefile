@@ -38,8 +38,12 @@ USER_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-test.o
 USER_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-user-fault-test.o
 EL3_TEST_BOOT_OBJECT := $(BUILD)/el3-test-boot.o
 
-.PHONY: all test host-test clean
+.PHONY: all test host-test scheduler-benchmark clean
 all: $(BUILD)/nova.elf
+
+scheduler-benchmark: | $(BUILD)
+	$(CC) -std=c11 -O2 -Wall -Wextra -Werror -Iinclude tests/scheduler_selection_bench.c src/task.c src/context.c src/address_space.c -o $(BUILD)/scheduler-selection-bench
+	$(BUILD)/scheduler-selection-bench
 
 host-test: | $(BUILD)
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/page_allocator_test.c src/page.c -o $(BUILD)/page-allocator-test
