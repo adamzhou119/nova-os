@@ -964,8 +964,10 @@ static int test_irq_preemptive_scheduler(void) {
     uintptr_t root_a = 0U, root_b = 0U;
     struct nova_task_info info;
     struct nova_address_space_info address_space;
+    struct nova_sched_irq_metrics handoff_metrics;
     int result = 0;
 
+    nova_sched_irq_metrics_reset();
     cpu_bound_start_tick = nova_irq_tick_count();
     cpu_bound_progress_a = 0U;
     cpu_bound_progress_b = 0U;
@@ -998,15 +1000,26 @@ static int test_irq_preemptive_scheduler(void) {
      * timer preemption; A's post-B progress proves A resumed under its own
      * TTBR0; B's post-A progress proves the reverse handoff also completed.
      */
+    nova_sched_irq_metrics_get(&handoff_metrics);
     result = cpu_bound_progress_a != 0U &&
              cpu_bound_progress_b != 0U &&
              cpu_bound_b_started &&
              cpu_bound_a_resumed &&
              cpu_bound_b_resumed &&
              nova_irq_tick_count() - cpu_bound_start_tick >= 20U &&
+             handoff_metrics.successful_handoffs != 0U &&
              nova_sched_current() == 0U &&
              !nova_task_get(first, &info) &&
              !nova_task_get(second, &info);
+    if (result) {
+        nova_console_write("QEMU successful IRQ handoffs: ");
+        nova_console_write_hex64(handoff_metrics.successful_handoffs);
+        nova_console_write("QEMU IRQ handoff C-path average counter ticks: ");
+        nova_console_write_hex64(handoff_metrics.total_counter_ticks /
+                                 handoff_metrics.successful_handoffs);
+        nova_console_write("QEMU IRQ handoff C-path maximum counter ticks: ");
+        nova_console_write_hex64(handoff_metrics.max_counter_ticks);
+    }
 
 cleanup:
     nova_timer_stop();
