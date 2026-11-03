@@ -66,6 +66,8 @@ host-test: | $(BUILD)
 	$(BUILD)/user-memory-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fs_test.c src/fs.c -o $(BUILD)/fs-test
 	$(BUILD)/fs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/plan_test.c ../services/ai/plan.c -o $(BUILD)/ai-plan-test
+	$(BUILD)/ai-plan-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
