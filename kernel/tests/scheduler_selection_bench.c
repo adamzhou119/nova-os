@@ -84,7 +84,7 @@ static int run_size(size_t task_count) {
 }
 
 int main(void) {
-    static const size_t task_counts[] = {1U, 4U, NOVA_TASK_MAX};
+    static const size_t task_counts[] = {1U, 4U, 8U};
     size_t i;
 
     puts("Nova OS ready-task selection host benchmark");
