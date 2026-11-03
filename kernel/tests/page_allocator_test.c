@@ -65,6 +65,28 @@ int main(void) {
     if (!expect(nova_page_available() == nova_page_total(),
                 "free count must recover after all pages are returned")) return 1;
 
+    /* Next-fit must continue forward, wrap once, and reuse a freed earlier page. */
+    if (!expect(nova_page_init(0x10000U, 0x14000U),
+                "small aligned allocator region should initialize")) return 1;
+    pages[0] = nova_page_alloc();
+    pages[1] = nova_page_alloc();
+    pages[2] = nova_page_alloc();
+    if (!expect(pages[0] == (void *)0x10000U &&
+                pages[1] == (void *)0x11000U &&
+                pages[2] == (void *)0x12000U,
+                "next-fit initial allocations should advance in order")) return 1;
+    if (!expect(nova_page_free(pages[0]),
+                "free an earlier page while cursor is near the end")) return 1;
+    pages[3] = nova_page_alloc();
+    if (!expect(pages[3] == (void *)0x13000U,
+                "next-fit should continue to the final page before wrapping")) return 1;
+    pages[4] = nova_page_alloc();
+    if (!expect(pages[4] == pages[0],
+                "next-fit should wrap and reuse the earlier freed page")) return 1;
+    for (i = 1U; i <= 4U; ++i)
+        if (!expect(nova_page_free(pages[i]),
+                    "next-fit test allocations should all be releasable")) return 1;
+
     if (!expect(!nova_page_init_regions(NULL, 0U, NULL, 0U),
                 "empty RAM descriptor list must fail")) return 1;
     if (!expect(nova_page_total() == 0U, "failed init must leave allocator disabled")) return 1;
