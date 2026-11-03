@@ -87,6 +87,32 @@ int main(void) {
         if (!expect(nova_page_free(pages[i]),
                     "next-fit test allocations should all be releasable")) return 1;
 
+    /* Exhaustion and a second full wrap must never duplicate a live page. */
+    if (!expect(nova_page_init(0x20000U, 0x24000U),
+                "four-page allocator region should initialize")) return 1;
+    for (i = 0U; i < 4U; ++i) {
+        pages[i] = nova_page_alloc();
+        if (!expect(pages[i] != NULL, "allocate every page in the region")) return 1;
+    }
+    if (!expect(nova_page_alloc() == NULL,
+                "allocator must report exhaustion after a full scan")) return 1;
+    if (!expect(nova_page_free(pages[2]),
+                "free a middle page after the cursor wrapped")) return 1;
+    pages[4] = nova_page_alloc();
+    if (!expect(pages[4] == pages[2],
+                "wrapped cursor must find the only free page")) return 1;
+    if (!expect(nova_page_alloc() == NULL,
+                "reallocated page must not be returned twice")) return 1;
+    for (i = 0U; i < 4U; ++i) {
+        if (i != 2U &&
+            !expect(nova_page_free(pages[i]),
+                    "remaining live page should be releasable")) return 1;
+    }
+    if (!expect(nova_page_free(pages[4]),
+                "reallocated middle page should be releasable")) return 1;
+    if (!expect(nova_page_available() == nova_page_total(),
+                "availability must recover after exhaustion cycle")) return 1;
+
     if (!expect(!nova_page_init_regions(NULL, 0U, NULL, 0U),
                 "empty RAM descriptor list must fail")) return 1;
     if (!expect(nova_page_total() == 0U, "failed init must leave allocator disabled")) return 1;
