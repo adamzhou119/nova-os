@@ -10,6 +10,8 @@ static uintptr_t page_addresses[NOVA_PAGE_MAX_COUNT];
 static uint32_t page_pin_counts[NOVA_PAGE_MAX_COUNT];
 static size_t page_count;
 static size_t page_free_count;
+/* Next-fit cursor avoids rescanning the allocated prefix on every allocation. */
+static size_t page_next_hint;
 static int page_ready;
 
 static void page_reset(void) {
@@ -18,6 +20,7 @@ static void page_reset(void) {
     for (i = 0; i < NOVA_PAGE_MAX_COUNT; ++i) page_pin_counts[i] = 0;
     page_count = 0;
     page_free_count = 0;
+    page_next_hint = 0;
     page_ready = 0;
 }
 
@@ -104,15 +107,23 @@ int nova_page_init_regions(const struct nova_memory_region *memory,
 }
 
 void *nova_page_alloc(void) {
-    size_t index;
+    size_t offset;
     if (!page_ready || page_free_count == 0) return NULL;
-    for (index = 0; index < page_count; ++index) {
-        size_t word = index / NOVA_PAGE_WORD_BITS;
-        size_t bit = index % NOVA_PAGE_WORD_BITS;
-        uint64_t mask = (uint64_t)1U << bit;
+
+    /* Search from the previous allocation, wrapping once through the bitmap. */
+    for (offset = 0; offset < page_count; ++offset) {
+        size_t index = page_next_hint + offset;
+        size_t word, bit;
+        uint64_t mask;
+        if (index >= page_count) index -= page_count;
+        word = index / NOVA_PAGE_WORD_BITS;
+        bit = index % NOVA_PAGE_WORD_BITS;
+        mask = (uint64_t)1U << bit;
         if ((page_bitmap[word] & mask) == 0) {
             page_bitmap[word] |= mask;
             --page_free_count;
+            page_next_hint = index + 1U;
+            if (page_next_hint == page_count) page_next_hint = 0;
             return (void *)page_addresses[index];
         }
     }
@@ -134,6 +145,7 @@ int nova_page_free(void *page) {
     if ((page_bitmap[word] & mask) == 0 || page_pin_counts[index] != 0) return 0;
     page_bitmap[word] &= ~mask;
     ++page_free_count;
+    if (index < page_next_hint) page_next_hint = index;
     return 1;
 }
 
