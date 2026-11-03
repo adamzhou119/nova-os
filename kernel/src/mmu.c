@@ -366,7 +366,6 @@ int nova_mmu_unmap_page(uintptr_t virtual_address) {
         --writable_aliases[frame_index];
     if (descriptor_is_executable(old_descriptor))
         --executable_aliases[frame_index];
-    --mapped_aliases[frame_index];
     return 1;
 }
 
