@@ -65,6 +65,89 @@ int main(void) {
     if (!expect(nova_page_available() == nova_page_total(),
                 "free count must recover after all pages are returned")) return 1;
 
+    /* Next-fit must continue forward, wrap once, and reuse a freed earlier page. */
+    if (!expect(nova_page_init(0x10000U, 0x14000U),
+                "small aligned allocator region should initialize")) return 1;
+    pages[0] = nova_page_alloc();
+    pages[1] = nova_page_alloc();
+    pages[2] = nova_page_alloc();
+    if (!expect(pages[0] == (void *)0x10000U &&
+                pages[1] == (void *)0x11000U &&
+                pages[2] == (void *)0x12000U,
+                "next-fit initial allocations should advance in order")) return 1;
+    if (!expect(nova_page_free(pages[0]),
+                "free an earlier page while cursor is near the end")) return 1;
+    pages[3] = nova_page_alloc();
+    if (!expect(pages[3] == (void *)0x13000U,
+                "next-fit should continue to the final page before wrapping")) return 1;
+    pages[4] = nova_page_alloc();
+    if (!expect(pages[4] == pages[0],
+                "next-fit should wrap and reuse the earlier freed page")) return 1;
+    for (i = 1U; i <= 4U; ++i)
+        if (!expect(nova_page_free(pages[i]),
+                    "next-fit test allocations should all be releasable")) return 1;
+
+    /* Exhaustion and a second full wrap must never duplicate a live page. */
+    if (!expect(nova_page_init(0x20000U, 0x24000U),
+                "four-page allocator region should initialize")) return 1;
+    for (i = 0U; i < 4U; ++i) {
+        pages[i] = nova_page_alloc();
+        if (!expect(pages[i] != NULL, "allocate every page in the region")) return 1;
+    }
+    if (!expect(nova_page_alloc() == NULL,
+                "allocator must report exhaustion after a full scan")) return 1;
+    if (!expect(nova_page_free(pages[2]),
+                "free a middle page after the cursor wrapped")) return 1;
+    pages[4] = nova_page_alloc();
+    if (!expect(pages[4] == pages[2],
+                "wrapped cursor must find the only free page")) return 1;
+    if (!expect(nova_page_alloc() == NULL,
+                "reallocated page must not be returned twice")) return 1;
+    for (i = 0U; i < 4U; ++i) {
+        if (i != 2U &&
+            !expect(nova_page_free(pages[i]),
+                    "remaining live page should be releasable")) return 1;
+    }
+    if (!expect(nova_page_free(pages[4]),
+                "reallocated middle page should be releasable")) return 1;
+    if (!expect(nova_page_available() == nova_page_total(),
+                "availability must recover after exhaustion cycle")) return 1;
+
+    /* Unsorted, discontiguous firmware regions must produce a searchable index. */
+    {
+        struct nova_memory_region unsorted[3] = {
+            {0x50000U, 2U * NOVA_PAGE_SIZE},
+            {0x30000U, 2U * NOVA_PAGE_SIZE},
+            {0x70000U, 1U * NOVA_PAGE_SIZE}
+        };
+        if (!expect(nova_page_init_regions(unsorted, 3U, NULL, 0U),
+                    "unsorted discontiguous RAM regions should initialize")) return 1;
+        if (!expect(nova_page_total() == 5U,
+                    "all pages from discontiguous regions should be indexed")) return 1;
+        pages[0] = nova_page_alloc();
+        pages[1] = nova_page_alloc();
+        pages[2] = nova_page_alloc();
+        if (!expect(pages[0] == (void *)0x30000U &&
+                    pages[1] == (void *)0x31000U &&
+                    pages[2] == (void *)0x50000U,
+                    "allocation order should be deterministic after sorting")) return 1;
+        if (!expect(nova_page_is_allocated(pages[2]),
+                    "binary lookup should find an allocated page in a later region")) return 1;
+        if (!expect(nova_page_pin(pages[2]) &&
+                    nova_page_pin_count(pages[2]) == 1U,
+                    "binary lookup should find and pin a page in a later region")) return 1;
+        if (!expect(!nova_page_free(pages[2]),
+                    "binary lookup must preserve pin protection")) return 1;
+        if (!expect(nova_page_unpin(pages[2]) && nova_page_free(pages[2]),
+                    "binary lookup should unpin and free a page")) return 1;
+        if (!expect(!nova_page_is_allocated((void *)0x40000U),
+                    "binary lookup must reject a hole between RAM regions")) return 1;
+        if (!expect(nova_page_free(pages[0]) && nova_page_free(pages[1]),
+                    "sorted index pages should remain releasable")) return 1;
+        if (!expect(nova_page_available() == nova_page_total(),
+                    "sorted index should preserve the free-page count")) return 1;
+    }
+
     if (!expect(!nova_page_init_regions(NULL, 0U, NULL, 0U),
                 "empty RAM descriptor list must fail")) return 1;
     if (!expect(nova_page_total() == 0U, "failed init must leave allocator disabled")) return 1;

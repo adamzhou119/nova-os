@@ -10,6 +10,8 @@ static uintptr_t page_addresses[NOVA_PAGE_MAX_COUNT];
 static uint32_t page_pin_counts[NOVA_PAGE_MAX_COUNT];
 static size_t page_count;
 static size_t page_free_count;
+/* Next-fit cursor avoids rescanning the allocated prefix on every allocation. */
+static size_t page_next_hint;
 static int page_ready;
 
 static void page_reset(void) {
@@ -18,12 +20,61 @@ static void page_reset(void) {
     for (i = 0; i < NOVA_PAGE_MAX_COUNT; ++i) page_pin_counts[i] = 0;
     page_count = 0;
     page_free_count = 0;
+    page_next_hint = 0;
     page_ready = 0;
 }
 
 static int range_overlaps(uint64_t a_start, uint64_t a_end,
                           uint64_t b_start, uint64_t b_end) {
     return a_start < b_end && b_start < a_end;
+}
+
+/* Keep the physical-page index ordered without allocating a second array. */
+static void page_sift_down(size_t root, size_t count) {
+    for (;;) {
+        size_t child = root * 2U + 1U;
+        size_t largest = root;
+        uintptr_t tmp;
+        if (child >= count) return;
+        if (page_addresses[child] > page_addresses[largest]) largest = child;
+        if (child + 1U < count &&
+            page_addresses[child + 1U] > page_addresses[largest])
+            largest = child + 1U;
+        if (largest == root) return;
+        tmp = page_addresses[root];
+        page_addresses[root] = page_addresses[largest];
+        page_addresses[largest] = tmp;
+        root = largest;
+    }
+}
+
+static void page_sort_addresses(void) {
+    size_t start, end;
+    if (page_count < 2U) return;
+    for (start = page_count / 2U; start > 0U; --start)
+        page_sift_down(start - 1U, page_count);
+    for (end = page_count; end > 1U; --end) {
+        uintptr_t tmp = page_addresses[0];
+        page_addresses[0] = page_addresses[end - 1U];
+        page_addresses[end - 1U] = tmp;
+        page_sift_down(0U, end - 1U);
+    }
+}
+
+/* Binary search is valid because initialization sorts all discovered pages. */
+static size_t page_find_index(const void *page) {
+    size_t low = 0U, high = page_count;
+    uintptr_t address = (uintptr_t)page;
+    if (!page_ready || page == NULL ||
+        (address & (NOVA_PAGE_SIZE - 1U)) != 0U) return page_count;
+    while (low < high) {
+        size_t middle = low + (high - low) / 2U;
+        uintptr_t candidate = page_addresses[middle];
+        if (candidate < address) low = middle + 1U;
+        else high = middle;
+    }
+    return low < page_count && page_addresses[low] == address
+        ? low : page_count;
 }
 
 int nova_page_init(uintptr_t start, uintptr_t end) {
@@ -98,21 +149,30 @@ int nova_page_init_regions(const struct nova_memory_region *memory,
             address += NOVA_PAGE_SIZE;
         }
     }
+    page_sort_addresses();
     page_free_count = page_count;
     page_ready = page_count != 0;
     return page_ready;
 }
 
 void *nova_page_alloc(void) {
-    size_t index;
+    size_t offset;
     if (!page_ready || page_free_count == 0) return NULL;
-    for (index = 0; index < page_count; ++index) {
-        size_t word = index / NOVA_PAGE_WORD_BITS;
-        size_t bit = index % NOVA_PAGE_WORD_BITS;
-        uint64_t mask = (uint64_t)1U << bit;
+
+    /* Search from the previous allocation, wrapping once through the bitmap. */
+    for (offset = 0; offset < page_count; ++offset) {
+        size_t index = page_next_hint + offset;
+        size_t word, bit;
+        uint64_t mask;
+        if (index >= page_count) index -= page_count;
+        word = index / NOVA_PAGE_WORD_BITS;
+        bit = index % NOVA_PAGE_WORD_BITS;
+        mask = (uint64_t)1U << bit;
         if ((page_bitmap[word] & mask) == 0) {
             page_bitmap[word] |= mask;
             --page_free_count;
+            page_next_hint = index + 1U;
+            if (page_next_hint == page_count) page_next_hint = 0;
             return (void *)page_addresses[index];
         }
     }
@@ -125,8 +185,7 @@ int nova_page_free(void *page) {
     uint64_t mask;
     if (!page_ready || page == NULL ||
         (address & (NOVA_PAGE_SIZE - 1U)) != 0) return 0;
-    for (index = 0; index < page_count; ++index)
-        if (page_addresses[index] == address) break;
+    index = page_find_index(page);
     if (index == page_count) return 0;
     word = index / NOVA_PAGE_WORD_BITS;
     bit = index % NOVA_PAGE_WORD_BITS;
@@ -142,29 +201,14 @@ size_t nova_page_available(void) { return page_ready ? page_free_count : 0; }
 
 
 int nova_page_is_allocated(const void *page) {
-    uintptr_t address = (uintptr_t)page;
-    size_t index, word, bit;
+    size_t index = page_find_index(page);
+    size_t word, bit;
     uint64_t mask;
-    if (!page_ready || page == NULL ||
-        (address & (NOVA_PAGE_SIZE - 1U)) != 0) return 0;
-    for (index = 0; index < page_count; ++index)
-        if (page_addresses[index] == address) break;
     if (index == page_count) return 0;
     word = index / NOVA_PAGE_WORD_BITS;
     bit = index % NOVA_PAGE_WORD_BITS;
     mask = (uint64_t)1U << bit;
     return (page_bitmap[word] & mask) != 0;
-}
-
-
-static size_t page_find_index(const void *page) {
-    size_t index;
-    uintptr_t address = (uintptr_t)page;
-    if (!page_ready || page == NULL ||
-        (address & (NOVA_PAGE_SIZE - 1U)) != 0) return page_count;
-    for (index = 0; index < page_count; ++index)
-        if (page_addresses[index] == address) return index;
-    return page_count;
 }
 
 int nova_page_pin(const void *page) {
