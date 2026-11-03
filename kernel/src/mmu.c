@@ -325,19 +325,51 @@ int nova_mmu_map_page(uintptr_t virtual_address, uintptr_t physical_address,
 int nova_mmu_unmap_page(uintptr_t virtual_address) {
     size_t l2_index, l3_index, frame_index;
     uint64_t *slot;
+    uint64_t old_descriptor;
     uintptr_t physical_address;
+
     if (!dynamic_va_indices(virtual_address, &l2_index, &l3_index)) return 0;
     slot = &level3_ram_tables[l2_index][l3_index];
-    if ((*slot & DESC_VALID) == 0) return 0;
-    physical_address = (uintptr_t)(*slot & DESC_ADDR_MASK);
+    old_descriptor = *slot;
+    if ((old_descriptor & (DESC_VALID | DESC_PAGE)) !=
+        (DESC_VALID | DESC_PAGE)) return 0;
+
+    physical_address = (uintptr_t)(old_descriptor & DESC_ADDR_MASK);
+    if (physical_address < NOVA_MMU_RAM_BASE ||
+        physical_address >= NOVA_MMU_RAM_BASE + NOVA_MMU_RAM_SIZE)
+        return 0;
     frame_index = physical_frame_index(physical_address);
-    if (descriptor_is_writable(*slot) && writable_aliases[frame_index] != 0)
-        --writable_aliases[frame_index];
-    if (descriptor_is_executable(*slot) && executable_aliases[frame_index] != 0)
-        --executable_aliases[frame_index];
-    *slot = 0;
+
+    /*
+     * Validate every software ownership counter before breaking the mapping.
+     * In particular, never clear a PTE and only then discover that its frame
+     * has already lost the pin that protects it from physical-page reuse.
+     */
+    if (!nova_page_is_allocated((const void *)physical_address) ||
+        mapped_aliases[frame_index] == 0U ||
+        nova_page_pin_count((const void *)physical_address) <
+            mapped_aliases[frame_index] ||
+        (descriptor_is_writable(old_descriptor) &&
+         writable_aliases[frame_index] == 0U) ||
+        (descriptor_is_executable(old_descriptor) &&
+         executable_aliases[frame_index] == 0U))
+        return 0;
+
+    *slot = 0U;
     invalidate_stage1_page(virtual_address);
-    return nova_page_unpin((const void *)physical_address);
+    if (!nova_page_unpin((const void *)physical_address)) {
+        /* Keep the old ownership and translation intact if release fails. */
+        *slot = old_descriptor;
+        invalidate_stage1_page(virtual_address);
+        return 0;
+    }
+
+    if (descriptor_is_writable(old_descriptor))
+        --writable_aliases[frame_index];
+    if (descriptor_is_executable(old_descriptor))
+        --executable_aliases[frame_index];
+    --mapped_aliases[frame_index];
+    return 1;
 }
 
 int nova_mmu_protect_page(uintptr_t virtual_address, unsigned int flags) {
