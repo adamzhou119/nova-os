@@ -36,7 +36,15 @@ jobs:
 
       - name: Run non-gating page allocator benchmark
         run: |
-          make -C kernel benchmark
+          set -o pipefail
+          make -C kernel benchmark | tee kernel/build/page-allocator-benchmark.txt
+
+      - name: Upload page allocator benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: page-allocator-benchmark
+          path: kernel/build/page-allocator-benchmark.txt
+          if-no-files-found: error
 
       - name: Inspect ELF images
         run: |
