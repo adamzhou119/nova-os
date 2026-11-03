@@ -331,8 +331,8 @@ void nova_sched_timer_tick(void) {
 
 int nova_sched_preemption_pending(void) { return preemption_pending; }
 
-int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
-                           struct nova_irq_frame **next_frame) {
+static int scheduler_irq_handoff_impl(struct nova_irq_frame *frame, uint32_t *next_id,
+                                       struct nova_irq_frame **next_frame) {
     uintptr_t saved_daif = irq_save_disable();
     uint32_t current_id = current_task_id;
     uint32_t candidate_id = 0U;
@@ -460,6 +460,45 @@ int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
     }
 
     irq_restore(saved_daif);
+    return switched;
+}
+
+
+static struct nova_sched_irq_metrics irq_handoff_metrics;
+
+static uint64_t scheduler_read_counter(void) {
+#if defined(__aarch64__)
+    uint64_t value;
+    __asm__ volatile("mrs %0, cntvct_el0" : "=r"(value));
+    return value;
+#else
+    return 0U;
+#endif
+}
+
+void nova_sched_irq_metrics_reset(void) {
+    irq_handoff_metrics.successful_handoffs = 0U;
+    irq_handoff_metrics.total_counter_ticks = 0U;
+    irq_handoff_metrics.max_counter_ticks = 0U;
+}
+
+void nova_sched_irq_metrics_get(struct nova_sched_irq_metrics *metrics) {
+    if (metrics == 0) return;
+    *metrics = irq_handoff_metrics;
+}
+
+int nova_sched_irq_handoff(struct nova_irq_frame *frame, uint32_t *next_id,
+                           struct nova_irq_frame **next_frame) {
+    uint64_t start = scheduler_read_counter();
+    uint64_t elapsed;
+    int switched = scheduler_irq_handoff_impl(frame, next_id, next_frame);
+    elapsed = scheduler_read_counter() - start;
+    if (switched) {
+        ++irq_handoff_metrics.successful_handoffs;
+        irq_handoff_metrics.total_counter_ticks += elapsed;
+        if (elapsed > irq_handoff_metrics.max_counter_ticks)
+            irq_handoff_metrics.max_counter_ticks = elapsed;
+    }
     return switched;
 }
 

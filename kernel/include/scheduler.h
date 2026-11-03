@@ -12,6 +12,15 @@ enum nova_sched_phase {
     NOVA_SCHED_SCHEDULER,
     NOVA_SCHED_TASK
 };
+struct nova_sched_irq_metrics {
+    uint64_t successful_handoffs;
+    uint64_t total_counter_ticks;
+    uint64_t max_counter_ticks;
+};
+
+/* Measures the IRQ handoff C path only; assembly restore is not included. */
+void nova_sched_irq_metrics_reset(void);
+void nova_sched_irq_metrics_get(struct nova_sched_irq_metrics *metrics);
 int nova_sched_start(void);
 int nova_sched_yield(void);
 int nova_sched_block_current(void);
