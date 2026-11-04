@@ -338,7 +338,10 @@ int main(void) {
     assert(space.references == 2U && space.active_cpus == 0U);
     assert(nova_task_get(user_task, &info));
     assert(info.state == NOVA_TASK_BLOCKED && info.address_space_id == user_space_id);
-    assert(nova_task_transition(user_task, NOVA_TASK_READY));
+    /* Wake a blocked task through the scheduler API; duplicate wake is safe. */
+    assert(nova_sched_unblock(user_task));
+    assert(nova_sched_unblock(user_task));
+    assert(nova_task_get(user_task, &info) && info.state == NOVA_TASK_READY);
     assert(nova_task_transition(user_task, NOVA_TASK_RUNNING));
     assert(nova_task_transition(user_task, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(user_task));
