@@ -4,6 +4,7 @@
 #include <string.h>
 #include "task.h"
 #include "ipc.h"
+#include "capability.h"
 #include "context.h"
 #include "vm.h"
 #include "address_space.h"
@@ -317,6 +318,64 @@ int main(void) {
 
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
+
+    /*
+     * Task destruction must revoke Broker capabilities and the matching IPC
+     * grant before the task identity can disappear or its TCB slot be reused.
+     */
+    {
+        uint32_t owner_task = 0U, holder_task = 0U;
+        int64_t port;
+        int64_t capability;
+        assert(nova_task_create(dummy_entry, 0, &owner_task));
+        assert(nova_task_create(dummy_entry, 0, &holder_task));
+        assert(nova_task_transition(owner_task, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(holder_task, NOVA_TASK_RUNNING));
+        port = nova_ipc_port_create(owner_task);
+        assert(port > 0);
+        capability = nova_capability_grant(owner_task, holder_task,
+                                           NOVA_CAP_RESOURCE_IPC_PORT,
+                                           (uint32_t)port,
+                                           NOVA_CAP_RIGHT_SEND);
+        assert(capability > 0);
+        assert(nova_ipc_port_has_rights(holder_task, (uint32_t)port,
+                                        NOVA_IPC_RIGHT_SEND));
+        assert(nova_task_transition(holder_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(holder_task));
+        assert(!nova_capability_check(holder_task, (uint32_t)capability,
+                                      NOVA_CAP_RESOURCE_IPC_PORT,
+                                      (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+        assert(!nova_ipc_port_has_rights(holder_task, (uint32_t)port,
+                                         NOVA_IPC_RIGHT_SEND));
+        assert(nova_task_transition(owner_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(owner_task));
+        assert(nova_ipc_send(holder_task, (uint32_t)port, "x", 1U) == -9);
+    }
+
+    /* Issuer destruction invalidates its capabilities and closes its ports. */
+    {
+        uint32_t issuer_task = 0U, recipient_task = 0U;
+        int64_t port;
+        int64_t capability;
+        assert(nova_task_create(dummy_entry, 0, &issuer_task));
+        assert(nova_task_create(dummy_entry, 0, &recipient_task));
+        assert(nova_task_transition(issuer_task, NOVA_TASK_RUNNING));
+        port = nova_ipc_port_create(issuer_task);
+        assert(port > 0);
+        capability = nova_capability_grant(issuer_task, recipient_task,
+                                           NOVA_CAP_RESOURCE_IPC_PORT,
+                                           (uint32_t)port,
+                                           NOVA_CAP_RIGHT_SEND);
+        assert(capability > 0);
+        assert(nova_task_transition(issuer_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(issuer_task));
+        assert(!nova_capability_check(recipient_task, (uint32_t)capability,
+                                      NOVA_CAP_RESOURCE_IPC_PORT,
+                                      (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+        assert(nova_ipc_send(recipient_task, (uint32_t)port, "x", 1U) == -9);
+        assert(nova_task_transition(recipient_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(recipient_task));
+    }
 
     /*
      * TCB slots may be reused, but task identities must not be. This prevents
