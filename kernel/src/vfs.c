@@ -67,8 +67,5 @@ int nova_vfs_readdir(const char *path, size_t index,
         if (path[i] != mount_name[i]) return 0;
     if (path[sizeof(mount_name) - 1U] == '\0')
         return nova_fs_list(index, entry);
-    if (path[sizeof(mount_name) - 1U] == '/' &&
-        path[sizeof(mount_name)] == '\0')
-        return nova_fs_list(index, entry);
     return 0;
 }
