@@ -531,7 +531,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         uint64_t port = frame->x[0];
         frame->x[0] = (uint64_t)(int64_t)(
             task_id == 0U || port == 0U || port > UINT32_MAX ? -22 :
-            (nova_ipc_port_close(task_id, (uint32_t)port) ? 0 : -13));
+            nova_ipc_port_close(task_id, (uint32_t)port));
     } else if (frame->x[8] == NOVA_SYS_EXIT) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC exit; current task: ");
