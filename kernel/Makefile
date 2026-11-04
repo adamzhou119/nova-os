@@ -51,7 +51,7 @@ host-test: | $(BUILD)
 	$(BUILD)/device-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fdt_device_test.c src/fdt.c src/device.c -o $(BUILD)/fdt-device-test
 	$(BUILD)/fdt-device-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c src/address_space.c -o $(BUILD)/task-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/task_test.c src/task.c src/context.c src/address_space.c src/ipc.c -o $(BUILD)/task-test
 	$(BUILD)/task-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/interrupt_test.c src/interrupt.c -o $(BUILD)/interrupt-test
 	$(BUILD)/interrupt-test
