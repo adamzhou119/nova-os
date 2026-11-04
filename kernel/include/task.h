@@ -100,7 +100,7 @@ int nova_task_set_exit_code(uint32_t task_id, int exit_code);
 /* Records a contained EL0 fault on the currently RUNNING task. */
 int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
                         uint64_t esr, uint64_t far, uint64_t elr);
-/* Only never-dispatched READY/BLOCKED first-run tasks and ZOMBIE tasks may be destroyed. */
+/* IRQ-atomic teardown; only never-dispatched READY/BLOCKED first-run and ZOMBIE tasks may be destroyed. */
 int nova_task_destroy(uint32_t task_id);
 /* Reap ZOMBIE tasks from the scheduler stack; failed teardown remains retryable. */
 int nova_task_reap_zombies(void);
