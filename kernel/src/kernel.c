@@ -305,6 +305,8 @@ static int test_el0_svc_round_trip(void) {
          result[2] == 1U && result[3] == 1U &&
          result[4] == 1U && result[5] == 1U &&
          result[6] == 1U;
+    if (result[6] == 1U)
+        nova_console_write("EL0 delegated IPC capability checks passed.\\n");
     if (delegated_port != 0U) {
         struct nova_task_info exited_info;
         ok = ok && !nova_task_get(task_id, &exited_info) &&
