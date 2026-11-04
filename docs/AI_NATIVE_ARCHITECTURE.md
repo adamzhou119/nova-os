@@ -91,4 +91,6 @@ Plans are durable state machines, not opaque model transcripts. Each step record
 - **A5 — Product integration:** launcher, settings, files, communications, and cross-app workflows.
 - **A6 — Evaluation:** privacy, safety, reliability, responsiveness, and energy test suites.
 
-No phase is considered complete from documentation alone. Each requires implementation and automated tests. The current mailbox primitive is only the transport foundation; it is not yet the complete A1 service IPC contract.
+No phase is considered complete from documentation alone. Each requires implementation and automated tests. The kernel now also has a bounded service-name registry (16 entries, names up to 31 ASCII characters). Registration is accepted only when the caller owns the referenced IPC port; duplicate names are rejected, and entries are removed when their owner exits. Lookup returns an endpoint ID but does not grant send/receive rights, so IPC authorization remains a separate explicit operation. The registry is kernel-local and not yet exposed to EL0 or the capability broker.
+
+The current mailbox and registry primitives are still only the transport/discovery foundation; they are not yet the complete A1 service IPC contract.
