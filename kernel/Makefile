@@ -103,7 +103,7 @@ $(CONSOLE_OBJECT): src/console.c include/console.h include/device.h | $(BUILD)
 $(DEVICE_OBJECT): src/device.c include/device.h include/fdt.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/console.h | $(BUILD)
+$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
