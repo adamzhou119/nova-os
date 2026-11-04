@@ -236,7 +236,7 @@ static int test_el0_svc_round_trip(void) {
         !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
                                 stack_page, NOVA_MMU_MAP_WRITABLE) ||
         !nova_task_create(test_ipc_recipient_entry, 0U, &recipient_id) ||
-        !nova_task_transition(recipient_id, NOVA_TASK_BLOCKED) ||
+        !nova_task_block_ready(recipient_id) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
                                recipient_id, &task_id))
