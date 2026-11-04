@@ -293,7 +293,7 @@ int main(void) {
     /* The injected root-release failure was consumed by the IPC cleanup check above. */
     assert(nova_task_get(first, &info));
     assert(info.state == NOVA_TASK_ZOMBIE && info.kernel_stack_base == 0U &&
-           info.kernel_stack_top == 0U);
+           info.kernel_stack_top == 0U && info.teardown_in_progress == 0U);
     /* A retryable zombie with a freed stack must not accept a stale IRQ frame. */
     assert(!nova_task_set_irq_frame(first,
         (struct nova_irq_frame *)(uintptr_t)0x1000U));
