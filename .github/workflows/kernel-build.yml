@@ -107,6 +107,7 @@ jobs:
           grep -q "EL0 write syscall rejected excessive length." user-svc.log
           grep -q "EL0 copyout valid marker passed." user-svc.log
           grep -q "EL0 copyout cross-page range rejected." user-svc.log
+          grep -q "EL0 delegated IPC capability checks passed." user-svc.log
           grep -q "QEMU EL0 SVC round-trip test passed." user-svc.log
           echo "Nova OS EL0 SVC round-trip passed."
 
