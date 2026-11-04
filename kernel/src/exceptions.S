@@ -298,15 +298,16 @@ nova_user_test_payload_start:
     b.ne    1f
 
     /* Invalid user pointers must be rejected by service lookup. */
+    /* ABI v1: service lookup is syscall 9. */
     movz    x0, #0x8000, lsl #16
     add     x0, x0, #0x4000
-    mov     x8, #5
+    mov     x8, #9
     svc     #0
     cmn     x0, #14
     b.ne    1f
 
     /* Create a task-owned IPC endpoint and publish a service name. */
-    mov     x8, #3
+    mov     x8, #7
     svc     #0
     cmp     x0, #0
     b.le    1f
@@ -314,13 +315,13 @@ nova_user_test_payload_start:
     str     x19, [sp, #8]            /* result[1]: discovered port */
     adr     x0, 3f
     mov     x1, x19
-    mov     x8, #4
+    mov     x8, #8
     svc     #0
     cbnz    x0, 1f
 
     /* Discovery must return the exact endpoint. */
     adr     x0, 3f
-    mov     x8, #5
+    mov     x8, #9
     svc     #0
     cmp     x0, x19
     b.ne    1f
@@ -329,7 +330,7 @@ nova_user_test_payload_start:
     mov     x0, x19
     adr     x1, 4f
     mov     x2, #4
-    mov     x8, #10
+    mov     x8, #14
     svc     #0
     cbnz    x0, 1f
 
@@ -338,7 +339,7 @@ nova_user_test_payload_start:
     movz    x1, #0x8000, lsl #16
     add     x1, x1, #0x4000
     mov     x2, #64
-    mov     x8, #11
+    mov     x8, #15
     svc     #0
     cmn     x0, #14
     b.ne    1f
@@ -347,7 +348,7 @@ nova_user_test_payload_start:
     mov     x0, x19
     add     x1, sp, #32
     mov     x2, #64
-    mov     x8, #11
+    mov     x8, #15
     svc     #0
     cmp     x0, #4
     b.ne    1f
@@ -363,12 +364,12 @@ nova_user_test_payload_start:
     mov     x0, x19
     mov     x1, x20
     mov     x2, #1
-    mov     x8, #8
+    mov     x8, #12
     svc     #0
     cbnz    x0, 1f
     mov     x0, x19
     mov     x1, x20
-    mov     x8, #9
+    mov     x8, #13
     svc     #0
     cbnz    x0, 1f
     mov     x0, #1
@@ -378,17 +379,17 @@ nova_user_test_payload_start:
     mov     x0, x19
     mov     x1, x20
     mov     x2, #4
-    mov     x8, #8
+    mov     x8, #12
     svc     #0
     cmn     x0, #22
     b.ne    1f
 
     adr     x0, 3f
-    mov     x8, #6
+    mov     x8, #10
     svc     #0
     cbnz    x0, 1f
     mov     x0, x19
-    mov     x8, #7
+    mov     x8, #11
     svc     #0
     cbnz    x0, 1f
 
