@@ -185,9 +185,15 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
 }
 
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state) {
-    struct nova_task_info *task = find_task(task_id);
+    struct nova_task_info *task;
+    uintptr_t saved_daif = task_irq_save_disable();
     int allowed = 0;
-    if (task == 0) return 0;
+
+    task = find_task(task_id);
+    if (task == 0) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
     switch (task->state) {
     case NOVA_TASK_READY:
         allowed = next_state == NOVA_TASK_RUNNING;
@@ -203,18 +209,28 @@ int nova_task_transition(uint32_t task_id, enum nova_task_state next_state) {
     default:
         break;
     }
-    if (!allowed) return 0;
+    if (!allowed) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
     task->state = next_state;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
 int nova_task_block_ready(uint32_t task_id) {
-    struct nova_task_info *task = find_task(task_id);
-    if (task == 0 || task->state != NOVA_TASK_READY) return 0;
-    if (task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN &&
-        task->resume_kind != NOVA_TASK_RESUME_USER_FIRST_RUN)
+    struct nova_task_info *task;
+    uintptr_t saved_daif = task_irq_save_disable();
+
+    task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_READY ||
+        (task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN &&
+         task->resume_kind != NOVA_TASK_RESUME_USER_FIRST_RUN)) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     task->state = NOVA_TASK_BLOCKED;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
