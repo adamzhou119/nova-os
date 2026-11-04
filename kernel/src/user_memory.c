@@ -27,6 +27,12 @@ static int user_range_accessible(uintptr_t address, uint64_t length,
     return 1;
 }
 
+int nova_user_validate_range(uintptr_t address, uint64_t length,
+                              int write_access) {
+    if (length > NOVA_USER_COPY_MAX) return NOVA_EINVAL;
+    return user_range_accessible(address, length, write_access) ? 0 : NOVA_EFAULT;
+}
+
 int64_t nova_user_copy_from(void *kernel_destination,
                             uintptr_t user_source, uint64_t length) {
     uint64_t i;
