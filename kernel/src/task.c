@@ -143,7 +143,7 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     id = next_task_id++;
     tasks[i].id = id;
     tasks[i].address_space_id = address_space_id;
-    tasks[i].state = NOVA_TASK_READY;
+    /* Do not expose the TCB until its EL0 frame and kernel stack are complete. */
     tasks[i].resume_kind = NOVA_TASK_RESUME_USER_FIRST_RUN;
     tasks[i].entry = 0;
     tasks[i].argument = (void *)argument0;
@@ -157,6 +157,8 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].irq_frame = frame;
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
+    /* READY is the publication point for both kernel and EL0 tasks. */
+    tasks[i].state = NOVA_TASK_READY;
     *task_id = id;
     return 1;
 }
