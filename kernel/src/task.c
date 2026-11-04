@@ -261,22 +261,39 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
 }
 
 int nova_task_set_address_space(uint32_t task_id, uint32_t address_space_id) {
-    struct nova_task_info *task = find_task(task_id);
+    struct nova_task_info *task;
     uint32_t old_id;
+    uintptr_t saved_daif = task_irq_save_disable();
+
+    /*
+     * A READY first-run task is scheduler-visible. Keep IRQ dispatch out of
+     * the retain/release/field-update sequence so the scheduler cannot enter
+     * it with an old address-space ID while its references are being changed.
+     */
+    task = find_task(task_id);
     if (task == 0 || task->state != NOVA_TASK_READY ||
-        task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN)
+        task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     old_id = task->address_space_id;
-    if (old_id == address_space_id) return 1;
+    if (old_id == address_space_id) {
+        task_irq_restore(saved_daif);
+        return 1;
+    }
     if (address_space_id != 0U &&
-        !nova_address_space_retain(address_space_id))
+        !nova_address_space_retain(address_space_id)) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     if (old_id != 0U && !nova_address_space_release(old_id)) {
         if (address_space_id != 0U)
             (void)nova_address_space_release(address_space_id);
+        task_irq_restore(saved_daif);
         return 0;
     }
     task->address_space_id = address_space_id;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
