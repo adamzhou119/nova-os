@@ -13,6 +13,7 @@
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
+static uint32_t expect_zombie_during_free;
 static int reject_user_mapping;
 int nova_mmu_user_verify_page(uintptr_t root, uint16_t asid,
                               uintptr_t va, unsigned int flags) {
@@ -41,7 +42,12 @@ void *nova_vmap_alloc_page(unsigned int flags) {
     return result;
 }
 int nova_vmap_free_page(void *address) {
+    struct nova_task_info info;
     (void)address;
+    if (expect_zombie_during_free != 0U) {
+        assert(nova_task_get(expect_zombie_during_free, &info));
+        assert(info.state == NOVA_TASK_ZOMBIE);
+    }
     ++freed_stacks;
     return 1;
 }
@@ -99,7 +105,10 @@ int main(void) {
     assert(nova_task_get(cancelled, &info));
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
+    /* Teardown must hide the task from scheduling before freeing its stack. */
+    expect_zombie_during_free = cancelled;
     assert(nova_task_destroy(cancelled));
+    expect_zombie_during_free = 0U;
     assert(!nova_task_get(cancelled, &info));
     assert(nova_address_space_create(0x40008000U, 1U, &address_space_id));
     assert(nova_task_set_address_space(first, address_space_id));
