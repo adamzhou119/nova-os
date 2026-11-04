@@ -398,15 +398,23 @@ int nova_task_take_irq_context(uint32_t task_id,
 
 int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame) {
-    struct nova_task_info *current = find_task(current_id);
+    struct nova_task_info *current;
     struct nova_task_info *selected;
     struct nova_irq_frame *selected_irq_frame;
     uint32_t selected_id;
+    uintptr_t saved_daif = task_irq_save_disable();
+    int result;
 
+    current = find_task(current_id);
     if (current == 0 || current->state != NOVA_TASK_RUNNING ||
-        next_id == 0 || next_frame == 0 || frame == 0)
+        next_id == 0 || next_frame == 0 || frame == 0) {
+        task_irq_restore(saved_daif);
         return 0;
-    if (!nova_task_save_irq_context(current_id, frame)) return 0;
+    }
+    if (!nova_task_save_irq_context(current_id, frame)) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
 
     if (!nova_task_next_irq_ready(current_id, &selected_id) ||
         selected_id == current_id) {
@@ -416,6 +424,7 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
         current->resume_kind = NOVA_TASK_RESUME_ACTIVE;
         *next_id = current_id;
         *next_frame = frame;
+        task_irq_restore(saved_daif);
         return 0;
     }
 
@@ -430,6 +439,7 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
         current->resume_kind = NOVA_TASK_RESUME_ACTIVE;
         *next_id = current_id;
         *next_frame = frame;
+        task_irq_restore(saved_daif);
         return 0;
     }
 
@@ -439,6 +449,7 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
     selected->resume_kind = NOVA_TASK_RESUME_ACTIVE;
     *next_id = selected_id;
     *next_frame = selected_irq_frame;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
@@ -526,8 +537,10 @@ struct nova_cpu_context *nova_task_context(uint32_t task_id) {
 }
 
 void nova_task_mark_zombie(struct nova_task_info *task) {
+    uintptr_t saved_daif = task_irq_save_disable();
     if (task != 0 && task->state == NOVA_TASK_RUNNING)
         task->state = NOVA_TASK_ZOMBIE;
+    task_irq_restore(saved_daif);
 }
 
 int nova_task_set_exit_code(uint32_t task_id, int exit_code) {
@@ -566,13 +579,16 @@ int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
 
 int nova_task_reap_zombies(void) {
     uint32_t ids[NOVA_TASK_MAX];
+    uintptr_t saved_daif = task_irq_save_disable();
     size_t i, count = 0U, reaped = 0U;
 
-    /* Snapshot IDs first: successful destruction clears and reuses TCB slots. */
+    /* Snapshot IDs atomically; destroy outside this scan's critical section. */
     for (i = 0; i < NOVA_TASK_MAX; ++i) {
         if (tasks[i].state == NOVA_TASK_ZOMBIE)
             ids[count++] = tasks[i].id;
     }
+    task_irq_restore(saved_daif);
+
     for (i = 0; i < count; ++i)
         if (nova_task_destroy(ids[i])) ++reaped;
     return (int)reaped;
