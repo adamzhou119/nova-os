@@ -393,6 +393,51 @@ nova_user_test_payload_start:
     svc     #0
     cbnz    x0, 1f
 
+    /* Exercise EL0 file open/write/close/reopen/read via ABI v1 IDs 3-6. */
+    adr     x0, 5f
+    mov     x1, #1                  /* NOVA_FILE_OPEN_CREATE */
+    mov     x8, #3                  /* NOVA_SYS_FILE_OPEN */
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x21, x0
+    mov     x0, x21
+    adr     x1, 6f
+    mov     x2, #4
+    mov     x8, #6                  /* NOVA_SYS_FILE_WRITE */
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    mov     x0, x21
+    mov     x8, #4                  /* NOVA_SYS_FILE_CLOSE */
+    svc     #0
+    cbnz    x0, 1f
+    adr     x0, 5f
+    mov     x1, #0
+    mov     x8, #3
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x21, x0
+    mov     x0, x21
+    add     x1, sp, #64
+    mov     x2, #4
+    mov     x8, #5                  /* NOVA_SYS_FILE_READ */
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    ldr     w1, [sp, #64]
+    movz    w2, #0x6966             /* "fi" */
+    movk    w2, #0x656c, lsl #16    /* "lefi" */
+    cmp     w1, w2
+    b.ne    1f
+    mov     x0, x21
+    mov     x8, #4
+    svc     #0
+    cbnz    x0, 1f
+    mov     x0, #1
+    str     x0, [sp, #32]           /* result[4]: EL0 file I/O passed */
+
     mov     x0, #0
     mov     x8, #1
     svc     #0
@@ -404,6 +449,10 @@ nova_user_test_payload_start:
     .asciz  "test.service"
 4:
     .ascii  "ping"
+5:
+    .asciz  "/ramfs/el0.txt"
+6:
+    .ascii  "file"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */
