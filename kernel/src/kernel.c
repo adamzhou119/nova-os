@@ -965,9 +965,11 @@ static int test_irq_preemptive_scheduler(void) {
     struct nova_task_info info;
     struct nova_address_space_info address_space;
     struct nova_sched_irq_metrics handoff_metrics;
+    struct nova_irq_handoff_latency latency;
     int result = 0;
 
     nova_sched_irq_metrics_reset();
+    nova_irq_handoff_latency_reset();
     cpu_bound_start_tick = nova_irq_tick_count();
     cpu_bound_progress_a = 0U;
     cpu_bound_progress_b = 0U;
@@ -1001,7 +1003,9 @@ static int test_irq_preemptive_scheduler(void) {
      * TTBR0; B's post-A progress proves the reverse handoff also completed.
      */
     nova_sched_irq_metrics_get(&handoff_metrics);
-    result = cpu_bound_progress_a != 0U &&
+    nova_irq_handoff_latency_get(&latency);
+    result = latency.count != 0U && latency.max_ticks >= latency.last_ticks &&
+             cpu_bound_progress_a != 0U &&
              cpu_bound_progress_b != 0U &&
              cpu_bound_b_started &&
              cpu_bound_a_resumed &&
@@ -1019,6 +1023,12 @@ static int test_irq_preemptive_scheduler(void) {
                                  handoff_metrics.successful_handoffs);
         nova_console_write("QEMU IRQ handoff C-path maximum counter ticks: ");
         nova_console_write_hex64(handoff_metrics.max_counter_ticks);
+        nova_console_write("QEMU full IRQ entry-to-ERET handoff count: ");
+        nova_console_write_hex64(latency.count);
+        nova_console_write("QEMU full IRQ entry-to-ERET last counter ticks: ");
+        nova_console_write_hex64(latency.last_ticks);
+        nova_console_write("QEMU full IRQ entry-to-ERET maximum counter ticks: ");
+        nova_console_write_hex64(latency.max_ticks);
     }
 
 cleanup:

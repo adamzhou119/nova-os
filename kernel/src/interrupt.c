@@ -7,6 +7,13 @@
 
 static volatile uint64_t irq_ticks;
 
+/* Assembly-visible single-core IRQ return instrumentation. */
+volatile uint64_t nova_irq_entry_tick;
+volatile uint64_t nova_irq_handoff_last_ticks;
+volatile uint64_t nova_irq_handoff_max_ticks;
+volatile uint64_t nova_irq_handoff_count;
+volatile uint32_t nova_irq_handoff_measure_pending;
+
 uintptr_t nova_irq_dispatch(uintptr_t frame_sp) {
     uint32_t interrupt_id = nova_gic_acknowledge();
     uintptr_t return_frame = frame_sp;
@@ -25,10 +32,26 @@ uintptr_t nova_irq_dispatch(uintptr_t frame_sp) {
         uint32_t next_id = 0U;
         struct nova_irq_frame *next_frame = 0;
         if (nova_sched_irq_handoff((struct nova_irq_frame *)frame_sp,
-                                   &next_id, &next_frame))
+                                   &next_id, &next_frame)) {
+            nova_irq_handoff_measure_pending = 1U;
             return_frame = (uintptr_t)next_frame;
+        }
     }
     return return_frame;
 }
 
 uint64_t nova_irq_tick_count(void) { return irq_ticks; }
+
+void nova_irq_handoff_latency_reset(void) {
+    nova_irq_handoff_count = 0U;
+    nova_irq_handoff_last_ticks = 0U;
+    nova_irq_handoff_max_ticks = 0U;
+    nova_irq_handoff_measure_pending = 0U;
+}
+
+void nova_irq_handoff_latency_get(struct nova_irq_handoff_latency *metrics) {
+    if (metrics == 0) return;
+    metrics->count = nova_irq_handoff_count;
+    metrics->last_ticks = nova_irq_handoff_last_ticks;
+    metrics->max_ticks = nova_irq_handoff_max_ticks;
+}

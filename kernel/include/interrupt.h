@@ -20,4 +20,12 @@ _Static_assert(__builtin_offsetof(struct nova_irq_frame, sp_el0) == 264U,
 /* Returns the frame to restore; currently returns the interrupted frame. */
 uintptr_t nova_irq_dispatch(uintptr_t frame_sp);
 uint64_t nova_irq_tick_count(void);
+
+struct nova_irq_handoff_latency {
+    uint64_t count;
+    uint64_t last_ticks;
+    uint64_t max_ticks;
+};
+void nova_irq_handoff_latency_reset(void);
+void nova_irq_handoff_latency_get(struct nova_irq_handoff_latency *metrics);
 #endif
