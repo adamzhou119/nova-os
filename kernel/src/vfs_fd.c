@@ -67,13 +67,14 @@ int32_t nova_vfs_open(struct nova_vfs_fd_table *table,
             !nova_vfs_create(path) || !nova_vfs_stat(path, &stat))
             return -1;
     }
-    for (i = 0U; i < NOVA_VFS_FD_MAX; ++i)
-        if (!table->entries[i].used) break;
+    for (i = 0U; i < NOVA_VFS_FD_MAX; ++i) {
+        if (!table->entries[i].used &&
+            table->entries[i].handle_generation < NOVA_VFS_FD_GENERATION_MAX)
+            break;
+    }
     if (i == NOVA_VFS_FD_MAX) return -1;
     entry = &table->entries[i];
     generation = entry->handle_generation + 1U;
-    if (generation == 0U || generation > NOVA_VFS_FD_GENERATION_MAX)
-        generation = 1U;
     for (j = 0U; j < length; ++j) entry->path[j] = path[j];
     entry->path[length] = '\0';
     entry->offset = 0U;
