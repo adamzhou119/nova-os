@@ -39,8 +39,19 @@ int main(void) {
         assert(nova_ipc_receive(1U, (uint32_t)port, &message,
                                 sizeof(message.payload)) == (int64_t)sizeof(hello));
 
+    /*
+     * Revocation blocks future holder operations but does not discard a
+     * message accepted before revocation; the owner can still drain it.
+     */
+    assert(nova_ipc_send(2U, (uint32_t)port, hello, sizeof(hello)) == 0);
     assert(nova_ipc_port_revoke(1U, (uint32_t)port, 2U) == 0);
     assert(nova_ipc_send(2U, (uint32_t)port, hello, sizeof(hello)) == -13);
+    assert(nova_ipc_receive(2U, (uint32_t)port, &message,
+                            sizeof(message.payload)) == -13);
+    assert(nova_ipc_receive(1U, (uint32_t)port, &message,
+                            sizeof(message.payload)) == (int64_t)sizeof(hello));
+    assert(message.sender == 2U);
+    assert(memcmp(message.payload, hello, sizeof(hello)) == 0);
     assert(nova_ipc_port_grant(2U, (uint32_t)port, 4U,
                                NOVA_IPC_RIGHT_SEND) == -13);
     assert(nova_ipc_port_close(2U, (uint32_t)port) == -13);
