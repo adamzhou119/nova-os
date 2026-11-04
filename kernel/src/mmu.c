@@ -515,6 +515,37 @@ static int user_l3_is_unique(uint64_t *user_l2, size_t slot_index,
     return 1;
 }
 
+static int restore_mapped_frame_pins(uint64_t *user_l2,
+                                     size_t end_i, size_t end_j,
+                                     int prefix_only) {
+    size_t i, j;
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        for (j = 0; j < NOVA_MMU_TABLE_ENTRIES; ++j) {
+            uintptr_t pa;
+            if (l3[j] == 0U) continue;
+            if (prefix_only && (i > end_i || (i == end_i && j >= end_j)))
+                continue;
+            pa = (uintptr_t)(l3[j] & DESC_ADDR_MASK);
+            if (!nova_page_pin((const void *)pa)) return 0;
+        }
+    }
+    return 1;
+}
+
+static int restore_l3_table_pins(uint64_t *user_l2, size_t end_i) {
+    size_t i;
+    for (i = 0; i < end_i; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        if (!nova_page_pin(l3)) return 0;
+    }
+    return 1;
+}
+
 int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     uint64_t *root = (uint64_t *)root_physical;
     uint64_t *user_l2;
@@ -535,9 +566,10 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     if (user_l2 == NULL) return 0;
 
     /*
-     * Preflight the complete private user tree before changing a descriptor.
-     * An inactive address space owns one pin on each page-table page and one
-     * pin on every mapped frame; mapped data frames themselves are not freed.
+     * Preflight the entire tree before changing any pin, descriptor, or
+     * accounting. An inactive address space owns one pin per table page and
+     * one pin per mapped leaf; data frames are not freed by address-space
+     * teardown because they may have independent owners.
      */
     for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
         uint64_t *l3;
@@ -572,8 +604,7 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
 
     /*
      * The registry guarantees no CPU is actively using this root. Flush the
-     * complete ASID before releasing any leaf frame or page-table page so a
-     * later ASID reuse cannot observe stale translations.
+     * complete ASID before dropping any mapping-owned pin.
      */
     {
         uint64_t operand = (uint64_t)asid << 48;
@@ -584,6 +615,61 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
             "isb\n"
             : : "r"(operand) : "memory");
     }
+
+    /*
+     * Phase 1: release every leaf mapping pin without touching PTEs or alias
+     * counters. If any release fails, restore the already released prefix;
+     * the address space remains byte-for-byte mapped and retryable.
+     */
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        for (j = 0; j < NOVA_MMU_TABLE_ENTRIES; ++j) {
+            if (l3[j] != 0U &&
+                !nova_page_unpin((const void *)(uintptr_t)
+                                 (l3[j] & DESC_ADDR_MASK))) {
+                if (!restore_mapped_frame_pins(user_l2, i, j, 1))
+                    return 0; /* allocator invariant failure: fail closed */
+                return 0;
+            }
+        }
+    }
+
+    /*
+     * Phase 2: release table pins. Each failure restores all earlier table
+     * pins plus every leaf pin, before any descriptor or counter is changed.
+     */
+    for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
+        uint64_t *l3;
+        if (user_l2[i] == 0U) continue;
+        l3 = (uint64_t *)(uintptr_t)(user_l2[i] & DESC_ADDR_MASK);
+        if (!nova_page_unpin(l3)) {
+            if (!restore_l3_table_pins(user_l2, i) ||
+                !restore_mapped_frame_pins(user_l2, 0U, 0U, 0))
+                return 0;
+            return 0;
+        }
+    }
+    if (!nova_page_unpin(user_l2)) {
+        if (!restore_l3_table_pins(user_l2, NOVA_MMU_TABLE_ENTRIES) ||
+            !restore_mapped_frame_pins(user_l2, 0U, 0U, 0))
+            return 0;
+        return 0;
+    }
+    if (!nova_page_unpin(root)) {
+        if (!nova_page_pin(user_l2) ||
+            !restore_l3_table_pins(user_l2, NOVA_MMU_TABLE_ENTRIES) ||
+            !restore_mapped_frame_pins(user_l2, 0U, 0U, 0))
+            return 0;
+        return 0;
+    }
+
+    /*
+     * Commit: every owned pin has been released successfully. From here the
+     * remaining frees are guaranteed by the allocator's single-core
+     * ownership model and the complete preflight above.
+     */
     for (i = 0; i < NOVA_MMU_TABLE_ENTRIES; ++i) {
         uint64_t *l3;
         if (user_l2[i] == 0U) continue;
@@ -597,15 +683,13 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
             frame = physical_frame_index(pa);
             if (descriptor_is_writable(desc)) --writable_aliases[frame];
             if (descriptor_is_executable(desc)) --executable_aliases[frame];
-            l3[j] = 0U;
-            if (!nova_page_unpin((const void *)pa)) return 0;
             --mapped_aliases[frame];
+            l3[j] = 0U;
         }
         user_l2[i] = 0U;
-        if (!nova_page_unpin(l3) || !nova_page_free(l3)) return 0;
+        if (!nova_page_free(l3)) return 0;
     }
 
-    if (!nova_page_unpin(user_l2) || !nova_page_unpin(root)) return 0;
     if (!nova_page_free(user_l2)) return 0;
     return nova_page_free(root);
 }
