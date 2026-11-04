@@ -389,7 +389,6 @@ int nova_task_take_irq_context(uint32_t task_id,
          task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN) &&
         task->irq_frame != 0) {
         saved_frame = task->irq_frame;
-        address = (uintptr_t)saved_frame;
         if (task_frame_in_stack(task, saved_frame)) {
             task->state = NOVA_TASK_RUNNING;
             task->resume_kind = NOVA_TASK_RESUME_ACTIVE;
