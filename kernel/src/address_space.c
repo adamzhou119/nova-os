@@ -17,7 +17,7 @@ static nova_address_space_destroy_fn destroy_hook;
 static uintptr_t address_space_lock(void) {
 #if defined(__aarch64__)
     uintptr_t daif;
-    __asm__ volatile("mrs %0, daif\\n\\tmsr daifset, #2"
+    __asm__ volatile("mrs %0, daif\n\tmsr daifset, #2"
                      : "=r"(daif) :: "memory");
     return daif;
 #else
