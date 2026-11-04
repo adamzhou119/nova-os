@@ -11,6 +11,8 @@ typedef void (*nova_task_entry_t)(void *argument);
 
 enum nova_task_state {
     NOVA_TASK_UNUSED = 0,
+    /* Reserved privately while a creator initializes the TCB and stack. */
+    NOVA_TASK_CREATING,
     NOVA_TASK_READY,
     NOVA_TASK_RUNNING,
     NOVA_TASK_BLOCKED,
