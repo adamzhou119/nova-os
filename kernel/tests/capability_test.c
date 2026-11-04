@@ -50,6 +50,21 @@ int main(void) {
                             &message, sizeof(message.payload)) == -13);
     assert(nova_capability_revoke(10U, (uint32_t)cap) == -2);
 
+    /* A destroyed endpoint makes its old capability safely retireable. */
+    {
+        int64_t stale_port = nova_ipc_port_create(10U);
+        int64_t stale_cap;
+        assert(stale_port > 0);
+        stale_cap = nova_capability_grant(10U, 32U,
+                                          NOVA_CAP_RESOURCE_IPC_PORT,
+                                          (uint32_t)stale_port,
+                                          NOVA_CAP_RIGHT_SEND);
+        assert(stale_cap > 0);
+        assert(nova_ipc_port_close(10U, (uint32_t)stale_port) == 0);
+        assert(nova_capability_revoke(10U, (uint32_t)stale_cap) == 0);
+        assert(nova_capability_revoke(10U, (uint32_t)stale_cap) == -2);
+    }
+
     cap = nova_capability_grant(10U, 40U, NOVA_CAP_RESOURCE_IPC_PORT,
                                 (uint32_t)port, NOVA_CAP_RIGHT_SEND);
     assert(cap > 0);
