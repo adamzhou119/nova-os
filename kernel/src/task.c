@@ -346,6 +346,7 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     info->irq_frame = task->irq_frame;
     info->user_entry = task->user_entry;
     info->user_stack_top = task->user_stack_top;
+    info->teardown_in_progress = task->teardown_in_progress;
     task_irq_restore(saved_daif);
     return 1;
 }
