@@ -64,6 +64,8 @@ struct nova_task_info {
     struct nova_irq_frame *irq_frame;
     uintptr_t user_entry;
     uintptr_t user_stack_top;
+    /* Serializes retryable teardown while IRQs are enabled for stack release. */
+    uint8_t teardown_in_progress;
 };
 
 /* Creates a task control block and one mapped kernel stack page. */
