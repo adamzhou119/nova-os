@@ -1,0 +1,238 @@
+name: Nova OS kernel build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang=1:21.1.6-71 lld=1:21.1.6-71 make qemu-system-arm=1:10.2.1+ds-1ubuntu3.3
+          clang --version
+          ld.lld --version
+          qemu-system-aarch64 --version
+          dpkg-query -W -f='${Package}=${Version}\n' clang lld make qemu-system-arm
+
+      - name: Build AArch64 kernel and diagnostic test image
+        run: |
+          make -C kernel clean all test
+
+      - name: Run host-side allocator, task lifecycle, IRQ, and exception decoder tests
+        run: |
+          make -C kernel host-test
+
+      - name: Inspect ELF images
+        run: |
+          file kernel/build/nova.elf
+          file kernel/build/nova-test.elf
+          file kernel/build/nova-fault-test.elf
+          file kernel/build/nova-stack-fault-test.elf
+          file kernel/build/nova-el2-test.elf
+          file kernel/build/nova-el2-vector-test.elf
+          file kernel/build/nova-user-test.elf
+          file kernel/build/nova-user-fault-test.elf
+          file kernel/build/el3-test-boot.elf
+          readelf -h kernel/build/nova.elf
+          readelf -sW kernel/build/nova.elf | grep -E '__bss_start|__bss_end|__heap_start|__heap_end|__page_pool_start|__page_pool_end|__kernel_start|__kernel_end|_start|exception_vectors_el1'
+
+      - name: Generate QEMU virt device tree
+        run: |
+          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
+          test -s kernel/build/virt.dtb
+
+      - name: QEMU serial boot smoke test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova.elf > qemu.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat qemu.log
+          grep -q "Welcome to Nova OS" qemu.log || { echo "Boot banner missing (QEMU exit: $status)"; exit 1; }
+          grep -Eq "CurrentEL: EL[0-3]" qemu.log
+          grep -q "BSS zero initialization verified." qemu.log
+          grep -q "Heap allocator tests passed." qemu.log
+          grep -q "FDT memory map parsed." qemu.log
+          grep -q "FDT reserved ranges parsed:" qemu.log
+          grep -q "Physical page allocator tests passed." qemu.log
+          grep -q "Firmware RAM page allocator tests passed." qemu.log
+          grep -q "Current page map available:" qemu.log
+          grep -q "EL1 MMU enabled with identity-mapped RAM and PL011." qemu.log
+          grep -q "MMU identity translation tests passed." qemu.log
+          grep -q "MMU 4 KiB RAM page boundary tests passed." qemu.log
+          grep -q "MMU unmapped guard test passed." qemu.log
+          grep -q "MMU kernel text/rodata/data permission tests passed." qemu.log
+          grep -q "MMU dynamic map/unmap and permission tests passed." qemu.log
+          grep -q "Kernel virtual page allocator tests passed." qemu.log
+          grep -q "Kernel task lifecycle tests passed." qemu.log
+          grep -q "AArch64 cooperative context switch test passed." qemu.log
+          grep -q "Kernel mixed-mode scheduler tests passed." qemu.log
+          grep -q "Kernel cross-address-space CPU-bound IRQ preemption tests passed." qemu.log
+          grep -q "EL1 generic physical timer tests passed." qemu.log
+          grep -q "GICv2 physical timer IRQ tests passed." qemu.log
+          echo "Nova OS boot, heap, and page allocator checks passed."
+
+      - name: QEMU EL0 SVC round-trip test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat user-svc.log
+          grep -q "Starting real EL0 SVC round-trip test." user-svc.log
+          grep -q "EL0 user message: hello from EL0" user-svc.log
+          grep -q "EL0 write syscall rejected invalid pointer." user-svc.log
+          grep -q "EL0 write syscall rejected excessive length." user-svc.log
+          grep -q "EL0 copyout valid marker passed." user-svc.log
+          grep -q "EL0 copyout cross-page range rejected." user-svc.log
+          grep -q "QEMU EL0 SVC round-trip test passed." user-svc.log
+          echo "Nova OS EL0 SVC round-trip passed."
+
+      - name: QEMU EL0 data/instruction-abort containment test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-fault-test.elf > user-fault.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat user-fault.log
+          grep -q "Starting EL0 data/instruction-abort containment test." user-fault.log
+          grep -q "EL0 fault contained; task id:" user-fault.log
+          grep -q "ESR exception description: Data abort from lower EL" user-fault.log
+          grep -q "ESR exception description: Instruction abort from lower EL" user-fault.log
+          grep -q "EL0 fault FAR: 0x0000000080007000" user-fault.log
+          grep -q "EL0 healthy peer marker: 0x0000000000000009" user-fault.log
+          grep -q "EL0 data/instruction fault tasks reaped; healthy peer completed." user-fault.log
+          grep -q "QEMU EL0 data/instruction-abort containment passed." user-fault.log
+          echo "Nova OS EL0 data/instruction-abort containment passed."
+
+      - name: QEMU controlled exception test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-test.elf > exception.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat exception.log
+          grep -q "Triggering controlled SVC exception test." exception.log
+          grep -q "EXCEPTION: EL1 vector captured." exception.log
+          grep -q "Exception kind: Synchronous" exception.log
+          grep -q "Vector: Current EL SPx synchronous" exception.log
+          grep -q "ESR exception description: AArch64 SVC" exception.log
+          grep -Eq "ESR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ESR exception class: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ESR instruction-specific syndrome: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "ELR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "FAR_EL1: 0x[0-9A-F]{16}" exception.log
+          grep -Eq "SPSR_EL1: 0x[0-9A-F]{16}" exception.log
+          echo "Nova OS expanded EL1 exception diagnostics passed."
+      
+      - name: QEMU unmapped-address MMU fault test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-fault-test.elf > mmu-fault.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat mmu-fault.log
+          grep -q "Triggering controlled MMU translation fault test." mmu-fault.log
+          grep -q "EXCEPTION: EL1 vector captured." mmu-fault.log
+          grep -q "Exception kind: Synchronous" mmu-fault.log
+          grep -q "Vector: Current EL SPx synchronous" mmu-fault.log
+          grep -q "ESR exception description: Data abort from same EL" mmu-fault.log
+          grep -q "ESR exception class: 0x0000000000000025" mmu-fault.log
+          grep -q "FAR_EL1: 0x0000000000001000" mmu-fault.log
+          echo "Nova OS unmapped-address data-abort handling passed."
+
+      - name: QEMU EL2-to-EL1 boot transition test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat el2-boot.log
+          cat el2-qemu-trace.log
+          grep -q "Welcome to Nova OS" el2-boot.log
+          grep -q "CurrentEL: EL1" el2-boot.log
+          grep -q "EL2-to-EL1 transition passed." el2-boot.log
+          echo "Nova OS EL2-to-EL1 boot transition passed."
+
+      - name: QEMU EL2 exception vector test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-vector-test.elf > el2-vector.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat el2-vector.log
+          grep -q "EXCEPTION: EL2 vector captured." el2-vector.log
+          grep -q "Exception kind: Synchronous" el2-vector.log
+          grep -q "Vector: Current EL SPx synchronous" el2-vector.log
+          grep -Eq "ESR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          grep -Eq "ELR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          grep -Eq "SPSR_EL2: 0x[0-9A-F]{16}" el2-vector.log
+          echo "Nova OS EL2 exception vector diagnostics passed."
+
+      - name: QEMU task stack guard fault test
+        shell: bash
+        run: |
+          set +e
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-stack-fault-test.elf > stack-guard-fault.log 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -ne 124 ]]; then
+            echo "QEMU did not reach the expected timeout (exit: $status)"
+            exit 1
+          fi
+          cat stack-guard-fault.log
+          grep -q "Triggering controlled task stack guard fault test." stack-guard-fault.log
+          grep -q "EXCEPTION: EL1 vector captured." stack-guard-fault.log
+          grep -q "Exception kind: Synchronous" stack-guard-fault.log
+          grep -q "Vector: Current EL SPx synchronous" stack-guard-fault.log
+          grep -q "ESR exception description: Data abort from same EL" stack-guard-fault.log
+          grep -q "ESR exception class: 0x0000000000000025" stack-guard-fault.log
+          grep -q "FAR_EL1: 0x0000000048000000" stack-guard-fault.log
+          echo "Nova OS unmapped task stack guard fault test passed."
