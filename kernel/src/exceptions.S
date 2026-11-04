@@ -397,6 +397,77 @@ nova_user_test_payload_start:
     svc     #0
     cbnz    x0, 1f
 
+    /*
+     * Access a separate task-owned endpoint using only a broker capability.
+     * The harness supplies [sp+48]=port and [sp+56]=capability ID.
+     */
+    ldr     x22, [sp, #48]
+    ldr     x23, [sp, #56]
+
+    /* Missing and forged credentials must be rejected. */
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    mov     x3, #0
+    mov     x8, #14
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    add     x3, x23, #1
+    mov     x8, #14
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    /* A valid holder capability authorizes send. */
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    mov     x3, x23
+    mov     x8, #14
+    svc     #0
+    cbnz    x0, 1f
+
+    /* Missing/forged receive credentials must not consume the queued message. */
+    mov     x0, x22
+    add     x1, sp, #80
+    mov     x2, #64
+    mov     x3, #0
+    mov     x8, #15
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    mov     x0, x22
+    add     x1, sp, #80
+    mov     x2, #64
+    add     x3, x23, #1
+    mov     x8, #15
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    /* The broker capability authorizes receive of the owner's queued message. */
+    mov     x0, x22
+    add     x1, sp, #80
+    mov     x2, #64
+    mov     x3, x23
+    mov     x8, #15
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    ldr     w1, [sp, #80]
+    movz    w2, #0x776f
+    movk    w2, #0x726e, lsl #16
+    cmp     w1, w2
+    b.ne    1f
+    mov     x0, #1
+    str     x0, [sp, #48]           /* result[6]: delegated IPC passed */
+
     /* Exercise EL0 file open/write/close/reopen/read via ABI v1 IDs 3-6. */
     adr     x0, 5f
     mov     x1, #1                  /* NOVA_FILE_OPEN_CREATE */
