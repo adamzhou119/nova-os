@@ -58,6 +58,8 @@ int64_t nova_capability_grant(uint32_t issuer, uint32_t holder,
                               uint32_t rights) {
     size_t i;
     struct capability_entry *entry = 0;
+    int is_update = 0;
+    int ipc_result;
     if (issuer == 0U || holder == 0U || resource_id == 0U ||
         rights == 0U || (rights & ~NOVA_CAP_RIGHT_MASK) != 0U) {
         record_event(NOVA_CAP_AUDIT_DENIED, issuer, 0, rights);
@@ -77,6 +79,7 @@ int64_t nova_capability_grant(uint32_t issuer, uint32_t holder,
             entries[i].resource_type == resource_type &&
             entries[i].resource_id == resource_id) {
             entry = &entries[i];
+            is_update = 1;
             break;
         }
     }
@@ -93,14 +96,15 @@ int64_t nova_capability_grant(uint32_t issuer, uint32_t holder,
         entry->resource_id = resource_id;
         entry->used = 1U;
     }
-    if (nova_ipc_port_grant(issuer, resource_id, holder, rights) != 0) {
-        if (entry->rights == 0U) entry->used = 0U;
+    ipc_result = nova_ipc_port_grant(issuer, resource_id, holder, rights);
+    if (ipc_result != 0) {
+        if (!is_update) entry->used = 0U;
         record_event(NOVA_CAP_AUDIT_DENIED, issuer, entry, rights);
-        return CAP_ERR_NOSPC;
+        return ipc_result;
     }
     entry->rights = rights;
-    record_event(entry->rights == rights ? NOVA_CAP_AUDIT_GRANTED :
-                 NOVA_CAP_AUDIT_UPDATED, issuer, entry, rights);
+    record_event(is_update ? NOVA_CAP_AUDIT_UPDATED : NOVA_CAP_AUDIT_GRANTED,
+                 issuer, entry, rights);
     return (int64_t)entry->id;
 }
 
@@ -136,7 +140,7 @@ int nova_capability_check(uint32_t holder, uint32_t capability_id,
         return 0;
     if (resource_type == NOVA_CAP_RESOURCE_IPC_PORT)
         return nova_ipc_port_is_owner(entry->issuer, resource_id) &&
-               (entry->rights & required_rights) == required_rights;
+               nova_ipc_port_has_rights(holder, resource_id, required_rights);
     return 0;
 }
 
