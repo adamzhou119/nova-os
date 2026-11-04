@@ -83,6 +83,10 @@ exception_irq_entry:
     str     x16, [sp, #256]
     mrs     x16, SP_EL0
     str     x16, [sp, #264]
+    /* Timestamp after the complete interrupted register frame is saved. */
+    mrs     x16, CNTVCT_EL0
+    adrp    x17, nova_irq_entry_tick
+    str     x16, [x17, :lo12:nova_irq_entry_tick]
     mov     x0, sp
     bl      nova_irq_dispatch
     mov     sp, x0
@@ -108,6 +112,35 @@ exception_irq_entry:
     ldp x4, x5, [sp, #32]
     ldp x2, x3, [sp, #16]
     ldp x0, x1, [sp, #0]
+    /*
+     * Successful scheduler handoff sets the pending flag in C. Measure
+     * after restoring every register except x16/x17, immediately before
+     * restoring those final scratch registers and ERET.
+     */
+    adrp    x17, nova_irq_handoff_measure_pending
+    ldr     w16, [x17, :lo12:nova_irq_handoff_measure_pending]
+    cbz     w16, 2f
+    str     wzr, [x17, :lo12:nova_irq_handoff_measure_pending]
+    mrs     x16, CNTVCT_EL0
+    adrp    x17, nova_irq_entry_tick
+    ldr     x17, [x17, :lo12:nova_irq_entry_tick]
+    sub     x16, x16, x17
+    adrp    x17, nova_irq_handoff_last_ticks
+    str     x16, [x17, :lo12:nova_irq_handoff_last_ticks]
+    adrp    x17, nova_irq_handoff_max_ticks
+    ldr     x17, [x17, :lo12:nova_irq_handoff_max_ticks]
+    cmp     x16, x17
+    b.ls    1f
+    adrp    x17, nova_irq_handoff_max_ticks
+    str     x16, [x17, :lo12:nova_irq_handoff_max_ticks]
+1:
+    adrp    x17, nova_irq_handoff_count
+    ldr     x16, [x17, :lo12:nova_irq_handoff_count]
+    add     x16, x16, #1
+    str     x16, [x17, :lo12:nova_irq_handoff_count]
+2:
+    ldr     x16, [sp, #128]
+    ldr     x17, [sp, #136]
     add sp, sp, #272
     eret
 .size exception_irq_entry, . - exception_irq_entry
