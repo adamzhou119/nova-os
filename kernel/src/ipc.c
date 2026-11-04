@@ -85,6 +85,13 @@ int nova_ipc_port_is_owner(uint32_t owner, uint32_t id) {
     return port != 0 && owner != 0U && port->owner == owner;
 }
 
+int nova_ipc_port_has_rights(uint32_t task, uint32_t id, uint32_t rights) {
+    struct ipc_port *port = find_port(id);
+    return port != 0 && task != 0U && rights != 0U &&
+           (rights & ~NOVA_IPC_RIGHT_MASK) == 0U &&
+           (rights_for(port, task) & rights) == rights;
+}
+
 int nova_ipc_port_grant(uint32_t owner, uint32_t id,
                         uint32_t recipient, uint32_t rights) {
     struct ipc_port *port = find_port(id);
