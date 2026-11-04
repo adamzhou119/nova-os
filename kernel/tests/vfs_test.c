@@ -12,6 +12,7 @@ int main(void) {
 
     assert(nova_vfs_init());
     assert(!nova_vfs_create("ramfs/a"));
+    assert(!nova_vfs_create("/r"));
     assert(!nova_vfs_create("/ramfs/"));
     assert(!nova_vfs_create("/ramfs/../escape"));
     assert(!nova_vfs_create("/ramfs/sub/file"));
