@@ -89,6 +89,7 @@ int nova_task_take_irq_context(uint32_t task_id, struct nova_irq_frame **frame);
 int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame);
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind);
+/* Borrowed TCB pointer: caller must exclude local IRQ/task teardown for the entire use. */
 struct nova_cpu_context *nova_task_context(uint32_t task_id);
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
 /* Selects only tasks that can be resumed through nova_cpu_context. */
