@@ -320,6 +320,11 @@ int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame) {
 
     task = find_task(task_id);
     if (task != 0 && frame != 0 &&
+        (task->state == NOVA_TASK_READY ||
+         task->state == NOVA_TASK_RUNNING) &&
+        task->kernel_stack_base != 0U &&
+        task->kernel_stack_top >= task->kernel_stack_base &&
+        task->kernel_stack_top - task->kernel_stack_base >= sizeof(*frame) &&
         (address & 15U) == 0U &&
         address >= task->kernel_stack_base &&
         address <= task->kernel_stack_top - sizeof(*frame)) {
