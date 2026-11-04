@@ -53,6 +53,18 @@ int main(void) {
                                NOVA_IPC_RIGHT_SEND) == 0);
     nova_ipc_close_owner(5U);
     assert(nova_ipc_send(6U, (uint32_t)port, hello, sizeof(hello)) == -9);
+
+    /* Exiting clients lose grants on ports owned by other live services. */
+    port = nova_ipc_port_create(7U);
+    assert(port > 0);
+    assert(nova_ipc_port_grant(7U, (uint32_t)port, 8U,
+                               NOVA_IPC_RIGHT_SEND) == 0);
+    assert(nova_ipc_send(8U, (uint32_t)port, hello, sizeof(hello)) == 0);
+    nova_ipc_close_owner(8U);
+    assert(nova_ipc_send(8U, (uint32_t)port, hello, sizeof(hello)) == -13);
+    assert(nova_ipc_receive(7U, (uint32_t)port, &message,
+                            sizeof(message.payload)) == (int64_t)sizeof(hello));
+
     assert(nova_ipc_port_create(0U) == -22);
     port = nova_ipc_port_create(7U);
     assert(port > 0);
