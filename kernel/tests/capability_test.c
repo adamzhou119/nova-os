@@ -5,6 +5,7 @@
 
 int main(void) {
     struct nova_cap_audit_record event;
+    struct nova_ipc_message message;
     int64_t port, cap, updated;
 
     port = nova_ipc_port_create(10U);
@@ -46,8 +47,7 @@ int main(void) {
                                   NOVA_CAP_RESOURCE_IPC_PORT, (uint32_t)port,
                                   NOVA_CAP_RIGHT_RECEIVE));
     assert(nova_ipc_receive(30U, (uint32_t)port,
-                            (struct nova_ipc_message *)&event,
-                            sizeof(event)) == -13);
+                            &message, sizeof(message.payload)) == -13);
     assert(nova_capability_revoke(10U, (uint32_t)cap) == -2);
 
     cap = nova_capability_grant(10U, 40U, NOVA_CAP_RESOURCE_IPC_PORT,
