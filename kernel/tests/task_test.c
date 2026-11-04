@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "task.h"
+#include "ipc.h"
 #include "context.h"
 #include "vm.h"
 #include "address_space.h"
@@ -229,8 +230,19 @@ int main(void) {
     assert(!nova_task_set_exit_code(first, 0));
     assert(nova_task_transition(first, NOVA_TASK_READY));
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));
-    assert(nova_task_transition(first, NOVA_TASK_ZOMBIE));
-    assert(nova_task_get(first, &info) && info.exit_code == -7);
+    {
+        int64_t owned_port = nova_ipc_port_create(first);
+        const char marker[] = "stale endpoint";
+        assert(owned_port > 0);
+        assert(nova_ipc_port_grant(first, (uint32_t)owned_port, second,
+                                   NOVA_IPC_RIGHT_SEND) == 0);
+        assert(nova_task_transition(first, NOVA_TASK_ZOMBIE));
+        assert(nova_task_get(first, &info) && info.exit_code == -7);
+        /* Even a retryable teardown failure must revoke the dead task's port. */
+        assert(!nova_task_destroy(first));
+        assert(nova_ipc_send(second, (uint32_t)owned_port, marker,
+                             sizeof(marker)) == -9);
+    }
     assert(info.fault_kind == NOVA_TASK_FAULT_NONE);
     assert(!nova_task_destroy(first)); /* Root teardown failure must be retryable. */
     assert(nova_task_get(first, &info));
