@@ -723,9 +723,11 @@ int nova_mmu_user_unmap_page(uintptr_t root_physical,uint16_t asid,uintptr_t va)
         *slot = 0U;
         invalidate_user_page(va, asid);
         if (!nova_page_unpin((const void *)pa)) {
+            /*
+             * Alias counters have deliberately not changed yet, so restoring
+             * the descriptor is sufficient; do not increment them here.
+             */
             *slot = original_desc;
-            if (was_writable) ++writable_aliases[fi];
-            if (was_executable) ++executable_aliases[fi];
             invalidate_user_page(va, asid);
             return 0;
         }
