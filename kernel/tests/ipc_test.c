@@ -54,7 +54,10 @@ int main(void) {
     nova_ipc_close_owner(5U);
     assert(nova_ipc_send(6U, (uint32_t)port, hello, sizeof(hello)) == -9);
     assert(nova_ipc_port_create(0U) == -22);
+    port = nova_ipc_port_create(7U);
+    assert(port > 0);
+    assert(nova_ipc_send(7U, (uint32_t)port, hello,
+                         NOVA_IPC_MAX_PAYLOAD + 1U) == -22);
     assert(nova_ipc_send(1U, 99U, hello, sizeof(hello)) == -9);
-    assert(nova_ipc_send(1U, 99U, hello, NOVA_IPC_MAX_PAYLOAD + 1U) == -9);
     return 0;
 }
