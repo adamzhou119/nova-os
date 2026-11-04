@@ -317,7 +317,21 @@ int main(void) {
 
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
-    assert(freed_stacks == 3);
+
+    /*
+     * TCB slots may be reused, but task identities must not be. This prevents
+     * stale service/capability references from attaching to a later task.
+     */
+    {
+        uint32_t replacement_id = 0U;
+        assert(nova_task_create(dummy_entry, 0, &replacement_id));
+        assert(replacement_id > second);
+        assert(replacement_id != first && replacement_id != second);
+        assert(nova_task_transition(replacement_id, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(replacement_id, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(replacement_id));
+    }
+    assert(freed_stacks == 4);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
