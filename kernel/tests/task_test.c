@@ -291,6 +291,9 @@ int main(void) {
     assert(nova_task_get(first, &info));
     assert(info.state == NOVA_TASK_ZOMBIE && info.kernel_stack_base == 0U &&
            info.kernel_stack_top == 0U);
+    /* A retryable zombie with a freed stack must not accept a stale IRQ frame. */
+    assert(!nova_task_set_irq_frame(first,
+        (struct nova_irq_frame *)(uintptr_t)0x1000U));
     assert(nova_address_space_get(address_space_id, &address_space_info));
     assert(address_space_info.references == 1U);
     assert(nova_task_destroy(first));
