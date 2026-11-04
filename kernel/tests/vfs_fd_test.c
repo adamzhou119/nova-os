@@ -8,7 +8,7 @@
 
 int main(void) {
     struct nova_vfs_fd_table process_a, process_b;
-    int32_t a, b, write_only, stale, replacement;
+    int32_t a, b, write_only, stale, replacement, generation_fd;
     char out[16] = {0};
     const char payload[] = "descriptor";
 
@@ -49,8 +49,14 @@ int main(void) {
     assert(nova_vfs_close(&process_b, b));
     assert(!nova_vfs_close(&process_b, b));
 
+    generation_fd = nova_vfs_open(&process_b, "/ramfs/data.txt",
+                                  NOVA_VFS_OPEN_READ);
+    assert(generation_fd >= 0);
     assert(nova_vfs_remove("/ramfs/data.txt"));
     assert(nova_vfs_create("/ramfs/data.txt"));
+    /* A live descriptor must not silently attach to a replacement inode. */
+    assert(nova_vfs_read_fd(&process_b, generation_fd, out, 1U) == -1);
+    assert(nova_vfs_close(&process_b, generation_fd));
     assert(nova_vfs_read_fd(&process_a, stale, out, 1U) == -1);
     puts("Nova OS VFS file descriptor tests passed.");
     return 0;
