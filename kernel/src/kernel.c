@@ -282,7 +282,7 @@ static int test_el0_svc_round_trip(void) {
             (uint32_t)port, NOVA_CAP_RIGHT_SEND | NOVA_CAP_RIGHT_RECEIVE);
         if (capability <= 0 ||
             nova_ipc_send(recipient_id, (uint32_t)port, owner_message,
-                          sizeof(owner_message)) != 0) {
+                          sizeof(owner_message) - 1U) != 0) {
             (void)nova_ipc_port_close(recipient_id, (uint32_t)port);
             goto cleanup;
         }
