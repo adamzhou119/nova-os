@@ -66,6 +66,8 @@ host-test: | $(BUILD)
 	$(BUILD)/user-memory-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fs_test.c src/fs.c -o $(BUILD)/fs-test
 	$(BUILD)/fs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vfs_test.c src/vfs.c src/fs.c -o $(BUILD)/vfs-test
+	$(BUILD)/vfs-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/plan_test.c ../services/ai/plan.c -o $(BUILD)/ai-plan-test
 	$(BUILD)/ai-plan-test
 
