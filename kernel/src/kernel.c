@@ -1409,9 +1409,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 
     if (nova_mmu_enable()) {
         if (nova_vfs_init())
-            nova_console_write("VFS /ramfs mounted for EL0 file descriptors.\\n");
+            nova_console_write("VFS /ramfs mounted for EL0 file descriptors.\n");
         else
-            nova_console_write("ERROR: VFS /ramfs initialization failed.\\n");
+            nova_console_write("ERROR: VFS /ramfs initialization failed.\n");
         if (!nova_address_space_set_destroy_hook(nova_mmu_address_space_destroy))
             nova_console_write("ERROR: address-space destroy hook registration failed.\n");
         nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
