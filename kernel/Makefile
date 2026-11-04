@@ -59,7 +59,7 @@ host-test: | $(BUILD)
 	$(BUILD)/exception-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/address_space_test.c src/address_space.c -o $(BUILD)/address-space-test
 	$(BUILD)/address-space-test
-	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c src/address_space.c -o $(BUILD)/scheduler-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/scheduler_test.c src/scheduler.c src/task.c src/context.c src/address_space.c src/ipc.c -o $(BUILD)/scheduler-test
 	$(BUILD)/scheduler-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/user_context_test.c src/context.c -o $(BUILD)/user-context-test
 	$(BUILD)/user-context-test
