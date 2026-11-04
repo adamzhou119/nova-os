@@ -438,6 +438,23 @@ nova_user_test_payload_start:
     mov     x0, #1
     str     x0, [sp, #32]           /* result[4]: EL0 file I/O passed */
 
+    /* Reject 64-bit values that would truncate into valid 32-bit arguments. */
+    movz    x0, #1, lsl #32
+    movk    x0, #3
+    mov     x8, #4
+    svc     #0
+    cmn     x0, #9
+    b.ne    1f
+    adr     x0, 5f
+    movz    x1, #1, lsl #32
+    movk    x1, #1
+    mov     x8, #3
+    svc     #0
+    cmn     x0, #22
+    b.ne    1f
+    mov     x0, #1
+    str     x0, [sp, #40]           /* result[5]: wide args rejected */
+
     mov     x0, #0
     mov     x8, #1
     svc     #0
