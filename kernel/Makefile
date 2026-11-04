@@ -86,6 +86,8 @@ host-test: | $(BUILD)
 	$(BUILD)/ai-plan-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/executor_test.c ../services/ai/executor.c -o $(BUILD)/ai-executor-test
 	$(BUILD)/ai-executor-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/manager ../services/manager/manager_test.c ../services/manager/manager.c -o $(BUILD)/service-manager-test
+	$(BUILD)/service-manager-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
