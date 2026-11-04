@@ -293,6 +293,53 @@ nova_user_test_payload_start:
     svc     #0
     cmn     x0, #22
     b.ne    1f
+
+    /* Create, write, close, reopen, read, and close a real VFS file. */
+    adr     x0, 3f
+    mov     x1, #1
+    mov     x8, #3
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x19, x0
+    mov     x0, x19
+    adr     x1, 4f
+    mov     x2, #14
+    mov     x8, #6
+    svc     #0
+    cmp     x0, #14
+    b.ne    1f
+    mov     x0, x19
+    mov     x8, #4
+    svc     #0
+    cbnz    x0, 1f
+    adr     x0, 3f
+    mov     x1, #0
+    mov     x8, #3
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x19, x0
+    sub     sp, sp, #16
+    mov     x0, x19
+    mov     x1, sp
+    mov     x2, #14
+    mov     x8, #5
+    svc     #0
+    cmp     x0, #14
+    b.ne    1f
+    ldrb    w1, [sp]
+    cmp     w1, #'E'
+    b.ne    1f
+    ldrb    w1, [sp, #13]
+    cmp     w1, #10
+    b.ne    1f
+    add     sp, sp, #16
+    mov     x0, x19
+    mov     x8, #4
+    svc     #0
+    cbnz    x0, 1f
+
     mov     x0, #0
     mov     x8, #1
     svc     #0
@@ -300,6 +347,10 @@ nova_user_test_payload_start:
     b       1b
 2:
     .ascii  "hello from EL0\n"
+3:
+    .asciz  "/ramfs/el0.txt"
+4:
+    .ascii  "EL0 file I/O!\n"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */
