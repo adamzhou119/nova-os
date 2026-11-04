@@ -190,19 +190,35 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     if (address_space_id == 0U || task_id == 0 ||
         (user_entry & 3U) != 0U || (user_stack_top & 15U) != 0U ||
         user_entry < NOVA_USER_VA_BASE || user_entry >= NOVA_USER_VA_END ||
-        user_stack_top <= NOVA_USER_VA_BASE || user_stack_top > NOVA_USER_VA_END ||
-        !nova_address_space_get(address_space_id, &space) ||
+        user_stack_top <= NOVA_USER_VA_BASE || user_stack_top > NOVA_USER_VA_END)
+        return 0;
+
+    /*
+     * Acquire ownership before reading the registry snapshot. This prevents a
+     * concurrent final release from destroying the page tables between get()
+     * and retain(). The reference remains owned until READY publication, or
+     * is released on every failure path below.
+     */
+    if (!nova_address_space_retain(address_space_id))
+        return 0;
+    if (!nova_address_space_get(address_space_id, &space) ||
         !nova_mmu_user_verify_page(space.root_physical, space.asid,
             user_entry & ~(uintptr_t)4095U, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_verify_page(space.root_physical, space.asid,
             (user_stack_top - 1U) & ~(uintptr_t)4095U,
-            NOVA_MMU_MAP_WRITABLE))
+            NOVA_MMU_MAP_WRITABLE)) {
+        (void)nova_address_space_release(address_space_id);
         return 0;
-    if (!task_reserve_slot(&i, &id)) return 0;
+    }
+    if (!task_reserve_slot(&i, &id)) {
+        (void)nova_address_space_release(address_space_id);
+        return 0;
+    }
 
     stack = nova_vmap_alloc_guarded_page(NOVA_MMU_MAP_WRITABLE);
     if (stack == 0) {
         task_cancel_reservation(i, id);
+        (void)nova_address_space_release(address_space_id);
         return 0;
     }
     frame = (struct nova_irq_frame *)((uintptr_t)stack + NOVA_TASK_STACK_SIZE -
@@ -210,25 +226,17 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     if (!nova_user_irq_frame_init(frame, user_entry, user_stack_top, argument0)) {
         (void)nova_vmap_free_guarded_page(stack);
         task_cancel_reservation(i, id);
+        (void)nova_address_space_release(address_space_id);
         return 0;
     }
-    /*
-     * Finish all fallible local setup before retaining the address space.
-     * A failed context initialization must not leave an unreachable reference
-     * behind if the later final-release hook itself is temporarily failing.
-     */
     if (!nova_arch_context_init(&tasks[i].context,
                                 (uintptr_t)stack + NOVA_TASK_STACK_SIZE,
                                 (uintptr_t)nova_user_task_start_trampoline,
                                 (uintptr_t)frame, 0U)) {
         (void)nova_vmap_free_guarded_page(stack);
-        task_cancel_reservation(i, id);
-        return 0;
-    }
-    if (!nova_address_space_retain(address_space_id)) {
-        (void)nova_vmap_free_guarded_page(stack);
         tasks[i].context.sp = 0U;
         task_cancel_reservation(i, id);
+        (void)nova_address_space_release(address_space_id);
         return 0;
     }
 
