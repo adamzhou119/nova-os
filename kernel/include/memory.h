@@ -24,6 +24,10 @@ int nova_page_is_allocated(const void *page);
 int nova_page_pin(const void *page);
 int nova_page_unpin(const void *page);
 size_t nova_page_pin_count(const void *page);
+
+/* Diagnostic-only hook: fail one unpin after N successful unpins. */
+void nova_page_test_fail_unpin_after(size_t successful_unpins);
+void nova_page_test_clear_unpin_failure(void);
 size_t nova_page_total(void);
 size_t nova_page_available(void);
 
