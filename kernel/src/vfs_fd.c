@@ -4,7 +4,7 @@
 
 #define NOVA_VFS_FD_SLOT_BITS 8U
 #define NOVA_VFS_FD_SLOT_MASK ((1U << NOVA_VFS_FD_SLOT_BITS) - 1U)
-#define NOVA_VFS_FD_GENERATION_MAX 0x00FFFFFFU
+#define NOVA_VFS_FD_GENERATION_MAX 0x007FFFFFU
 
 static int path_length(const char *path, size_t *length) {
     size_t n = 0U;
