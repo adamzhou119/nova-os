@@ -102,6 +102,7 @@ int main(void) {
     /* A parked first-run task has never executed and must be cancellable. */
     assert(nova_task_create(dummy_entry, 0, &cancelled));
     assert(nova_task_block_ready(cancelled));
+    assert(!nova_task_block_ready(cancelled));
     assert(nova_task_get(cancelled, &info));
     assert(info.state == NOVA_TASK_BLOCKED &&
            info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
