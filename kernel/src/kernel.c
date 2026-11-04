@@ -19,6 +19,8 @@
 #include "user_memory.h"
 #include "ipc.h"
 #include "service.h"
+#include "file.h"
+#include "vfs.h"
 #include "syscall.h"
 
 #include "console.h"
@@ -419,6 +421,48 @@ static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     return copied;
 }
 
+
+static int64_t nova_user_copy_path(char path[NOVA_FILE_PATH_MAX + 1U],
+                                   uintptr_t user_path) {
+    size_t i;
+    if (user_path == 0U) return -14;
+    for (i = 0U; i <= NOVA_FILE_PATH_MAX; ++i) {
+        if (user_path > UINTPTR_MAX - i) return -14;
+        if (nova_user_copy_from(&path[i], user_path + i, 1U) != 1)
+            return -14;
+        if (path[i] == '\0') return (int64_t)i;
+    }
+    return -22;
+}
+static int64_t nova_user_file_open(uint32_t task_id, uintptr_t user_path,
+                                   uint32_t flags) {
+    char path[NOVA_FILE_PATH_MAX + 1U];
+    int64_t copied = nova_user_copy_path(path, user_path);
+    if (copied < 0) return copied;
+    return nova_file_open(task_id, path, flags);
+}
+static int64_t nova_user_file_read(uint32_t task_id, int fd,
+                                   uintptr_t user_buffer, uint64_t length) {
+    uint8_t copy[256];
+    int64_t count;
+    if (length > sizeof(copy)) return -22;
+    if (!nova_user_check_range(user_buffer, length, 1)) return -14;
+    count = nova_file_read(task_id, fd, copy, (size_t)length);
+    if (count <= 0) return count;
+    if (nova_user_copy_to(user_buffer, copy, (uint64_t)count) != count)
+        return -14;
+    return count;
+}
+static int64_t nova_user_file_write(uint32_t task_id, int fd,
+                                    uintptr_t user_buffer, uint64_t length) {
+    uint8_t copy[256];
+    int64_t copied;
+    if (length > sizeof(copy)) return -22;
+    copied = nova_user_copy_from(copy, user_buffer, length);
+    if (copied < 0) return copied;
+    return nova_file_write(task_id, fd, copy, (size_t)copied);
+}
+
 /* Stop at NUL: do not read beyond the user's actual string. */
 static int64_t nova_user_service_name(uintptr_t user_name, char name[32]) {
     size_t i;
@@ -574,6 +618,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         nova_console_write_hex64(frame->far_el1);
         nova_console_write("EL0 fault ELR: ");
         nova_console_write_hex64(frame->elr_el1);
+        nova_file_close_all(task_id);
         nova_sched_task_exit();
         for (;;) __asm__ volatile("wfe");
     }
@@ -595,6 +640,20 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_console_write("EL0 write syscall rejected excessive length.\n");
 #endif
         frame->x[0] = (uint64_t)written;
+    } else if (frame->x[8] == NOVA_SYS_FILE_OPEN) {
+        frame->x[0] = (uint64_t)nova_user_file_open(
+            nova_sched_current(), (uintptr_t)frame->x[0], (uint32_t)frame->x[1]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_CLOSE) {
+        frame->x[0] = (uint64_t)nova_file_close(
+            nova_sched_current(), (int)frame->x[0]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_READ) {
+        frame->x[0] = (uint64_t)nova_user_file_read(
+            nova_sched_current(), (int)frame->x[0],
+            (uintptr_t)frame->x[1], frame->x[2]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_WRITE) {
+        frame->x[0] = (uint64_t)nova_user_file_write(
+            nova_sched_current(), (int)frame->x[0],
+            (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_PORT_CREATE) {
         uint32_t task_id = nova_sched_current();
         frame->x[0] = (uint64_t)(int64_t)(task_id == 0U ? -22 :
@@ -637,6 +696,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
 #endif
         uint32_t task_id = nova_sched_current();
         (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
+        nova_file_close_all(task_id);
         nova_sched_task_exit();
     } else {
         frame->x[0] = (uint64_t)(int64_t)-38;
@@ -1348,6 +1408,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     nova_console_write_hex64(nova_page_available());
 
     if (nova_mmu_enable()) {
+        if (nova_vfs_init())
+            nova_console_write("VFS /ramfs mounted for EL0 file descriptors.\\n");
+        else
+            nova_console_write("ERROR: VFS /ramfs initialization failed.\\n");
         if (!nova_address_space_set_destroy_hook(nova_mmu_address_space_destroy))
             nova_console_write("ERROR: address-space destroy hook registration failed.\n");
         nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
