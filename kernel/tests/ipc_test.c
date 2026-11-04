@@ -16,7 +16,7 @@ int main(void) {
                                NOVA_IPC_RIGHT_RECEIVE) == 0);
     assert(nova_ipc_send(2U, (uint32_t)port, hello, sizeof(hello)) == 0);
     assert(nova_ipc_receive(3U, (uint32_t)port, &message,
-                            sizeof(message.payload)) == 0);
+                            sizeof(message.payload)) == (int64_t)sizeof(hello));
     /* Receive-only clients cannot inject messages; send-only cannot consume. */
     assert(nova_ipc_send(3U, (uint32_t)port, hello, sizeof(hello)) == -13);
     assert(nova_ipc_receive(2U, (uint32_t)port, &message,
