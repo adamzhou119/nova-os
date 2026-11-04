@@ -366,9 +366,10 @@ nova_user_test_payload_start:
     mov     x2, #1
     mov     x8, #12
     svc     #0
-    cbnz    x0, 1f
-    mov     x0, x19
-    mov     x1, x20
+    cmp     x0, #0
+    b.le    1f
+    mov     x21, x0                  /* broker-issued capability ID */
+    mov     x0, x21
     mov     x8, #13
     svc     #0
     cbnz    x0, 1f
