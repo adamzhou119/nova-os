@@ -54,7 +54,7 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, address_space_id, user_space_id, user_first;
+    uint32_t first, second, third, address_space_id, user_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -72,6 +72,26 @@ int main(void) {
     assert(nova_task_create(dummy_entry, &argument, &first));
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
+
+    /* Exercise the complete legal task-state graph and reject illegal edges. */
+    assert(nova_task_create(dummy_entry, 0, &third));
+    assert(third != first && third != second);
+    assert(!nova_task_transition(third, NOVA_TASK_BLOCKED));
+    assert(!nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(!nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_BLOCKED));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(!nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(!nova_task_transition(third, NOVA_TASK_READY));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_destroy(third));
     assert(nova_address_space_create(0x40008000U, 1U, &address_space_id));
     assert(nova_task_set_address_space(first, address_space_id));
     assert(!nova_task_set_address_space(first, 999U));
@@ -390,7 +410,7 @@ int main(void) {
         assert(nova_task_transition(replacement_id, NOVA_TASK_ZOMBIE));
         assert(nova_task_destroy(replacement_id));
     }
-    assert(freed_stacks == 4);
+    assert(freed_stacks == 5);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
