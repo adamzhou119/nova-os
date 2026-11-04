@@ -10,6 +10,7 @@
 #define NOVA_CAP_ERR_INVAL (-22)
 #define NOVA_CAP_ERR_NOSPC (-28)
 #define NOVA_CAP_ERR_NOTSUP (-95)
+#define NOVA_CAP_ERR_EXIST (-17)
 
 struct capability_entry {
     uint32_t handle;
@@ -39,6 +40,25 @@ static int live_task(uint32_t id) {
            info.state != NOVA_TASK_UNUSED && info.state != NOVA_TASK_ZOMBIE;
 }
 
+static uint32_t ipc_rights(uint32_t rights) {
+    uint32_t mapped = 0U;
+    if ((rights & NOVA_CAPABILITY_RIGHT_SEND) != 0U)
+        mapped |= NOVA_IPC_RIGHT_SEND;
+    if ((rights & NOVA_CAPABILITY_RIGHT_RECEIVE) != 0U)
+        mapped |= NOVA_IPC_RIGHT_RECEIVE;
+    return mapped;
+}
+
+static void clear_entry(struct capability_entry *entry) {
+    entry->handle = 0U;
+    entry->issuer = 0U;
+    entry->holder = 0U;
+    entry->resource_type = 0U;
+    entry->resource_id = 0U;
+    entry->rights = 0U;
+    entry->used = 0U;
+}
+
 int nova_capability_grant(uint32_t issuer, uint32_t holder,
                           uint32_t resource_type, uint32_t resource_id,
                           uint32_t rights, uint32_t *handle) {
@@ -60,12 +80,26 @@ int nova_capability_grant(uint32_t issuer, uint32_t holder,
         return NOVA_CAP_ERR_NOSPC;
 
     for (i = 0U; i < NOVA_CAPABILITY_MAX_ENTRIES; ++i) {
-        if (!entries[i].used) {
+        if (entries[i].used &&
+            entries[i].holder == holder &&
+            entries[i].resource_type == resource_type &&
+            entries[i].resource_id == resource_id)
+            return NOVA_CAP_ERR_EXIST;
+        if (!entries[i].used && entry == 0)
             entry = &entries[i];
-            break;
-        }
     }
     if (entry == 0) return NOVA_CAP_ERR_NOSPC;
+
+    /*
+     * Publish the broker record only after the IPC authority accepts the
+     * matching rights. This keeps the capability table and enforcement table
+     * from disagreeing when the underlying grant fails.
+     */
+    {
+        int result = nova_ipc_port_grant(issuer, resource_id, holder,
+                                         ipc_rights(rights));
+        if (result != 0) return result;
+    }
 
     entry->handle = next_handle++;
     entry->issuer = issuer;
@@ -94,8 +128,10 @@ int nova_capability_check(uint32_t holder, uint32_t resource_type,
             entry->resource_type != resource_type ||
             entry->resource_id != resource_id)
             continue;
-        /* Revalidate that the original issuer still owns this live resource. */
-        if (!nova_ipc_port_is_owner(entry->issuer, resource_id))
+        /* Revalidate both resource ownership and effective IPC rights. */
+        if (!nova_ipc_port_is_owner(entry->issuer, resource_id) ||
+            !nova_ipc_port_has_rights(holder, resource_id,
+                                      ipc_rights(required_rights)))
             return NOVA_CAP_ERR_PERM;
         if ((entry->rights & required_rights) == required_rights)
             return 0;
@@ -105,17 +141,16 @@ int nova_capability_check(uint32_t holder, uint32_t resource_type,
 
 int nova_capability_revoke(uint32_t issuer, uint32_t handle) {
     struct capability_entry *entry = find_handle(handle);
+    int result;
     if (entry == 0) return NOVA_CAP_ERR_NOENT;
     if (issuer == 0U || entry->issuer != issuer ||
         !nova_ipc_port_is_owner(issuer, entry->resource_id))
         return NOVA_CAP_ERR_PERM;
-    entry->handle = 0U;
-    entry->issuer = 0U;
-    entry->holder = 0U;
-    entry->resource_type = 0U;
-    entry->resource_id = 0U;
-    entry->rights = 0U;
-    entry->used = 0U;
+
+    result = nova_ipc_port_revoke(issuer, entry->resource_id, entry->holder);
+    /* A direct owner revocation may already have removed the IPC grant. */
+    if (result != 0 && result != -9) return result;
+    clear_entry(entry);
     return 0;
 }
 
@@ -127,12 +162,6 @@ void nova_capability_close_task(uint32_t task_id) {
         if (!entry->used ||
             (entry->issuer != task_id && entry->holder != task_id))
             continue;
-        entry->handle = 0U;
-        entry->issuer = 0U;
-        entry->holder = 0U;
-        entry->resource_type = 0U;
-        entry->resource_id = 0U;
-        entry->rights = 0U;
-        entry->used = 0U;
+        clear_entry(entry);
     }
 }
