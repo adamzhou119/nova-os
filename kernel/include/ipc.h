@@ -22,6 +22,7 @@ struct nova_ipc_message {
 
 /* Bounded, non-blocking, single-core IPC mailbox primitives. */
 int64_t nova_ipc_port_create(uint32_t owner);
+int nova_ipc_port_is_owner(uint32_t owner, uint32_t port);
 int nova_ipc_port_grant(uint32_t owner, uint32_t port,
                         uint32_t recipient, uint32_t rights);
 int nova_ipc_port_revoke(uint32_t owner, uint32_t port, uint32_t recipient);
