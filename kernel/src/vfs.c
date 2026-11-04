@@ -14,8 +14,11 @@ static int vfs_ready;
 static const char *resolve_ramfs_path(const char *path) {
     size_t i;
     if (path == 0 || !vfs_ready) return 0;
-    for (i = 0U; i < NOVA_VFS_PREFIX_LENGTH; ++i)
-        if (path[i] != NOVA_VFS_MOUNT_PREFIX[i]) return 0;
+    for (i = 0U; i < NOVA_VFS_PREFIX_LENGTH; ++i) {
+        /* Stop at the terminator; never inspect bytes past a short path. */
+        if (path[i] == '\\0' || path[i] != NOVA_VFS_MOUNT_PREFIX[i])
+            return 0;
+    }
     path += NOVA_VFS_PREFIX_LENGTH;
     if (path[0] == '\0') return 0;
     for (i = 0U; path[i] != '\0'; ++i)
