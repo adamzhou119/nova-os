@@ -40,6 +40,19 @@ static void task_irq_restore(uintptr_t daif) {
 #endif
 }
 
+static int task_frame_in_stack(const struct nova_task_info *task,
+                               const struct nova_irq_frame *frame) {
+    uintptr_t address = (uintptr_t)frame;
+
+    if (task == 0 || frame == 0 || task->kernel_stack_base == 0U ||
+        task->kernel_stack_top < task->kernel_stack_base ||
+        task->kernel_stack_top - task->kernel_stack_base < sizeof(*frame) ||
+        (address & 15U) != 0U)
+        return 0;
+    return address >= task->kernel_stack_base &&
+           address <= task->kernel_stack_top - sizeof(*frame);
+}
+
 static struct nova_task_info *find_task(uint32_t id) {
     size_t i;
     if (id == 0U) return 0;
@@ -314,20 +327,14 @@ int nova_task_set_address_space(uint32_t task_id, uint32_t address_space_id) {
 
 int nova_task_set_irq_frame(uint32_t task_id, struct nova_irq_frame *frame) {
     struct nova_task_info *task;
-    uintptr_t address = (uintptr_t)frame;
     uintptr_t saved_daif = task_irq_save_disable();
     int result = 0;
 
     task = find_task(task_id);
-    if (task != 0 && frame != 0 &&
+    if (task != 0 &&
         (task->state == NOVA_TASK_READY ||
          task->state == NOVA_TASK_RUNNING) &&
-        task->kernel_stack_base != 0U &&
-        task->kernel_stack_top >= task->kernel_stack_base &&
-        task->kernel_stack_top - task->kernel_stack_base >= sizeof(*frame) &&
-        (address & 15U) == 0U &&
-        address >= task->kernel_stack_base &&
-        address <= task->kernel_stack_top - sizeof(*frame)) {
+        task_frame_in_stack(task, frame)) {
         task->irq_frame = frame;
         result = 1;
     }
@@ -352,16 +359,13 @@ int nova_task_mark_irq_resumable(uint32_t task_id, struct nova_irq_frame *frame)
 
 int nova_task_save_irq_context(uint32_t task_id, struct nova_irq_frame *frame) {
     struct nova_task_info *task;
-    uintptr_t address = (uintptr_t)frame;
     uintptr_t saved_daif = task_irq_save_disable();
     int result = 0;
 
     /* Publish the exception frame and READY state as one task-table update. */
     task = find_task(task_id);
-    if (task != 0 && task->state == NOVA_TASK_RUNNING && frame != 0 &&
-        (address & 15U) == 0U &&
-        address >= task->kernel_stack_base &&
-        address <= task->kernel_stack_top - sizeof(*frame)) {
+    if (task != 0 && task->state == NOVA_TASK_RUNNING &&
+        task_frame_in_stack(task, frame)) {
         task->irq_frame = frame;
         task->resume_kind = NOVA_TASK_RESUME_IRQ;
         task->state = NOVA_TASK_READY;
@@ -375,7 +379,6 @@ int nova_task_take_irq_context(uint32_t task_id,
                                  struct nova_irq_frame **frame) {
     struct nova_task_info *task;
     struct nova_irq_frame *saved_frame;
-    uintptr_t address;
     uintptr_t saved_daif = task_irq_save_disable();
     int result = 0;
 
@@ -387,9 +390,7 @@ int nova_task_take_irq_context(uint32_t task_id,
         task->irq_frame != 0) {
         saved_frame = task->irq_frame;
         address = (uintptr_t)saved_frame;
-        if ((address & 15U) == 0U &&
-            address >= task->kernel_stack_base &&
-            address <= task->kernel_stack_top - sizeof(*saved_frame)) {
+        if (task_frame_in_stack(task, saved_frame)) {
             task->state = NOVA_TASK_RUNNING;
             task->resume_kind = NOVA_TASK_RESUME_ACTIVE;
             task->irq_frame = 0;
