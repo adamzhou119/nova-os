@@ -54,7 +54,7 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, third, address_space_id, user_space_id, user_first;
+    uint32_t first, second, third, cancelled, address_space_id, user_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -92,6 +92,15 @@ int main(void) {
     assert(!nova_task_transition(third, NOVA_TASK_READY));
     assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
     assert(nova_task_destroy(third));
+
+    /* A parked first-run task has never executed and must be cancellable. */
+    assert(nova_task_create(dummy_entry, 0, &cancelled));
+    assert(nova_task_block_ready(cancelled));
+    assert(nova_task_get(cancelled, &info));
+    assert(info.state == NOVA_TASK_BLOCKED &&
+           info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
+    assert(nova_task_destroy(cancelled));
+    assert(!nova_task_get(cancelled, &info));
     assert(nova_address_space_create(0x40008000U, 1U, &address_space_id));
     assert(nova_task_set_address_space(first, address_space_id));
     assert(!nova_task_set_address_space(first, 999U));
@@ -410,7 +419,7 @@ int main(void) {
         assert(nova_task_transition(replacement_id, NOVA_TASK_ZOMBIE));
         assert(nova_task_destroy(replacement_id));
     }
-    assert(freed_stacks == 5);
+    assert(freed_stacks == 6);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
