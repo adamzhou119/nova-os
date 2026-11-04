@@ -70,6 +70,8 @@ host-test: | $(BUILD)
 	$(BUILD)/fs-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/ipc_test.c src/ipc.c -o $(BUILD)/ipc-test
 	$(BUILD)/ipc-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/capability_test.c src/capability.c src/ipc.c -o $(BUILD)/capability-test
+	$(BUILD)/capability-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/service_test.c src/service.c src/ipc.c -o $(BUILD)/service-test
 	$(BUILD)/service-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/plan_test.c ../services/ai/plan.c -o $(BUILD)/ai-plan-test
