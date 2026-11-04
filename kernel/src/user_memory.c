@@ -6,8 +6,7 @@
 #define NOVA_EFAULT (-14)
 #define NOVA_EINVAL (-22)
 
-static int user_range_accessible(uintptr_t address, uint64_t length,
-                                 int write) {
+int nova_user_check_range(uintptr_t address, uint64_t length, int write) {
     uintptr_t page;
     uintptr_t last_page;
 
@@ -37,7 +36,7 @@ int64_t nova_user_copy_from(void *kernel_destination,
     if (length > NOVA_USER_COPY_MAX) return NOVA_EINVAL;
     if (length == 0U) return 0;
     if (destination == 0 ||
-        !user_range_accessible(user_source, length, 0))
+        !nova_user_check_range(user_source, length, 0))
         return NOVA_EFAULT;
 
     /* Validate the complete range before the first user-memory load. */
@@ -55,7 +54,7 @@ int64_t nova_user_copy_to(uintptr_t user_destination,
     if (length > NOVA_USER_COPY_MAX) return NOVA_EINVAL;
     if (length == 0U) return 0;
     if (source == 0 ||
-        !user_range_accessible(user_destination, length, 1))
+        !nova_user_check_range(user_destination, length, 1))
         return NOVA_EFAULT;
 
     /* Validate write permission on every covered page before storing. */
