@@ -128,7 +128,20 @@ int main(void) {
     assert(event.event == NOVA_CAP_AUDIT_DENIED);
     assert(!nova_capability_audit_read(0U, &event));
 
-    nova_capability_task_exit(10U);
+    /* Issuer exit invalidates every credential it minted. */
+    {
+        int64_t issuer_exit_cap = nova_capability_grant(
+            10U, 41U, NOVA_CAP_RESOURCE_IPC_PORT, (uint32_t)port,
+            NOVA_CAP_RIGHT_SEND);
+        assert(issuer_exit_cap > 0);
+        assert(nova_capability_check(41U, (uint32_t)issuer_exit_cap,
+                                     NOVA_CAP_RESOURCE_IPC_PORT,
+                                     (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+        nova_capability_task_exit(10U);
+        assert(!nova_capability_check(41U, (uint32_t)issuer_exit_cap,
+                                      NOVA_CAP_RESOURCE_IPC_PORT,
+                                      (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+    }
     nova_ipc_close_owner(10U);
     assert(nova_ipc_send(30U, (uint32_t)port, "x", 1U) == -9);
     return 0;
