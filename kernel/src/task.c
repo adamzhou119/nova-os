@@ -461,12 +461,16 @@ int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind)
      * only while the interrupted task is still RUNNING.
      */
     if (kind == NOVA_TASK_RESUME_COOPERATIVE &&
-        task->state != NOVA_TASK_READY && task->state != NOVA_TASK_BLOCKED)
+        task->state != NOVA_TASK_READY && task->state != NOVA_TASK_BLOCKED) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     if ((kind == NOVA_TASK_RESUME_IRQ ||
          kind == NOVA_TASK_RESUME_ACTIVE) &&
-        task->state != NOVA_TASK_RUNNING)
+        task->state != NOVA_TASK_RUNNING) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     task->resume_kind = kind;
     task_irq_restore(saved_daif);
     return 1;
@@ -476,8 +480,12 @@ static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
                                int resume_path) {
     struct nova_task_info *wrapped = 0;
     struct nova_task_info *next = 0;
+    uintptr_t saved_daif = task_irq_save_disable();
     size_t i;
-    if (task_id == 0) return 0;
+    if (task_id == 0) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
     for (i = 0; i < NOVA_TASK_MAX; ++i) {
         if (tasks[i].state != NOVA_TASK_READY ||
             (resume_path == 1 &&
@@ -491,8 +499,12 @@ static int next_ready_matching(uint32_t after_id, uint32_t *task_id,
             (next == 0 || tasks[i].id < next->id)) next = &tasks[i];
     }
     if (next == 0) next = wrapped;
-    if (next == 0) return 0;
+    if (next == 0) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
     *task_id = next->id;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
@@ -519,24 +531,37 @@ void nova_task_mark_zombie(struct nova_task_info *task) {
 }
 
 int nova_task_set_exit_code(uint32_t task_id, int exit_code) {
-    struct nova_task_info *task = find_task(task_id);
-    if (task == 0 || task->state != NOVA_TASK_RUNNING) return 0;
-    task->exit_code = exit_code;
-    return 1;
+    struct nova_task_info *task;
+    uintptr_t saved_daif = task_irq_save_disable();
+    int result = 0;
+
+    task = find_task(task_id);
+    if (task != 0 && task->state == NOVA_TASK_RUNNING) {
+        task->exit_code = exit_code;
+        result = 1;
+    }
+    task_irq_restore(saved_daif);
+    return result;
 }
 
 int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
                         uint64_t esr, uint64_t far, uint64_t elr) {
-    struct nova_task_info *task = find_task(task_id);
-    if (task == 0 || task->state != NOVA_TASK_RUNNING ||
-        (kind <= NOVA_TASK_FAULT_NONE || kind > NOVA_TASK_FAULT_BRK))
-        return 0;
-    task->fault_kind = kind;
-    task->fault_esr = esr;
-    task->fault_far = far;
-    task->fault_elr = elr;
-    task->exit_code = NOVA_TASK_EXIT_FAULT;
-    return 1;
+    struct nova_task_info *task;
+    uintptr_t saved_daif = task_irq_save_disable();
+    int result = 0;
+
+    task = find_task(task_id);
+    if (task != 0 && task->state == NOVA_TASK_RUNNING &&
+        kind > NOVA_TASK_FAULT_NONE && kind <= NOVA_TASK_FAULT_BRK) {
+        task->fault_kind = kind;
+        task->fault_esr = esr;
+        task->fault_far = far;
+        task->fault_elr = elr;
+        task->exit_code = NOVA_TASK_EXIT_FAULT;
+        result = 1;
+    }
+    task_irq_restore(saved_daif);
+    return result;
 }
 
 int nova_task_reap_zombies(void) {
