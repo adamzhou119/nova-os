@@ -530,12 +530,19 @@ static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t capability_id) {
     return nova_capability_revoke(owner, (uint32_t)capability_id);
 }
 static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
+                                   uint64_t capability_id,
                                    uintptr_t user_payload, uint64_t length) {
     uint8_t payload[NOVA_IPC_MAX_PAYLOAD];
     int64_t copied;
     if (sender == 0U || port == 0U || port > UINT32_MAX ||
-        length > NOVA_IPC_MAX_PAYLOAD)
+        capability_id > UINT32_MAX || length > NOVA_IPC_MAX_PAYLOAD)
         return -22;
+    if (!nova_ipc_port_is_owner(sender, (uint32_t)port) &&
+        (capability_id == 0U ||
+         !nova_capability_check(sender, (uint32_t)capability_id,
+                                NOVA_CAP_RESOURCE_IPC_PORT,
+                                (uint32_t)port, NOVA_CAP_RIGHT_SEND)))
+        return -13;
     if (length != 0U) {
         copied = nova_user_copy_from(payload, user_payload, length);
         if (copied < 0) return copied;
@@ -545,13 +552,21 @@ static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
 }
 
 static int64_t nova_user_ipc_receive(uint32_t receiver, uint64_t port,
+                                      uint64_t capability_id,
                                       uintptr_t user_message,
                                       uint64_t capacity) {
     struct nova_ipc_message message;
     int64_t received;
     if (receiver == 0U || port == 0U || port > UINT32_MAX ||
-        capacity > NOVA_IPC_MAX_PAYLOAD || user_message == 0U)
+        capability_id > UINT32_MAX || capacity > NOVA_IPC_MAX_PAYLOAD ||
+        user_message == 0U)
         return -22;
+    if (!nova_ipc_port_is_owner(receiver, (uint32_t)port) &&
+        (capability_id == 0U ||
+         !nova_capability_check(receiver, (uint32_t)capability_id,
+                                NOVA_CAP_RESOURCE_IPC_PORT,
+                                (uint32_t)port, NOVA_CAP_RIGHT_RECEIVE)))
+        return -13;
 
     /*
      * Validate the complete writable result before dequeuing. On this
@@ -682,12 +697,12 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_sched_current(), frame->x[0]);
     } else if (frame->x[8] == NOVA_SYS_IPC_SEND) {
         frame->x[0] = (uint64_t)nova_user_ipc_send(
-            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
-            frame->x[2]);
+            nova_sched_current(), frame->x[0], frame->x[3],
+            (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_RECEIVE) {
         frame->x[0] = (uint64_t)nova_user_ipc_receive(
-            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
-            frame->x[2]);
+            nova_sched_current(), frame->x[0], frame->x[3],
+            (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_EXIT) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC exit; current task: ");
