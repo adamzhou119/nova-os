@@ -29,5 +29,21 @@ int main(void) {
     nova_file_close_all(10U);
     assert(nova_file_read(10U, (int)fd, result, 1U) == -9);
     assert(nova_file_open(10U, "/ramfs/../escape", NOVA_FILE_OPEN_CREATE) == -22);
+
+    /* A full descriptor table must not create a file as a side effect. */
+    {
+        int descriptors[NOVA_FILE_FD_MAX];
+        size_t i;
+        struct nova_fs_stat stat;
+        for (i = 0U; i < NOVA_FILE_FD_MAX; ++i) {
+            descriptors[i] = (int)nova_file_open(10U, "/ramfs/notes.txt", 0U);
+            assert(descriptors[i] == NOVA_FILE_FD_FIRST + (int)i);
+        }
+        assert(nova_file_open(10U, "/ramfs/no_slot.txt",
+                              NOVA_FILE_OPEN_CREATE) == -24);
+        assert(!nova_vfs_stat("/ramfs/no_slot.txt", &stat));
+        nova_file_close_all(10U);
+        assert(nova_file_read(10U, descriptors[0], result, 1U) == -9);
+    }
     return 0;
 }
