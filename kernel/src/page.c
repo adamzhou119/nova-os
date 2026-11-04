@@ -11,6 +11,8 @@ static uint32_t page_pin_counts[NOVA_PAGE_MAX_COUNT];
 static size_t page_count;
 static size_t page_free_count;
 static int page_ready;
+static size_t test_unpin_countdown;
+static int test_unpin_failure_enabled;
 
 static void page_reset(void) {
     size_t i;
@@ -184,8 +186,25 @@ int nova_page_pin(const void *page) {
 int nova_page_unpin(const void *page) {
     size_t index = page_find_index(page);
     if (index == page_count || page_pin_counts[index] == 0) return 0;
+    if (test_unpin_failure_enabled) {
+        if (test_unpin_countdown == 0U) {
+            test_unpin_failure_enabled = 0;
+            return 0;
+        }
+        --test_unpin_countdown;
+    }
     --page_pin_counts[index];
     return 1;
+}
+
+void nova_page_test_fail_unpin_after(size_t successful_unpins) {
+    test_unpin_countdown = successful_unpins;
+    test_unpin_failure_enabled = 1;
+}
+
+void nova_page_test_clear_unpin_failure(void) {
+    test_unpin_failure_enabled = 0;
+    test_unpin_countdown = 0U;
 }
 
 size_t nova_page_pin_count(const void *page) {
