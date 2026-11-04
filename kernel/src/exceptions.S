@@ -330,6 +330,7 @@ nova_user_test_payload_start:
     mov     x0, x19
     adr     x1, 4f
     mov     x2, #4
+    mov     x3, #0
     mov     x8, #14
     svc     #0
     cbnz    x0, 1f
@@ -339,6 +340,7 @@ nova_user_test_payload_start:
     movz    x1, #0x8000, lsl #16
     add     x1, x1, #0x4000
     mov     x2, #64
+    mov     x3, #0
     mov     x8, #15
     svc     #0
     cmn     x0, #14
