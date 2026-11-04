@@ -1050,6 +1050,61 @@ cleanup:
     return result;
 }
 
+static int test_address_space_destroy_failure_rollback(void) {
+    const uintptr_t va_a = NOVA_USER_VA_BASE;
+    const uintptr_t va_b = NOVA_USER_VA_BASE + NOVA_MMU_BLOCK_2M;
+    uintptr_t root = 0U, frame_a = 0U, frame_b = 0U, translated = 0U;
+    size_t pages_before = nova_page_available();
+    size_t fail_after;
+
+    frame_a = (uintptr_t)nova_page_alloc();
+    frame_b = (uintptr_t)nova_page_alloc();
+    if (frame_a == 0U || frame_b == 0U ||
+        !nova_mmu_address_space_create(&root) ||
+        !nova_mmu_user_map_page(root, 21U, va_a, frame_a, 0U) ||
+        !nova_mmu_user_map_page(root, 21U, va_b, frame_b, 0U))
+        goto fail;
+
+    /*
+     * Unpin order: two leaf frames, two L3 tables, the private L2, then root.
+     * Inject one failure at each boundary and verify the complete address
+     * space remains switchable and both data-frame ownership pins survive.
+     */
+    for (fail_after = 0U; fail_after <= 5U; ++fail_after) {
+        nova_page_test_fail_unpin_after(fail_after);
+        if (nova_mmu_address_space_destroy(root, 21U)) goto fail;
+        if (nova_page_pin_count((const void *)frame_a) != 1U ||
+            nova_page_pin_count((const void *)frame_b) != 1U ||
+            !nova_page_is_allocated((const void *)frame_a) ||
+            !nova_page_is_allocated((const void *)frame_b) ||
+            !nova_mmu_switch_address_space(root, 21U) ||
+            !nova_mmu_translate(va_a, &translated) || translated != frame_a ||
+            !nova_mmu_translate(va_b, &translated) || translated != frame_b ||
+            !nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U))
+            goto fail;
+    }
+
+    nova_page_test_clear_unpin_failure();
+    if (!nova_mmu_address_space_destroy(root, 21U) ||
+        nova_page_pin_count((const void *)frame_a) != 0U ||
+        nova_page_pin_count((const void *)frame_b) != 0U ||
+        !nova_page_free((void *)frame_a) ||
+        !nova_page_free((void *)frame_b) ||
+        nova_page_available() != pages_before)
+        return 0;
+    return 1;
+
+fail:
+    nova_page_test_clear_unpin_failure();
+    (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
+    if (root != 0U) (void)nova_mmu_address_space_destroy(root, 21U);
+    if (frame_a != 0U && nova_page_pin_count((const void *)frame_a) == 0U)
+        (void)nova_page_free((void *)frame_a);
+    if (frame_b != 0U && nova_page_pin_count((const void *)frame_b) == 0U)
+        (void)nova_page_free((void *)frame_b);
+    return 0;
+}
+
 static int test_generic_timer(void) {
     uint64_t first, second, frequency, delay;
     uint32_t guard = 0U;
@@ -1319,6 +1374,11 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_page_available()==pages_before)ok=1;
             if(ok)nova_console_write("Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed.\n");
             else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);nova_console_write("ERROR: private user mapping/isolation test failed.\n");}
+        }
+        if (test_address_space_destroy_failure_rollback()) {
+            nova_console_write("Address-space destroy injected-failure rollback tests passed.\\n");
+        } else {
+            nova_console_write("ERROR: address-space destroy rollback test failed.\\n");
         }
         if (test_dynamic_virtual_pages()) {
             nova_console_write("MMU dynamic map/unmap and permission tests passed.\n");
