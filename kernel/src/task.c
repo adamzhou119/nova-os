@@ -21,6 +21,25 @@ extern void nova_user_task_start_trampoline(void);
 static struct nova_task_info tasks[NOVA_TASK_MAX];
 static uint32_t next_task_id = 1U;
 
+static uintptr_t task_irq_save_disable(void) {
+#if defined(__aarch64__)
+    uintptr_t daif;
+    __asm__ volatile("mrs %0, daif\n\tmsr daifset, #2"
+                     : "=r"(daif) :: "memory");
+    return daif;
+#else
+    return 0U;
+#endif
+}
+
+static void task_irq_restore(uintptr_t daif) {
+#if defined(__aarch64__)
+    __asm__ volatile("msr daif, %0" :: "r"(daif) : "memory");
+#else
+    (void)daif;
+#endif
+}
+
 static struct nova_task_info *find_task(uint32_t id) {
     size_t i;
     if (id == 0U) return 0;
@@ -462,37 +481,49 @@ int nova_task_reap_zombies(void) {
 }
 
 int nova_task_destroy(uint32_t task_id) {
-    struct nova_task_info *task = find_task(task_id);
+    struct nova_task_info *task;
     uintptr_t stack;
+    uintptr_t saved_daif = task_irq_save_disable();
+
+    task = find_task(task_id);
     if (task == 0 ||
         (task->state != NOVA_TASK_ZOMBIE &&
          !((task->state == NOVA_TASK_READY ||
             task->state == NOVA_TASK_BLOCKED) &&
            (task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN ||
-            task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN))))
+            task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN)))) {
+        task_irq_restore(saved_daif);
         return 0;
-    stack = task->kernel_stack_base;
+    }
+
     /*
-     * Free the non-runnable task's kernel stack before dropping its final
-     * address-space reference: the release hook may irreversibly destroy the
-     * page-table root. If teardown then fails, keep a stackless ZOMBIE record
-     * so a later destroy call can retry without resurrecting freed resources.
+     * Remove a never-dispatched task from scheduler visibility before any
+     * resource can be released. Otherwise a timer IRQ could dispatch a READY
+     * task while its stack is being freed. ZOMBIE is also the retry state if
+     * a later teardown operation fails.
      */
-    if (stack != 0U && !nova_vmap_free_guarded_page((void *)stack))
+    task->state = NOVA_TASK_ZOMBIE;
+    stack = task->kernel_stack_base;
+    if (stack != 0U && !nova_vmap_free_guarded_page((void *)stack)) {
+        task_irq_restore(saved_daif);
         return 0;
+    }
     task->kernel_stack_base = 0U;
     task->kernel_stack_top = 0U;
     task->irq_frame = 0;
-    task->state = NOVA_TASK_ZOMBIE;
+
     /* Revoke broker-issued grants before IPC endpoints and task identity vanish. */
     nova_capability_task_exit(task_id);
-    /* Revoke owned IPC endpoints once the task can no longer run. */
     nova_service_close_owner(task_id);
     nova_ipc_close_owner(task_id);
+
     if (task->address_space_id != 0U &&
-        !nova_address_space_release(task->address_space_id))
+        !nova_address_space_release(task->address_space_id)) {
+        task_irq_restore(saved_daif);
         return 0;
-    task->id = 0;
+    }
+
+    task->id = 0U;
     task->address_space_id = 0U;
     task->state = NOVA_TASK_UNUSED;
     task->resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
@@ -500,8 +531,8 @@ int nova_task_destroy(uint32_t task_id) {
     task->argument = 0;
     task->user_entry = 0U;
     task->user_stack_top = 0U;
-    task->kernel_stack_base = 0;
-    task->kernel_stack_top = 0;
+    task->kernel_stack_base = 0U;
+    task->kernel_stack_top = 0U;
     task->exit_code = 0;
     task->fault_kind = NOVA_TASK_FAULT_NONE;
     task->fault_esr = 0U;
@@ -509,9 +540,11 @@ int nova_task_destroy(uint32_t task_id) {
     task->fault_elr = 0U;
     {
         size_t i;
-        for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0;
-        task->context.sp = 0;
+        for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0U;
+        task->context.sp = 0U;
         task->irq_frame = 0;
     }
+
+    task_irq_restore(saved_daif);
     return 1;
 }
