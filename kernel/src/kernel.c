@@ -18,6 +18,7 @@
 #include "user_context.h"
 #include "user_memory.h"
 #include "ipc.h"
+#include "capability.h"
 #include "service.h"
 #include "file.h"
 #include "vfs.h"
@@ -516,23 +517,18 @@ static int64_t nova_user_ipc_grant(uint32_t owner, uint64_t port,
     if (!nova_task_get((uint32_t)recipient, &info) ||
         info.state == NOVA_TASK_ZOMBIE)
         return -3;
-    return nova_ipc_port_grant(owner, (uint32_t)port,
-                               (uint32_t)recipient, (uint32_t)rights);
+    /* All EL0 rights changes must pass through the audited capability broker. */
+    return nova_capability_grant(owner, (uint32_t)recipient,
+                                 NOVA_CAP_RESOURCE_IPC_PORT,
+                                 (uint32_t)port, (uint32_t)rights);
 }
 
-static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t port,
-                                     uint64_t recipient) {
-    struct nova_task_info info;
-    if (owner == 0U || port == 0U || port > UINT32_MAX ||
-        recipient == 0U || recipient > UINT32_MAX)
+static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t capability_id) {
+    if (owner == 0U || capability_id == 0U || capability_id > UINT32_MAX)
         return -22;
-    if (!nova_task_get((uint32_t)recipient, &info) ||
-        info.state == NOVA_TASK_ZOMBIE)
-        return -3;
-    return nova_ipc_port_revoke(owner, (uint32_t)port,
-                                (uint32_t)recipient);
+    /* The broker verifies that this task issued the capability. */
+    return nova_capability_revoke(owner, (uint32_t)capability_id);
 }
-
 static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
                                    uintptr_t user_payload, uint64_t length) {
     uint8_t payload[NOVA_IPC_MAX_PAYLOAD];
@@ -683,7 +679,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_sched_current(), frame->x[0], frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_PORT_REVOKE) {
         frame->x[0] = (uint64_t)nova_user_ipc_revoke(
-            nova_sched_current(), frame->x[0], frame->x[1]);
+            nova_sched_current(), frame->x[0]);
     } else if (frame->x[8] == NOVA_SYS_IPC_SEND) {
         frame->x[0] = (uint64_t)nova_user_ipc_send(
             nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
