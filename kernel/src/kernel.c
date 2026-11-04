@@ -195,13 +195,17 @@ cleanup:
 }
 #endif
 #ifdef NOVA_TEST_EL0_SVC
+static void test_ipc_recipient_entry(void *argument) {
+    (void)argument;
+    for (;;) __asm__ volatile("wfe");
+}
 extern const uint8_t nova_user_test_payload_start[];
 extern const uint8_t nova_user_test_payload_end[];
 
 static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
     uintptr_t code_page = 0U, stack_page = 0U;
-    uint32_t space_id = 0U, task_id = 0U;
+    uint32_t space_id = 0U, task_id = 0U, recipient_id = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
@@ -231,9 +235,11 @@ static int test_el0_svc_round_trip(void) {
                                 code_page, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
                                 stack_page, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_task_create(test_ipc_recipient_entry, 0U, &recipient_id) ||
+        !nova_task_transition(recipient_id, NOVA_TASK_BLOCKED) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                               0U, &task_id))
+                               recipient_id, &task_id))
         goto cleanup;
 
     if (!nova_mmu_switch_address_space(root, 31U))
@@ -257,7 +263,7 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write("EL0 copyout cross-page range rejected.\n");
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
-                                      2U * sizeof(uint64_t));
+                                      16U * sizeof(uint64_t));
     nova_console_write("EL0 test task prepared; task id: ");
     nova_console_write_hex64(task_id);
     if (!nova_sched_start()) {
@@ -268,7 +274,8 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write_hex64(*result);
     nova_console_write("EL0 test expected task id: ");
     nova_console_write_hex64(task_id);
-    ok = result[0] == task_id && result[1] != 0U;
+    ok = result[0] == task_id && result[1] != 0U &&
+         result[2] == 1U && result[3] == 1U;
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
@@ -277,6 +284,14 @@ cleanup:
         if (nova_task_get(task_id, &info) &&
             info.state == NOVA_TASK_READY)
             (void)nova_task_destroy(task_id);
+    }
+    if (recipient_id != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(recipient_id, &info)) {
+            if (info.state == NOVA_TASK_BLOCKED)
+                (void)nova_task_transition(recipient_id, NOVA_TASK_READY);
+            (void)nova_task_destroy(recipient_id);
+        }
     }
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
