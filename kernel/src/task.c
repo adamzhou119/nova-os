@@ -137,6 +137,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     tasks[i].argument = argument;
     tasks[i].user_entry = 0U;
     tasks[i].user_stack_top = 0U;
+    tasks[i].teardown_in_progress = 0U;
     tasks[i].kernel_stack_base = (uintptr_t)stack;
     tasks[i].kernel_stack_top = (uintptr_t)stack + NOVA_TASK_STACK_SIZE;
     tasks[i].exit_code = 0;
@@ -247,6 +248,7 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].irq_frame = frame;
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
+    tasks[i].teardown_in_progress = 0U;
     /* READY is the publication point for both kernel and EL0 tasks. */
     if (!task_publish_ready(i, id)) {
         (void)nova_address_space_release(address_space_id);
@@ -662,6 +664,7 @@ int nova_task_reap_zombies(void) {
 int nova_task_destroy(uint32_t task_id) {
     struct nova_task_info *task;
     uintptr_t stack;
+    uint32_t address_space_id;
     uintptr_t saved_daif = task_irq_save_disable();
 
     task = find_task(task_id);
@@ -670,34 +673,63 @@ int nova_task_destroy(uint32_t task_id) {
          !((task->state == NOVA_TASK_READY ||
             task->state == NOVA_TASK_BLOCKED) &&
            (task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN ||
-            task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN)))) {
+            task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN))) ||
+        task->teardown_in_progress != 0U) {
         task_irq_restore(saved_daif);
         return 0;
     }
 
     /*
-     * Remove a never-dispatched task from scheduler visibility before any
-     * resource can be released. Otherwise a timer IRQ could dispatch a READY
-     * task while its stack is being freed. ZOMBIE is also the retry state if
-     * a later teardown operation fails.
+     * Claim teardown before dropping the IRQ mask. The task is no longer
+     * schedulable, and a concurrent/re-entrant reaper must not free the same
+     * stack or release the same address-space reference twice.
      */
     task->state = NOVA_TASK_ZOMBIE;
+    task->teardown_in_progress = 1U;
     stack = task->kernel_stack_base;
+    address_space_id = task->address_space_id;
+    task_irq_restore(saved_daif);
+
+    /*
+     * Stack unmapping may touch allocator/page-table state and is kept outside
+     * the task-table critical section. ZOMBIE + teardown_in_progress pins this
+     * TCB identity until the operation is committed or retried.
+     */
     if (stack != 0U && !nova_vmap_free_guarded_page((void *)stack)) {
+        saved_daif = task_irq_save_disable();
+        task = find_task(task_id);
+        if (task != 0) task->teardown_in_progress = 0U;
         task_irq_restore(saved_daif);
+        return 0;
+    }
+
+    saved_daif = task_irq_save_disable();
+    task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_ZOMBIE ||
+        task->teardown_in_progress == 0U ||
+        task->kernel_stack_base != stack ||
+        task->address_space_id != address_space_id) {
+        task_irq_restore(saved_daif);
+        /* The stack has been released; an invariant violation is fatal. */
         return 0;
     }
     task->kernel_stack_base = 0U;
     task->kernel_stack_top = 0U;
     task->irq_frame = 0;
 
-    /* Revoke broker-issued grants before IPC endpoints and task identity vanish. */
+    /*
+     * These bounded registry cleanups are still performed under IRQ masking:
+     * their tables are currently single-core/IRQ serialized and expose no
+     * independent locking API. They are idempotent, so address-space release
+     * failure leaves a retryable ZOMBIE with the stack already detached.
+     */
     nova_capability_task_exit(task_id);
     nova_service_close_owner(task_id);
     nova_ipc_close_owner(task_id);
 
-    if (task->address_space_id != 0U &&
-        !nova_address_space_release(task->address_space_id)) {
+    if (address_space_id != 0U &&
+        !nova_address_space_release(address_space_id)) {
+        task->teardown_in_progress = 0U;
         task_irq_restore(saved_daif);
         return 0;
     }
@@ -717,6 +749,7 @@ int nova_task_destroy(uint32_t task_id) {
     task->fault_esr = 0U;
     task->fault_far = 0U;
     task->fault_elr = 0U;
+    task->teardown_in_progress = 0U;
     {
         size_t i;
         for (i = 0; i < 12U; ++i) task->context.x19_x30[i] = 0U;
