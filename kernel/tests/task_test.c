@@ -128,6 +128,9 @@ int main(void) {
     assert(info.entry == dummy_entry && info.argument == &argument);
     assert(info.kernel_stack_top - info.kernel_stack_base == 4096U);
     assert((info.kernel_stack_top & 15U) == 0U);
+    assert(nova_task_block_ready(first));
+    assert(nova_task_get(first, &info) && info.state == NOVA_TASK_BLOCKED);
+    assert(nova_task_transition(first, NOVA_TASK_READY));
     assert(!nova_task_transition(first, NOVA_TASK_BLOCKED));
     /* IRQ frames are a distinct resume path, never a cooperative context. */
     assert(nova_task_transition(first, NOVA_TASK_RUNNING));

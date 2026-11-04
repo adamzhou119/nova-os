@@ -195,13 +195,17 @@ cleanup:
 }
 #endif
 #ifdef NOVA_TEST_EL0_SVC
+static void test_ipc_recipient_entry(void *argument) {
+    (void)argument;
+    for (;;) __asm__ volatile("wfe");
+}
 extern const uint8_t nova_user_test_payload_start[];
 extern const uint8_t nova_user_test_payload_end[];
 
 static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
     uintptr_t code_page = 0U, stack_page = 0U;
-    uint32_t space_id = 0U, task_id = 0U;
+    uint32_t space_id = 0U, task_id = 0U, recipient_id = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
@@ -231,9 +235,11 @@ static int test_el0_svc_round_trip(void) {
                                 code_page, NOVA_MMU_MAP_EXECUTABLE) ||
         !nova_mmu_user_map_page(root, 31U, NOVA_USER_VA_BASE + 2U * NOVA_PAGE_SIZE,
                                 stack_page, NOVA_MMU_MAP_WRITABLE) ||
+        !nova_task_create(test_ipc_recipient_entry, 0U, &recipient_id) ||
+        !nova_task_block_ready(recipient_id) ||
         !nova_task_create_user(space_id, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE,
                                NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE,
-                               0U, &task_id))
+                               recipient_id, &task_id))
         goto cleanup;
 
     if (!nova_mmu_switch_address_space(root, 31U))
@@ -257,7 +263,7 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write("EL0 copyout cross-page range rejected.\n");
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
-                                      2U * sizeof(uint64_t));
+                                      16U * sizeof(uint64_t));
     nova_console_write("EL0 test task prepared; task id: ");
     nova_console_write_hex64(task_id);
     if (!nova_sched_start()) {
@@ -268,7 +274,8 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write_hex64(*result);
     nova_console_write("EL0 test expected task id: ");
     nova_console_write_hex64(task_id);
-    ok = result[0] == task_id && result[1] != 0U;
+    ok = result[0] == task_id && result[1] != 0U &&
+         result[2] == 1U && result[3] == 1U;
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
@@ -277,6 +284,14 @@ cleanup:
         if (nova_task_get(task_id, &info) &&
             info.state == NOVA_TASK_READY)
             (void)nova_task_destroy(task_id);
+    }
+    if (recipient_id != 0U) {
+        struct nova_task_info info;
+        if (nova_task_get(recipient_id, &info)) {
+            if (info.state == NOVA_TASK_BLOCKED)
+                (void)nova_task_transition(recipient_id, NOVA_TASK_READY);
+            (void)nova_task_destroy(recipient_id);
+        }
     }
     if (root != 0U) {
         (void)nova_mmu_user_unmap_page(root, 31U, NOVA_USER_VA_BASE + NOVA_PAGE_SIZE);
@@ -446,6 +461,73 @@ static int64_t nova_user_service_lookup(uintptr_t user_name) {
     return nova_service_lookup(name);
 }
 
+static int64_t nova_user_ipc_grant(uint32_t owner, uint64_t port,
+                                    uint64_t recipient, uint64_t rights) {
+    struct nova_task_info info;
+    if (owner == 0U || port == 0U || port > UINT32_MAX ||
+        recipient == 0U || recipient > UINT32_MAX ||
+        rights == 0U || rights > UINT32_MAX)
+        return -22;
+    if (!nova_task_get((uint32_t)recipient, &info) ||
+        info.state == NOVA_TASK_ZOMBIE)
+        return -3;
+    return nova_ipc_port_grant(owner, (uint32_t)port,
+                               (uint32_t)recipient, (uint32_t)rights);
+}
+
+static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t port,
+                                     uint64_t recipient) {
+    struct nova_task_info info;
+    if (owner == 0U || port == 0U || port > UINT32_MAX ||
+        recipient == 0U || recipient > UINT32_MAX)
+        return -22;
+    if (!nova_task_get((uint32_t)recipient, &info) ||
+        info.state == NOVA_TASK_ZOMBIE)
+        return -3;
+    return nova_ipc_port_revoke(owner, (uint32_t)port,
+                                (uint32_t)recipient);
+}
+
+static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
+                                   uintptr_t user_payload, uint64_t length) {
+    uint8_t payload[NOVA_IPC_MAX_PAYLOAD];
+    int64_t copied;
+    if (sender == 0U || port == 0U || port > UINT32_MAX ||
+        length > NOVA_IPC_MAX_PAYLOAD)
+        return -22;
+    if (length != 0U) {
+        copied = nova_user_copy_from(payload, user_payload, length);
+        if (copied < 0) return copied;
+    }
+    return nova_ipc_send(sender, (uint32_t)port,
+                         length == 0U ? 0 : payload, (size_t)length);
+}
+
+static int64_t nova_user_ipc_receive(uint32_t receiver, uint64_t port,
+                                      uintptr_t user_message,
+                                      uint64_t capacity) {
+    struct nova_ipc_message message;
+    int64_t received;
+    if (receiver == 0U || port == 0U || port > UINT32_MAX ||
+        capacity > NOVA_IPC_MAX_PAYLOAD || user_message == 0U)
+        return -22;
+
+    /*
+     * Validate the complete writable result before dequeuing. On this
+     * single-core syscall path, the address space cannot change between
+     * preflight and copyout.
+     */
+    if (!nova_user_check_range(user_message, sizeof(message), 1))
+        return -14;
+    received = nova_ipc_receive(receiver, (uint32_t)port, &message,
+                                (size_t)capacity);
+    if (received < 0) return received;
+    if (nova_user_copy_to(user_message, &message, sizeof(message)) !=
+        (int64_t)sizeof(message))
+        return -14;
+    return received;
+}
+
 uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     struct nova_user_trap_frame *frame =
         (struct nova_user_trap_frame *)frame_address;
@@ -532,6 +614,20 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         frame->x[0] = (uint64_t)(int64_t)(
             task_id == 0U || port == 0U || port > UINT32_MAX ? -22 :
             nova_ipc_port_close(task_id, (uint32_t)port));
+    } else if (frame->x[8] == NOVA_SYS_IPC_PORT_GRANT) {
+        frame->x[0] = (uint64_t)nova_user_ipc_grant(
+            nova_sched_current(), frame->x[0], frame->x[1], frame->x[2]);
+    } else if (frame->x[8] == NOVA_SYS_IPC_PORT_REVOKE) {
+        frame->x[0] = (uint64_t)nova_user_ipc_revoke(
+            nova_sched_current(), frame->x[0], frame->x[1]);
+    } else if (frame->x[8] == NOVA_SYS_IPC_SEND) {
+        frame->x[0] = (uint64_t)nova_user_ipc_send(
+            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
+            frame->x[2]);
+    } else if (frame->x[8] == NOVA_SYS_IPC_RECEIVE) {
+        frame->x[0] = (uint64_t)nova_user_ipc_receive(
+            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
+            frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_EXIT) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC exit; current task: ");
