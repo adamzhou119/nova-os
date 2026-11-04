@@ -209,6 +209,7 @@ static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
     uintptr_t code_page = 0U, stack_page = 0U;
     uint32_t space_id = 0U, task_id = 0U, recipient_id = 0U;
+    uint32_t delegated_port = 0U, delegated_capability = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
@@ -267,6 +268,31 @@ static int test_el0_svc_round_trip(void) {
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       16U * sizeof(uint64_t));
+
+    /*
+     * Set up a distinct owner endpoint before EL0 starts. The EL0 task receives
+     * only broker-issued rights; it is not the port owner.
+     */
+    {
+        int64_t port = nova_ipc_port_create(recipient_id);
+        int64_t capability;
+        const char owner_message[] = "ownr";
+        if (port <= 0) goto cleanup;
+        capability = nova_capability_grant(
+            recipient_id, task_id, NOVA_CAP_RESOURCE_IPC_PORT,
+            (uint32_t)port, NOVA_CAP_RIGHT_SEND | NOVA_CAP_RIGHT_RECEIVE);
+        if (capability <= 0 ||
+            nova_ipc_send(recipient_id, (uint32_t)port, owner_message,
+                          sizeof(owner_message)) != 0) {
+            (void)nova_ipc_port_close(recipient_id, (uint32_t)port);
+            goto cleanup;
+        }
+        delegated_port = (uint32_t)port;
+        delegated_capability = (uint32_t)capability;
+        result[6] = delegated_port;
+        result[7] = delegated_capability;
+    }
+
     nova_console_write("EL0 test task prepared; task id: ");
     nova_console_write_hex64(task_id);
     if (!nova_sched_start()) {
@@ -279,7 +305,16 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write_hex64(task_id);
     ok = result[0] == task_id && result[1] != 0U &&
          result[2] == 1U && result[3] == 1U &&
-         result[4] == 1U && result[5] == 1U;
+         result[4] == 1U && result[5] == 1U &&
+         result[6] == 1U;
+    if (delegated_port != 0U) {
+        struct nova_task_info exited_info;
+        ok = ok && !nova_task_get(task_id, &exited_info) &&
+             !nova_ipc_port_has_rights(task_id, delegated_port,
+                                       NOVA_IPC_RIGHT_SEND) &&
+             nova_ipc_send(task_id, delegated_port, "x", 1U) == -13;
+        (void)nova_ipc_port_close(recipient_id, delegated_port);
+    }
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
