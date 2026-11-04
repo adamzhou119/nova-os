@@ -47,6 +47,9 @@ int nova_vmap_free_page(void *address) {
     if (expect_zombie_during_free != 0U) {
         assert(nova_task_get(expect_zombie_during_free, &info));
         assert(info.state == NOVA_TASK_ZOMBIE);
+        assert(info.teardown_in_progress == 1U);
+        /* A re-entrant reaper must not release this stack a second time. */
+        assert(!nova_task_destroy(expect_zombie_during_free));
     }
     ++freed_stacks;
     return 1;
