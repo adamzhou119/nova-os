@@ -209,6 +209,7 @@ static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
     uintptr_t code_page = 0U, stack_page = 0U;
     uint32_t space_id = 0U, task_id = 0U, recipient_id = 0U;
+    uint32_t delegated_port = 0U, delegated_capability = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
