@@ -17,6 +17,9 @@
 #include "address_space.h"
 #include "user_context.h"
 #include "user_memory.h"
+#include "ipc.h"
+#include "service.h"
+#include "syscall.h"
 
 #include "console.h"
 
@@ -382,17 +385,15 @@ void exception_report_el2(uint64_t esr, uint64_t elr, uint64_t vector,
 }
 
 /*
- * Minimal EL0 SVC ABI: x8 selects the syscall; x0 is the return value.
- * Syscall 0 returns the current task ID. Unknown calls return -ENOSYS (-38).
- * Other synchronous exceptions remain terminal until fault isolation exists.
+ * EL0 SVC ABI is defined in syscall.h. User pointers are copied into bounded
+ * kernel buffers before any service registry operation is attempted.
  */
-/* Bounded UART write uses the shared, permission-checked copy-in path. */
 static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     char kernel_copy[128];
     int64_t copied;
     uint64_t i;
 
-    if (length > sizeof(kernel_copy)) return -22; /* -EINVAL */
+    if (length > sizeof(kernel_copy)) return -22;
     if (length == 0U) return 0;
     copied = nova_user_copy_from(kernel_copy, user_buffer, length);
     if (copied < 0) return copied;
@@ -401,6 +402,48 @@ static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     for (i = 0U; i < (uint64_t)copied; ++i)
         nova_console_putc(kernel_copy[i]);
     return copied;
+}
+
+/* Stop at NUL: do not read beyond the user's actual string. */
+static int64_t nova_user_service_name(uintptr_t user_name, char name[32]) {
+    size_t i;
+    if (user_name == 0U) return -14;
+    for (i = 0U; i < 32U; ++i) {
+        int64_t copied;
+        if (user_name > UINTPTR_MAX - i) return -14;
+        copied = nova_user_copy_from(&name[i], user_name + i, 1U);
+        if (copied != 1) return copied < 0 ? copied : -14;
+        if (name[i] == '\0') return i == 0U ? -22 : 0;
+    }
+    return -22;
+}
+
+static int64_t nova_user_service_register(uint32_t task_id,
+                                           uintptr_t user_name,
+                                           uint64_t port) {
+    char name[32];
+    int64_t copied;
+    if (task_id == 0U || port == 0U || port > UINT32_MAX) return -22;
+    copied = nova_user_service_name(user_name, name);
+    if (copied < 0) return copied;
+    return nova_service_register(task_id, name, (uint32_t)port);
+}
+
+static int64_t nova_user_service_remove(uint32_t task_id,
+                                         uintptr_t user_name) {
+    char name[32];
+    int64_t copied;
+    if (task_id == 0U) return -22;
+    copied = nova_user_service_name(user_name, name);
+    if (copied < 0) return copied;
+    return nova_service_unregister(task_id, name);
+}
+
+static int64_t nova_user_service_lookup(uintptr_t user_name) {
+    char name[32];
+    int64_t copied = nova_user_service_name(user_name, name);
+    if (copied < 0) return copied;
+    return nova_service_lookup(name);
 }
 
 uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
@@ -454,13 +497,13 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     }
 
     /* Remaining eligible lower-EL synchronous traps are SVC calls. */
-    if (frame->x[8] == 0U) {
+    if (frame->x[8] == NOVA_SYS_TASK_ID) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC get-task-id; current task: ");
         nova_console_write_hex64(nova_sched_current());
 #endif
         frame->x[0] = (uint64_t)nova_sched_current();
-    } else if (frame->x[8] == 2U) {
+    } else if (frame->x[8] == NOVA_SYS_WRITE) {
         int64_t written = nova_user_write((uintptr_t)frame->x[0],
                                           frame->x[1]);
 #ifdef NOVA_TEST_EL0_SVC
@@ -470,7 +513,26 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_console_write("EL0 write syscall rejected excessive length.\n");
 #endif
         frame->x[0] = (uint64_t)written;
-    } else if (frame->x[8] == 1U) {
+    } else if (frame->x[8] == NOVA_SYS_IPC_PORT_CREATE) {
+        uint32_t task_id = nova_sched_current();
+        frame->x[0] = (uint64_t)(int64_t)(task_id == 0U ? -22 :
+                                         nova_ipc_port_create(task_id));
+    } else if (frame->x[8] == NOVA_SYS_SERVICE_REGISTER) {
+        frame->x[0] = (uint64_t)nova_user_service_register(
+            nova_sched_current(), (uintptr_t)frame->x[0], frame->x[1]);
+    } else if (frame->x[8] == NOVA_SYS_SERVICE_LOOKUP) {
+        frame->x[0] = (uint64_t)nova_user_service_lookup(
+            (uintptr_t)frame->x[0]);
+    } else if (frame->x[8] == NOVA_SYS_SERVICE_REMOVE) {
+        frame->x[0] = (uint64_t)nova_user_service_remove(
+            nova_sched_current(), (uintptr_t)frame->x[0]);
+    } else if (frame->x[8] == NOVA_SYS_IPC_PORT_CLOSE) {
+        uint32_t task_id = nova_sched_current();
+        uint64_t port = frame->x[0];
+        frame->x[0] = (uint64_t)(int64_t)(
+            task_id == 0U || port == 0U || port > UINT32_MAX ? -22 :
+            (nova_ipc_port_close(task_id, (uint32_t)port) ? 0 : -13));
+    } else if (frame->x[8] == NOVA_SYS_EXIT) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC exit; current task: ");
         nova_console_write_hex64(nova_sched_current());
