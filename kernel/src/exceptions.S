@@ -265,9 +265,12 @@ exception_vector_panic_el2:
 .global nova_user_test_payload_end
 .type nova_user_test_payload_start, %function
 nova_user_test_payload_start:
+    mov     x20, x0                  /* recipient task id from test harness */
     mov     x8, #0
     svc     #0
-    str     x0, [sp, #-16]!
+    sub     sp, sp, #128
+    str     x0, [sp, #0]             /* result[0]: current task id */
+
     adr     x0, 2f
     mov     x1, #15
     mov     x8, #2
@@ -308,19 +311,77 @@ nova_user_test_payload_start:
     cmp     x0, #0
     b.le    1f
     mov     x19, x0
+    str     x19, [sp, #8]            /* result[1]: discovered port */
     adr     x0, 3f
     mov     x1, x19
     mov     x8, #4
     svc     #0
     cbnz    x0, 1f
 
-    /* Discovery must return the exact endpoint, without granting rights. */
+    /* Discovery must return the exact endpoint. */
     adr     x0, 3f
     mov     x8, #5
     svc     #0
     cmp     x0, x19
     b.ne    1f
-    str     x0, [sp, #8]
+
+    /* Send a bounded message through the user-facing SVC. */
+    mov     x0, x19
+    adr     x1, 4f
+    mov     x2, #4
+    mov     x8, #10
+    svc     #0
+    cbnz    x0, 1f
+
+    /* A bad output pointer must not consume the queued message. */
+    mov     x0, x19
+    movz    x1, #0x8000, lsl #16
+    add     x1, x1, #0x4000
+    mov     x2, #64
+    mov     x8, #11
+    svc     #0
+    cmn     x0, #14
+    b.ne    1f
+
+    /* Receive the same message into a checked writable user buffer. */
+    mov     x0, x19
+    add     x1, sp, #32
+    mov     x2, #64
+    mov     x8, #11
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    ldr     w1, [sp, #40]
+    movz    w2, #0x6970
+    movk    w2, #0x676e, lsl #16
+    cmp     w1, w2
+    b.ne    1f
+    mov     x0, #1
+    str     x0, [sp, #16]            /* result[2]: send/receive passed */
+
+    /* Grant then revoke SEND for a second, live task. */
+    mov     x0, x19
+    mov     x1, x20
+    mov     x2, #1
+    mov     x8, #8
+    svc     #0
+    cbnz    x0, 1f
+    mov     x0, x19
+    mov     x1, x20
+    mov     x8, #9
+    svc     #0
+    cbnz    x0, 1f
+    mov     x0, #1
+    str     x0, [sp, #24]            /* result[3]: grant/revoke passed */
+
+    /* Reject unknown right bits even for a valid recipient. */
+    mov     x0, x19
+    mov     x1, x20
+    mov     x2, #4
+    mov     x8, #8
+    svc     #0
+    cmn     x0, #22
+    b.ne    1f
 
     adr     x0, 3f
     mov     x8, #6
@@ -340,6 +401,8 @@ nova_user_test_payload_start:
     .ascii  "hello from EL0\n"
 3:
     .asciz  "test.service"
+4:
+    .ascii  "ping"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */
