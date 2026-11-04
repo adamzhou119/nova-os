@@ -173,13 +173,13 @@ $(SERVICE_OBJECT): src/service.c include/service.h include/ipc.h | $(BUILD)
 $(CAPABILITY_OBJECT): src/capability.c include/capability.h include/ipc.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
-$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_MMU_FAULT -c $< -o $@
 
-$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_STACK_GUARD_FAULT -c $< -o $@
 
 $(USER_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
@@ -188,7 +188,7 @@ $(USER_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/me
 $(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_FAULT -c $< -o $@
 
-$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL2_BOOT -c $< -o $@
 
 $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
