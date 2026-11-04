@@ -80,6 +80,11 @@ int64_t nova_ipc_port_create(uint32_t owner) {
     return (int64_t)id;
 }
 
+int nova_ipc_port_is_owner(uint32_t owner, uint32_t id) {
+    struct ipc_port *port = find_port(id);
+    return port != 0 && owner != 0U && port->owner == owner;
+}
+
 int nova_ipc_port_grant(uint32_t owner, uint32_t id,
                         uint32_t recipient, uint32_t rights) {
     struct ipc_port *port = find_port(id);
