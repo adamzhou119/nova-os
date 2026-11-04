@@ -84,11 +84,11 @@ Plans are durable state machines, not opaque model transcripts. Each step record
 ## Implementation sequence
 
 - **A0 — Contract:** this document and versioned capability schema.
-- **A1 — IPC:** service identity, bounded message transport, cancellation, and deadlines.
+- **A1 — IPC:** service identity, bounded message transport, cancellation, and deadlines. The first kernel mailbox primitive is now implemented as a bounded, non-blocking, single-core queue with owner-controlled send/receive grants, revocation, and teardown. Blocking waits, deadlines, cancellation tokens, user-facing SVC wrappers, and SMP synchronization remain incomplete.
 - **A2 — Broker:** capability registry, permission policy, consent UI hooks, and audit.
 - **A3 — Orchestrator:** typed plan validation, dependency execution, checkpoints, and recovery.
 - **A4 — Model adapter:** replaceable local/remote model providers behind the planner interface.
 - **A5 — Product integration:** launcher, settings, files, communications, and cross-app workflows.
 - **A6 — Evaluation:** privacy, safety, reliability, responsiveness, and energy test suites.
 
-No phase is considered complete from documentation alone. Each requires implementation and automated tests.
+No phase is considered complete from documentation alone. Each requires implementation and automated tests. The current mailbox primitive is only the transport foundation; it is not yet the complete A1 service IPC contract.
