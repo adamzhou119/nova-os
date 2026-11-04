@@ -293,6 +293,44 @@ nova_user_test_payload_start:
     svc     #0
     cmn     x0, #22
     b.ne    1f
+
+    /* Invalid user pointers must be rejected by service lookup. */
+    movz    x0, #0x8000, lsl #16
+    add     x0, x0, #0x4000
+    mov     x8, #5
+    svc     #0
+    cmn     x0, #14
+    b.ne    1f
+
+    /* Create a task-owned IPC endpoint and publish a service name. */
+    mov     x8, #3
+    svc     #0
+    cmp     x0, #0
+    b.le    1f
+    mov     x19, x0
+    adr     x0, 3f
+    mov     x1, x19
+    mov     x8, #4
+    svc     #0
+    cbnz    x0, 1f
+
+    /* Discovery must return the exact endpoint, without granting rights. */
+    adr     x0, 3f
+    mov     x8, #5
+    svc     #0
+    cmp     x0, x19
+    b.ne    1f
+    str     x0, [sp, #8]
+
+    adr     x0, 3f
+    mov     x8, #6
+    svc     #0
+    cbnz    x0, 1f
+    mov     x0, x19
+    mov     x8, #7
+    svc     #0
+    cbnz    x0, 1f
+
     mov     x0, #0
     mov     x8, #1
     svc     #0
@@ -300,6 +338,8 @@ nova_user_test_payload_start:
     b       1b
 2:
     .ascii  "hello from EL0\n"
+3:
+    .asciz  "test.service"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */
