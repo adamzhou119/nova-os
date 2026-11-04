@@ -72,6 +72,8 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
                           uint32_t *task_id);
 /* State changes are validated; this does not yet perform a CPU context switch. */
 int nova_task_transition(uint32_t task_id, enum nova_task_state next_state);
+/* Park a READY task before its first dispatch; wake it via READY transition. */
+int nova_task_block_ready(uint32_t task_id);
 int nova_task_get(uint32_t task_id, struct nova_task_info *info);
 /* Attach a READY first-run task to an address space, retaining its reference. */
 int nova_task_set_address_space(uint32_t task_id, uint32_t address_space_id);
