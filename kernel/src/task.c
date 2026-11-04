@@ -403,7 +403,6 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
     struct nova_irq_frame *selected_irq_frame;
     uint32_t selected_id;
     uintptr_t saved_daif = task_irq_save_disable();
-    int result;
 
     current = find_task(current_id);
     if (current == 0 || current->state != NOVA_TASK_RUNNING ||
