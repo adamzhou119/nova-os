@@ -1052,7 +1052,7 @@ cleanup:
 
 static int test_address_space_destroy_failure_rollback(void) {
     const uintptr_t va_a = NOVA_USER_VA_BASE;
-    const uintptr_t va_b = NOVA_USER_VA_BASE + NOVA_MMU_BLOCK_2M;
+    const uintptr_t va_b = NOVA_USER_VA_BASE + 2U * 1024U * 1024U;
     uintptr_t root = 0U, frame_a = 0U, frame_b = 0U, translated = 0U;
     size_t pages_before = nova_page_available();
     size_t fail_after;
@@ -1376,9 +1376,9 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
             else{(void)nova_mmu_switch_address_space(nova_mmu_kernel_root(),0U);nova_console_write("ERROR: private user mapping/isolation test failed.\n");}
         }
         if (test_address_space_destroy_failure_rollback()) {
-            nova_console_write("Address-space destroy injected-failure rollback tests passed.\\n");
+            nova_console_write("Address-space destroy injected-failure rollback tests passed.\n");
         } else {
-            nova_console_write("ERROR: address-space destroy rollback test failed.\\n");
+            nova_console_write("ERROR: address-space destroy rollback test failed.\n");
         }
         if (test_dynamic_virtual_pages()) {
             nova_console_write("MMU dynamic map/unmap and permission tests passed.\n");
