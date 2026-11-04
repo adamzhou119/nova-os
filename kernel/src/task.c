@@ -85,6 +85,7 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     }
     tasks[i].context.x19_x30[2] = (uintptr_t)&tasks[i];
     /* Publish only after every field consumed by the scheduler is valid. */
+    __asm__ volatile("" ::: "memory");
     tasks[i].state = NOVA_TASK_READY;
     *task_id = id;
     return 1;
@@ -158,6 +159,7 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
     /* READY is the publication point for both kernel and EL0 tasks. */
+    __asm__ volatile("" ::: "memory");
     tasks[i].state = NOVA_TASK_READY;
     *task_id = id;
     return 1;
