@@ -350,6 +350,7 @@ nova_user_test_payload_start:
     mov     x0, x19
     add     x1, sp, #32
     mov     x2, #64
+    mov     x3, #0
     mov     x8, #15
     svc     #0
     cmp     x0, #4
