@@ -585,7 +585,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         nova_console_write_hex64(nova_sched_current());
 #endif
         frame->x[0] = (uint64_t)nova_sched_current();
-    } else if (frame->x[8] == NOVA_SYS_WRITE) {
+    } else if (frame->x[8] == NOVA_SYS_CONSOLE_WRITE) {
         int64_t written = nova_user_write((uintptr_t)frame->x[0],
                                           frame->x[1]);
 #ifdef NOVA_TEST_EL0_SVC
