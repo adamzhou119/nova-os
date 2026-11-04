@@ -466,7 +466,8 @@ int nova_task_destroy(uint32_t task_id) {
     uintptr_t stack;
     if (task == 0 ||
         (task->state != NOVA_TASK_ZOMBIE &&
-         !(task->state == NOVA_TASK_READY &&
+         !((task->state == NOVA_TASK_READY ||
+            task->state == NOVA_TASK_BLOCKED) &&
            (task->resume_kind == NOVA_TASK_RESUME_FIRST_RUN ||
             task->resume_kind == NOVA_TASK_RESUME_USER_FIRST_RUN))))
         return 0;
