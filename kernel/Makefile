@@ -68,6 +68,8 @@ host-test: | $(BUILD)
 	$(BUILD)/fs-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vfs_test.c src/vfs.c src/fs.c -o $(BUILD)/vfs-test
 	$(BUILD)/vfs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vfs_fd_test.c src/vfs_fd.c src/vfs.c src/fs.c -o $(BUILD)/vfs-fd-test
+	$(BUILD)/vfs-fd-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/plan_test.c ../services/ai/plan.c -o $(BUILD)/ai-plan-test
 	$(BUILD)/ai-plan-test
 
