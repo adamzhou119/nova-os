@@ -434,7 +434,7 @@ nova_user_test_payload_start:
 
     /* Missing/forged receive credentials must not consume the queued message. */
     mov     x0, x22
-    add     x1, sp, #80
+    add     x1, sp, #32
     mov     x2, #64
     mov     x3, #0
     mov     x8, #15
@@ -443,7 +443,7 @@ nova_user_test_payload_start:
     b.ne    1f
 
     mov     x0, x22
-    add     x1, sp, #80
+    add     x1, sp, #32
     mov     x2, #64
     add     x3, x23, #1
     mov     x8, #15
@@ -453,14 +453,14 @@ nova_user_test_payload_start:
 
     /* The broker capability authorizes receive of the owner's queued message. */
     mov     x0, x22
-    add     x1, sp, #80
+    add     x1, sp, #32
     mov     x2, #64
     mov     x3, x23
     mov     x8, #15
     svc     #0
     cmp     x0, #4
     b.ne    1f
-    ldr     w1, [sp, #80]
+    ldr     w1, [sp, #32]
     movz    w2, #0x776f
     movk    w2, #0x726e, lsl #16
     cmp     w1, w2
