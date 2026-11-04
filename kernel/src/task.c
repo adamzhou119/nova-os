@@ -524,7 +524,6 @@ int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind) {
     struct nova_task_info *task;
     uintptr_t saved_daif = task_irq_save_disable();
-    int result = 0;
 
     task = find_task(task_id);
     if (task == 0 ||
