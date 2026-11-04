@@ -79,6 +79,8 @@ jobs:
           grep -q "MMU 4 KiB RAM page boundary tests passed." qemu.log
           grep -q "MMU unmapped guard test passed." qemu.log
           grep -q "MMU kernel text/rodata/data permission tests passed." qemu.log
+          grep -q "Per-address-space user mapping, same-VA physical isolation, EL0 access, and teardown tests passed." qemu.log
+          grep -q "Address-space destroy injected-failure rollback tests passed." qemu.log
           grep -q "MMU dynamic map/unmap and permission tests passed." qemu.log
           grep -q "Kernel virtual page allocator tests passed." qemu.log
           grep -q "Kernel task lifecycle tests passed." qemu.log
