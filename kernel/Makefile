@@ -113,7 +113,7 @@ $(CONSOLE_OBJECT): src/console.c include/console.h include/device.h | $(BUILD)
 $(DEVICE_OBJECT): src/device.c include/device.h include/fdt.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
@@ -182,10 +182,10 @@ $(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include
 $(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_STACK_GUARD_FAULT -c $< -o $@
 
-$(USER_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(USER_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_SVC -c $< -o $@
 
-$(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_FAULT -c $< -o $@
 
 $(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
