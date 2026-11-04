@@ -57,22 +57,74 @@ static struct nova_task_info *find_task(uint32_t id) {
     size_t i;
     if (id == 0U) return 0;
     for (i = 0; i < NOVA_TASK_MAX; ++i)
-        if (tasks[i].state != NOVA_TASK_UNUSED && tasks[i].id == id)
+        if (tasks[i].state != NOVA_TASK_UNUSED &&
+            tasks[i].state != NOVA_TASK_CREATING && tasks[i].id == id)
             return &tasks[i];
     return 0;
+}
+
+/*
+ * Reserve both the TCB slot and its never-reused identity before doing any
+ * fallible allocation. IRQ masking makes the reservation atomic against a
+ * second creator interrupted on this single-core kernel.
+ */
+static int task_reserve_slot(size_t *slot, uint32_t *id) {
+    uintptr_t saved_daif;
+    size_t i;
+
+    if (slot == 0 || id == 0) return 0;
+    saved_daif = task_irq_save_disable();
+    if (next_task_id == 0U) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
+    for (i = 0; i < NOVA_TASK_MAX; ++i)
+        if (tasks[i].state == NOVA_TASK_UNUSED) break;
+    if (i == NOVA_TASK_MAX) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
+    *id = next_task_id++;
+    tasks[i].id = *id;
+    tasks[i].state = NOVA_TASK_CREATING;
+    task_irq_restore(saved_daif);
+    *slot = i;
+    return 1;
+}
+
+static void task_cancel_reservation(size_t slot, uint32_t id) {
+    uintptr_t saved_daif = task_irq_save_disable();
+    if (slot < NOVA_TASK_MAX &&
+        tasks[slot].state == NOVA_TASK_CREATING && tasks[slot].id == id) {
+        tasks[slot].id = 0U;
+        tasks[slot].state = NOVA_TASK_UNUSED;
+    }
+    task_irq_restore(saved_daif);
+}
+
+static int task_publish_ready(size_t slot, uint32_t id) {
+    uintptr_t saved_daif = task_irq_save_disable();
+    int published = 0;
+    if (slot < NOVA_TASK_MAX &&
+        tasks[slot].state == NOVA_TASK_CREATING && tasks[slot].id == id) {
+        __asm__ volatile("" ::: "memory");
+        tasks[slot].state = NOVA_TASK_READY;
+        published = 1;
+    }
+    task_irq_restore(saved_daif);
+    return published;
 }
 
 int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id) {
     size_t i;
     void *stack;
     uint32_t id;
-    if (entry == 0 || task_id == 0 || next_task_id == 0U) return 0;
-    for (i = 0; i < NOVA_TASK_MAX; ++i)
-        if (tasks[i].state == NOVA_TASK_UNUSED) break;
-    if (i == NOVA_TASK_MAX) return 0;
+    if (entry == 0 || task_id == 0 || !task_reserve_slot(&i, &id)) return 0;
     stack = nova_vmap_alloc_guarded_page(NOVA_MMU_MAP_WRITABLE);
-    if (stack == 0) return 0;
-    id = next_task_id++;
+    if (stack == 0) {
+        task_cancel_reservation(i, id);
+        return 0;
+    }
     tasks[i].id = id;
     tasks[i].address_space_id = 0U;
     /*
@@ -111,14 +163,16 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
                                 (uintptr_t)nova_task_start_trampoline,
                                 (uintptr_t)entry, (uintptr_t)argument)) {
         (void)nova_vmap_free_guarded_page(stack);
-        tasks[i].id = 0;
-        tasks[i].state = NOVA_TASK_UNUSED;
+        task_cancel_reservation(i, id);
         return 0;
     }
     tasks[i].context.x19_x30[2] = (uintptr_t)&tasks[i];
     /* Publish only after every field consumed by the scheduler is valid. */
-    __asm__ volatile("" ::: "memory");
-    tasks[i].state = NOVA_TASK_READY;
+    if (!task_publish_ready(i, id)) {
+        (void)nova_vmap_free_guarded_page(stack);
+        task_cancel_reservation(i, id);
+        return 0;
+    }
     *task_id = id;
     return 1;
 }
@@ -132,7 +186,7 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     struct nova_address_space_info space;
     struct nova_irq_frame *frame;
 
-    if (address_space_id == 0U || task_id == 0 || next_task_id == 0U ||
+    if (address_space_id == 0U || task_id == 0 ||
         (user_entry & 3U) != 0U || (user_stack_top & 15U) != 0U ||
         user_entry < NOVA_USER_VA_BASE || user_entry >= NOVA_USER_VA_END ||
         user_stack_top <= NOVA_USER_VA_BASE || user_stack_top > NOVA_USER_VA_END ||
@@ -143,16 +197,18 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
             (user_stack_top - 1U) & ~(uintptr_t)4095U,
             NOVA_MMU_MAP_WRITABLE))
         return 0;
-    for (i = 0; i < NOVA_TASK_MAX; ++i)
-        if (tasks[i].state == NOVA_TASK_UNUSED) break;
-    if (i == NOVA_TASK_MAX) return 0;
+    if (!task_reserve_slot(&i, &id)) return 0;
 
     stack = nova_vmap_alloc_guarded_page(NOVA_MMU_MAP_WRITABLE);
-    if (stack == 0) return 0;
+    if (stack == 0) {
+        task_cancel_reservation(i, id);
+        return 0;
+    }
     frame = (struct nova_irq_frame *)((uintptr_t)stack + NOVA_TASK_STACK_SIZE -
                                       sizeof(struct nova_irq_frame));
     if (!nova_user_irq_frame_init(frame, user_entry, user_stack_top, argument0)) {
         (void)nova_vmap_free_guarded_page(stack);
+        task_cancel_reservation(i, id);
         return 0;
     }
     /*
@@ -170,10 +226,10 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     if (!nova_address_space_retain(address_space_id)) {
         (void)nova_vmap_free_guarded_page(stack);
         tasks[i].context.sp = 0U;
+        task_cancel_reservation(i, id);
         return 0;
     }
 
-    id = next_task_id++;
     tasks[i].id = id;
     tasks[i].address_space_id = address_space_id;
     /* Do not expose the TCB until its EL0 frame and kernel stack are complete. */
@@ -191,8 +247,12 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
     tasks[i].user_entry = user_entry;
     tasks[i].user_stack_top = user_stack_top;
     /* READY is the publication point for both kernel and EL0 tasks. */
-    __asm__ volatile("" ::: "memory");
-    tasks[i].state = NOVA_TASK_READY;
+    if (!task_publish_ready(i, id)) {
+        (void)nova_address_space_release(address_space_id);
+        (void)nova_vmap_free_guarded_page(stack);
+        task_cancel_reservation(i, id);
+        return 0;
+    }
     *task_id = id;
     return 1;
 }
