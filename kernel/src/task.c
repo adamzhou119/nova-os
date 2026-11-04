@@ -1,5 +1,6 @@
 #include "task.h"
 #include "ipc.h"
+#include "service.h"
 
 #include "context.h"
 #include "interrupt.h"
@@ -462,6 +463,7 @@ int nova_task_destroy(uint32_t task_id) {
     task->irq_frame = 0;
     task->state = NOVA_TASK_ZOMBIE;
     /* Revoke owned IPC endpoints once the task can no longer run. */
+    nova_service_close_owner(task_id);
     nova_ipc_close_owner(task_id);
     if (task->address_space_id != 0U &&
         !nova_address_space_release(task->address_space_id))
