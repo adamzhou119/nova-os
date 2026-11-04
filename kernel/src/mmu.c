@@ -609,10 +609,10 @@ int nova_mmu_address_space_destroy(uintptr_t root_physical, uint16_t asid) {
     {
         uint64_t operand = (uint64_t)asid << 48;
         __asm__ volatile(
-            "dsb ishst\\n"
-            "tlbi aside1is, %0\\n"
-            "dsb ish\\n"
-            "isb\\n"
+            "dsb ishst\n"
+            "tlbi aside1is, %0\n"
+            "dsb ish\n"
+            "isb\n"
             : : "r"(operand) : "memory");
     }
 
