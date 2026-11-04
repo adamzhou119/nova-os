@@ -287,6 +287,7 @@ static int test_el0_svc_round_trip(void) {
             goto cleanup;
         }
         delegated_port = (uint32_t)port;
+        delegated_capability = (uint32_t)capability;
         result[6] = delegated_port;
         result[7] = delegated_capability;
     }
@@ -310,6 +311,9 @@ static int test_el0_svc_round_trip(void) {
     if (delegated_port != 0U) {
         struct nova_task_info exited_info;
         ok = ok && !nova_task_get(task_id, &exited_info) &&
+             !nova_capability_check(task_id, delegated_capability,
+                                    NOVA_CAP_RESOURCE_IPC_PORT, delegated_port,
+                                    NOVA_CAP_RIGHT_SEND) &&
              !nova_ipc_port_has_rights(task_id, delegated_port,
                                        NOVA_IPC_RIGHT_SEND) &&
              nova_ipc_send(task_id, delegated_port, "x", 1U) == -13;
