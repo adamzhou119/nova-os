@@ -37,12 +37,12 @@ The file descriptor implementation originally used IDs 3-6; the IPC branch
 originally used IDs 3-11. Those private ranges collided. ABI v1 reserves 3-6
 for file descriptors and relocates IPC/service calls to 7-15.
 
-The canonical header is `kernel/include/syscall.h`. The kernel dispatch,
-user-memory validation, task-owned descriptor lifecycle, RAMFS/VFS routing,
-and host file/VFS tests are integrated for IDs 3-6. IPC and Capability Broker
-dispatch plus the EL0 delegated-IPC regression payload use IDs 7-15. This is
-implementation coverage, not a claim that the complete Host/QEMU workflow has
-passed on the latest branch head.
+The canonical header is `kernel/include/syscall.h`. At this integration stage,
+the capability/IPC kernel dispatch and EL0 IPC regression payload have been
+updated to the new IPC numbers. The file descriptor implementation still needs
+to be ported from PR #19 into this integration branch, and its dispatch and
+end-to-end tests must then be wired to IDs 3-6 before this ABI is considered
+fully integrated or validated.
 
 This remains a Nova-specific early ABI, not POSIX compatibility. The mounted
 filesystem on the file branch is volatile flat /ramfs; seek, persistence,
