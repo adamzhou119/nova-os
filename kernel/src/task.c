@@ -235,9 +235,22 @@ int nova_task_block_ready(uint32_t task_id) {
 }
 
 int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
-    struct nova_task_info *task = find_task(task_id);
+    struct nova_task_info *task;
+    uintptr_t saved_daif;
     size_t i;
-    if (task == 0 || info == 0) return 0;
+
+    if (info == 0) return 0;
+    /*
+     * Return one coherent TCB snapshot. On the single-core AArch64 path,
+     * local IRQ masking prevents a timer handoff or teardown from changing
+     * the task between the individual field reads.
+     */
+    saved_daif = task_irq_save_disable();
+    task = find_task(task_id);
+    if (task == 0) {
+        task_irq_restore(saved_daif);
+        return 0;
+    }
     info->id = task->id;
     info->address_space_id = task->address_space_id;
     info->state = task->state;
@@ -257,6 +270,7 @@ int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     info->irq_frame = task->irq_frame;
     info->user_entry = task->user_entry;
     info->user_stack_top = task->user_stack_top;
+    task_irq_restore(saved_daif);
     return 1;
 }
 
