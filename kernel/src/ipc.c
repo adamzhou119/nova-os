@@ -177,8 +177,27 @@ int nova_ipc_port_close(uint32_t owner, uint32_t id) {
 }
 
 void nova_ipc_close_owner(uint32_t owner) {
-    size_t i;
+    size_t i, j;
     if (owner == 0U) return;
-    for (i = 0U; i < NOVA_IPC_MAX_PORTS; ++i)
-        if (ports[i].used && ports[i].owner == owner) clear_port(&ports[i]);
+    for (i = 0U; i < NOVA_IPC_MAX_PORTS; ++i) {
+        struct ipc_port *port = &ports[i];
+        if (!port->used) continue;
+        if (port->owner == owner) {
+            clear_port(port);
+            continue;
+        }
+        /* Remove grants held by the exiting task before its ID can be reused. */
+        for (j = 0U; j < port->grant_count; ) {
+            size_t k;
+            if (port->grants[j].task != owner) {
+                ++j;
+                continue;
+            }
+            for (k = j + 1U; k < port->grant_count; ++k)
+                port->grants[k - 1U] = port->grants[k];
+            --port->grant_count;
+            port->grants[port->grant_count].task = 0U;
+            port->grants[port->grant_count].rights = 0U;
+        }
+    }
 }
