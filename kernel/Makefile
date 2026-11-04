@@ -31,6 +31,7 @@ ADDRESS_SPACE_OBJECT := $(BUILD)/address_space.o
 USER_MEMORY_OBJECT := $(BUILD)/user_memory.o
 IPC_OBJECT := $(BUILD)/ipc.o
 SERVICE_OBJECT := $(BUILD)/service.o
+CAPABILITY_OBJECT := $(BUILD)/capability.o
 TEST_KERNEL_OBJECT := $(BUILD)/kernel-test.o
 FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-fault-test.o
 STACK_FAULT_TEST_KERNEL_OBJECT := $(BUILD)/kernel-stack-fault-test.o
@@ -151,6 +152,9 @@ $(IPC_OBJECT): src/ipc.c include/ipc.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(SERVICE_OBJECT): src/service.c include/service.h include/ipc.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
+$(CAPABILITY_OBJECT): src/capability.c include/capability.h include/ipc.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
