@@ -314,6 +314,9 @@ int main(void) {
     assert(!nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                   0x1234U, &user_first));
     reject_user_mapping = 0;
+    /* Failed mapping validation must drop the reference acquired before get(). */
+    assert(nova_address_space_get(user_space_id, &address_space_info));
+    assert(address_space_info.references == 1U);
     assert(nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                  0x1234U, &user_first));
     assert(nova_task_get(user_first, &info));
