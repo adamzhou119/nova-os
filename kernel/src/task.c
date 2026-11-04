@@ -1,6 +1,7 @@
 #include "task.h"
 #include "ipc.h"
 #include "service.h"
+#include "capability.h"
 
 #include "context.h"
 #include "interrupt.h"
@@ -472,6 +473,8 @@ int nova_task_destroy(uint32_t task_id) {
     task->kernel_stack_top = 0U;
     task->irq_frame = 0;
     task->state = NOVA_TASK_ZOMBIE;
+    /* Revoke broker-issued grants before IPC endpoints and task identity vanish. */
+    nova_capability_task_exit(task_id);
     /* Revoke owned IPC endpoints once the task can no longer run. */
     nova_service_close_owner(task_id);
     nova_ipc_close_owner(task_id);
