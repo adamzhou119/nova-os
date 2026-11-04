@@ -201,10 +201,14 @@ int nova_address_space_get(uint32_t address_space_id,
                            struct nova_address_space_info *info) {
     uintptr_t saved_daif;
     struct address_space_slot *space;
+    int result = 0;
     if (info == 0) return 0;
     saved_daif = address_space_lock();
     space = find_space_locked(address_space_id);
-    if (space != 0 && !space->destroying) *info = space->info;
+    if (space != 0 && !space->destroying) {
+        *info = space->info;
+        result = 1;
+    }
     address_space_unlock(saved_daif);
-    return space != 0 && !space->destroying;
+    return result;
 }
