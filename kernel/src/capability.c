@@ -110,13 +110,25 @@ int64_t nova_capability_grant(uint32_t issuer, uint32_t holder,
 
 int nova_capability_revoke(uint32_t issuer, uint32_t capability_id) {
     struct capability_entry *entry = find_id(capability_id);
+    int ipc_result = 0;
     if (entry == 0) return CAP_ERR_NOENT;
     if (entry->issuer != issuer) {
         record_event(NOVA_CAP_AUDIT_DENIED, issuer, entry, 0U);
         return CAP_ERR_PERM;
     }
-    if (entry->resource_type == NOVA_CAP_RESOURCE_IPC_PORT)
-        (void)nova_ipc_port_revoke(issuer, entry->resource_id, entry->holder);
+    if (entry->resource_type == NOVA_CAP_RESOURCE_IPC_PORT) {
+        ipc_result = nova_ipc_port_revoke(issuer, entry->resource_id,
+                                          entry->holder);
+        /*
+         * BADF means the endpoint was already destroyed: the grant is gone
+         * with it, so this capability can be retired safely. Other failures
+         * must keep the capability entry live for a later retry.
+         */
+        if (ipc_result != 0 && ipc_result != -9) {
+            record_event(NOVA_CAP_AUDIT_DENIED, issuer, entry, entry->rights);
+            return ipc_result;
+        }
+    }
     record_event(NOVA_CAP_AUDIT_REVOKED, issuer, entry, entry->rights);
     entry->used = 0U;
     entry->id = 0U;
