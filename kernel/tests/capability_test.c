@@ -29,6 +29,16 @@ int main(void) {
     assert(!nova_capability_check(31U, (uint32_t)cap,
                                   NOVA_CAP_RESOURCE_IPC_PORT, (uint32_t)port,
                                   NOVA_CAP_RIGHT_SEND));
+    assert(!nova_capability_check(30U, (uint32_t)cap, 99U,
+                                  (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+    assert(!nova_capability_check(30U, (uint32_t)cap,
+                                  NOVA_CAP_RESOURCE_IPC_PORT,
+                                  (uint32_t)port + 1U, NOVA_CAP_RIGHT_SEND));
+    assert(!nova_capability_check(30U, (uint32_t)cap,
+                                  NOVA_CAP_RESOURCE_IPC_PORT, (uint32_t)port,
+                                  NOVA_CAP_RIGHT_SEND | NOVA_CAP_RIGHT_RECEIVE));
+    assert(nova_ipc_receive(30U, (uint32_t)port, &message,
+                            sizeof(message.payload)) == -13);
     assert(nova_ipc_send(30U, (uint32_t)port, "x", 1U) == 0);
 
     updated = nova_capability_grant(10U, 30U, NOVA_CAP_RESOURCE_IPC_PORT,
