@@ -25,8 +25,8 @@ use these definitions rather than private numeric literals.
 | 9 | `NOVA_SYS_SERVICE_LOOKUP` | Look up service | x0=user name |
 | 10 | `NOVA_SYS_SERVICE_REMOVE` | Remove owned service | x0=user name |
 | 11 | `NOVA_SYS_IPC_PORT_CLOSE` | Close owned IPC port | x0=port ID |
-| 12 | `NOVA_SYS_IPC_PORT_GRANT` | Grant port rights | x0=port, x1=recipient task, x2=rights |
-| 13 | `NOVA_SYS_IPC_PORT_REVOKE` | Revoke port rights | x0=port, x1=recipient task |
+| 12 | `NOVA_SYS_IPC_PORT_GRANT` | Grant port rights through Capability Broker | x0=port, x1=recipient task, x2=rights; returns capability ID |
+| 13 | `NOVA_SYS_IPC_PORT_REVOKE` | Revoke broker-issued capability | x0=capability ID; issuer is the current task |
 | 14 | `NOVA_SYS_IPC_SEND` | Send bounded message | x0=port, x1=user payload, x2=length |
 | 15 | `NOVA_SYS_IPC_RECEIVE` | Receive bounded message | x0=port, x1=user message, x2=capacity |
 
@@ -47,3 +47,12 @@ fully integrated or validated.
 This remains a Nova-specific early ABI, not POSIX compatibility. The mounted
 filesystem on the file branch is volatile flat /ramfs; seek, persistence,
 directories, permission model and SMP-safe filesystem locking are not provided.
+
+
+## Capability mediation
+
+EL0 port-rights changes are mediated by the kernel Capability Broker. A successful
+`NOVA_SYS_IPC_PORT_GRANT` returns a broker-issued capability ID (positive value),
+not a raw IPC grant status. `NOVA_SYS_IPC_PORT_REVOKE` accepts that capability ID;
+the broker checks the issuer before revoking the underlying port grant and records
+the audit event. EL0 cannot invoke the raw IPC grant/revoke primitives directly.
