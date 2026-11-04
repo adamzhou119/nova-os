@@ -84,7 +84,7 @@ Plans are durable state machines, not opaque model transcripts. Each step record
 ## Implementation sequence
 
 - **A0 — Contract:** this document and versioned capability schema.
-- **A1 — IPC:** service identity, bounded message transport, cancellation, and deadlines. The first kernel mailbox primitive is now implemented as a bounded, non-blocking, single-core queue with owner-controlled send/receive grants, revocation, and teardown. Blocking waits, deadlines, cancellation tokens, user-facing SVC wrappers, and SMP synchronization remain incomplete.
+- **A1 — IPC:** bounded kernel mailbox transport and kernel-local service discovery are implemented as initial primitives. Mailboxes support owner-controlled send/receive grants, revocation, and task teardown. The registry supports owner-bound registration, lookup, duplicate rejection, unregister, and automatic removal on task exit. Service lookup returns an endpoint ID but does not grant access; IPC grants remain separately enforced. Blocking waits, deadlines, cancellation tokens, user-facing SVC wrappers, and SMP synchronization remain incomplete.
 - **A2 — Broker:** capability registry, permission policy, consent UI hooks, and audit.
 - **A3 — Orchestrator:** typed plan validation, dependency execution, checkpoints, and recovery.
 - **A4 — Model adapter:** replaceable local/remote model providers behind the planner interface.
