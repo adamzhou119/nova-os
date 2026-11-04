@@ -221,6 +221,7 @@ int nova_task_create_user(uint32_t address_space_id, uintptr_t user_entry,
                                 (uintptr_t)nova_user_task_start_trampoline,
                                 (uintptr_t)frame, 0U)) {
         (void)nova_vmap_free_guarded_page(stack);
+        task_cancel_reservation(i, id);
         return 0;
     }
     if (!nova_address_space_retain(address_space_id)) {
