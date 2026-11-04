@@ -173,6 +173,11 @@ int64_t nova_ipc_receive(uint32_t receiver, uint32_t id,
     return (int64_t)message->length;
 }
 
+int nova_ipc_port_is_owner(uint32_t owner, uint32_t id) {
+    struct ipc_port *port = find_port(id);
+    return port != 0 && owner != 0U && port->owner == owner;
+}
+
 int nova_ipc_port_close(uint32_t owner, uint32_t id) {
     struct ipc_port *port = find_port(id);
     if (port == 0) return NOVA_IPC_ERR_BADF;
