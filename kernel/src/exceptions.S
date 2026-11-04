@@ -460,7 +460,7 @@ nova_user_test_payload_start:
     svc     #0
     cmp     x0, #4
     b.ne    1f
-    ldr     w1, [sp, #32]
+    ldr     w1, [sp, #40]
     movz    w2, #0x776f
     movk    w2, #0x726e, lsl #16
     cmp     w1, w2
