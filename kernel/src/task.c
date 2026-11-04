@@ -178,6 +178,16 @@ int nova_task_transition(uint32_t task_id, enum nova_task_state next_state) {
     return 1;
 }
 
+int nova_task_block_ready(uint32_t task_id) {
+    struct nova_task_info *task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_READY) return 0;
+    if (task->resume_kind != NOVA_TASK_RESUME_FIRST_RUN &&
+        task->resume_kind != NOVA_TASK_RESUME_USER_FIRST_RUN)
+        return 0;
+    task->state = NOVA_TASK_BLOCKED;
+    return 1;
+}
+
 int nova_task_get(uint32_t task_id, struct nova_task_info *info) {
     struct nova_task_info *task = find_task(task_id);
     size_t i;
