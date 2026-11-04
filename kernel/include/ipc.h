@@ -32,6 +32,7 @@ int64_t nova_ipc_receive(uint32_t receiver, uint32_t port,
                          struct nova_ipc_message *message,
                          size_t capacity);
 int nova_ipc_port_close(uint32_t owner, uint32_t port);
+int nova_ipc_port_is_owner(uint32_t owner, uint32_t port);
 void nova_ipc_close_owner(uint32_t owner);
 
 #endif
