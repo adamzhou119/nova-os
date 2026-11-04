@@ -29,14 +29,21 @@ int64_t nova_file_open(uint32_t owner, const char *path, uint32_t flags) {
         (flags & ~NOVA_FILE_OPEN_CREATE) != 0U) return -22;
     while (length <= NOVA_FILE_PATH_MAX && path[length] != '\0') ++length;
     if (length == 0U || length > NOVA_FILE_PATH_MAX) return -22;
+    /*
+     * Reserve descriptor capacity before a create operation. Otherwise a
+     * failed open on a full descriptor table could leave a new file behind.
+     * The kernel is currently single-core, so the free slot remains reserved
+     * by this syscall until the descriptor is published below.
+     */
+    for (slot = 0U; slot < NOVA_FILE_FD_MAX; ++slot)
+        if (!open_files[slot].used) break;
+    if (slot == NOVA_FILE_FD_MAX) return -24;
+
     exists = nova_vfs_stat(path, &stat);
     if (!exists) {
         if ((flags & NOVA_FILE_OPEN_CREATE) == 0U) return -2;
         if (!nova_vfs_create(path)) return -22;
     }
-    for (slot = 0U; slot < NOVA_FILE_FD_MAX; ++slot)
-        if (!open_files[slot].used) break;
-    if (slot == NOVA_FILE_FD_MAX) return -24;
     open_files[slot].owner = owner;
     open_files[slot].offset = 0U;
     for (i = 0U; i < length; ++i) open_files[slot].path[i] = path[i];
