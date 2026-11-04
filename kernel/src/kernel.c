@@ -641,19 +641,23 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
 #endif
         frame->x[0] = (uint64_t)written;
     } else if (frame->x[8] == NOVA_SYS_FILE_OPEN) {
-        frame->x[0] = (uint64_t)nova_user_file_open(
-            nova_sched_current(), (uintptr_t)frame->x[0], (uint32_t)frame->x[1]);
+        frame->x[0] = frame->x[1] > UINT32_MAX ? (uint64_t)(int64_t)-22 :
+            (uint64_t)nova_user_file_open(
+                nova_sched_current(), (uintptr_t)frame->x[0],
+                (uint32_t)frame->x[1]);
     } else if (frame->x[8] == NOVA_SYS_FILE_CLOSE) {
-        frame->x[0] = (uint64_t)nova_file_close(
-            nova_sched_current(), (int)frame->x[0]);
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_file_close(nova_sched_current(), (int)frame->x[0]);
     } else if (frame->x[8] == NOVA_SYS_FILE_READ) {
-        frame->x[0] = (uint64_t)nova_user_file_read(
-            nova_sched_current(), (int)frame->x[0],
-            (uintptr_t)frame->x[1], frame->x[2]);
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_user_file_read(
+                nova_sched_current(), (int)frame->x[0],
+                (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_FILE_WRITE) {
-        frame->x[0] = (uint64_t)nova_user_file_write(
-            nova_sched_current(), (int)frame->x[0],
-            (uintptr_t)frame->x[1], frame->x[2]);
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_user_file_write(
+                nova_sched_current(), (int)frame->x[0],
+                (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_PORT_CREATE) {
         uint32_t task_id = nova_sched_current();
         frame->x[0] = (uint64_t)(int64_t)(task_id == 0U ? -22 :
