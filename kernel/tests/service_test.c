@@ -35,7 +35,7 @@ int main(void) {
 
     nova_service_close_owner(10U);
     assert(nova_service_lookup("AI_orchestrator-v1") == -2);
-    assert(nova_ipc_send(10U, (uint32_t)port_a, 0, 0U) == 0);
+    assert(nova_ipc_send(10U, (uint32_t)port_a, 0, 0U) == -9);
 
     for (i = 0U; i < NOVA_SERVICE_MAX_ENTRIES; ++i) {
         char slot_name[16] = "svc";
