@@ -420,7 +420,8 @@ static int64_t nova_user_copy_path(char path[NOVA_FILE_PATH_MAX + 1U],
 static int64_t nova_user_file_open(uint32_t task_id, uintptr_t user_path,
                                    uint32_t flags) {
     char path[NOVA_FILE_PATH_MAX + 1U];
-    if (nova_user_copy_path(path, user_path) < 0) return -22;
+    int64_t copied = nova_user_copy_path(path, user_path);
+    if (copied < 0) return copied;
     return nova_file_open(task_id, path, flags);
 }
 
