@@ -719,18 +719,34 @@ int nova_task_destroy(uint32_t task_id) {
     task->irq_frame = 0;
 
     /*
-     * These bounded registry cleanups are still performed under IRQ masking:
-     * their tables are currently single-core/IRQ serialized and expose no
-     * independent locking API. They are idempotent, so address-space release
-     * failure leaves a retryable ZOMBIE with the stack already detached.
+     * These registry cleanups are currently IRQ-serialized and expose no
+     * separate locking contract. Keep them in the short metadata section.
      */
     nova_capability_task_exit(task_id);
     nova_service_close_owner(task_id);
     nova_ipc_close_owner(task_id);
 
+    /*
+     * The final address-space release may invoke a page-table destroy hook.
+     * Drop the task-table IRQ mask first; the teardown claim keeps this TCB
+     * pinned and prevents another reaper from consuming its ownership.
+     */
+    task_irq_restore(saved_daif);
     if (address_space_id != 0U &&
         !nova_address_space_release(address_space_id)) {
-        task->teardown_in_progress = 0U;
+        saved_daif = task_irq_save_disable();
+        task = find_task(task_id);
+        if (task != 0) task->teardown_in_progress = 0U;
+        task_irq_restore(saved_daif);
+        return 0;
+    }
+
+    saved_daif = task_irq_save_disable();
+    task = find_task(task_id);
+    if (task == 0 || task->state != NOVA_TASK_ZOMBIE ||
+        task->teardown_in_progress == 0U ||
+        task->kernel_stack_base != 0U ||
+        task->address_space_id != address_space_id) {
         task_irq_restore(saved_daif);
         return 0;
     }
