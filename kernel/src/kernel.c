@@ -268,7 +268,7 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write_hex64(*result);
     nova_console_write("EL0 test expected task id: ");
     nova_console_write_hex64(task_id);
-    ok = *result == task_id;
+    ok = result[0] == task_id && result[1] != 0U;
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
