@@ -43,7 +43,11 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
     id = next_task_id++;
     tasks[i].id = id;
     tasks[i].address_space_id = 0U;
-    tasks[i].state = NOVA_TASK_READY;
+    /*
+     * Keep the TCB unpublished while its stack frame and cooperative context
+     * are being initialized. A timer IRQ may enter the scheduler at any point
+     * in task creation; READY is the publication point and must be last.
+     */
     tasks[i].resume_kind = NOVA_TASK_RESUME_FIRST_RUN;
     tasks[i].entry = entry;
     tasks[i].argument = argument;
@@ -80,6 +84,8 @@ int nova_task_create(nova_task_entry_t entry, void *argument, uint32_t *task_id)
         return 0;
     }
     tasks[i].context.x19_x30[2] = (uintptr_t)&tasks[i];
+    /* Publish only after every field consumed by the scheduler is valid. */
+    tasks[i].state = NOVA_TASK_READY;
     *task_id = id;
     return 1;
 }
