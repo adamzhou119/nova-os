@@ -270,13 +270,12 @@ nova_user_test_payload_start:
     svc     #0
     sub     sp, sp, #128
     /*
-     * The harness places result[6] and result[7] at the original entry SP
-     * minus 128 and 120 bytes. After allocating this 128-byte frame, those
-     * credentials are therefore at [sp, #0] and [sp, #8]. Keep them in
-     * callee-saved registers while the receive buffer reuses the stack area.
+     * Snapshot harness-provided delegated IPC credentials before the receive
+     * test writes a nova_ipc_message over this same user-stack result area.
+     * x22/x23 are preserved by the EL0 exception frame across every SVC.
      */
-    ldr     x22, [sp, #0]             /* delegated owner port (result[6]) */
-    ldr     x23, [sp, #8]             /* broker-issued capability ID (result[7]) */
+    ldr     x22, [sp, #48]            /* delegated owner port */
+    ldr     x23, [sp, #56]            /* broker-issued capability ID */
     str     x0, [sp, #0]             /* result[0]: current task id */
 
     adr     x0, 2f
