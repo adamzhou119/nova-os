@@ -269,6 +269,13 @@ nova_user_test_payload_start:
     mov     x8, #0
     svc     #0
     sub     sp, sp, #128
+    /*
+     * Snapshot harness-provided delegated IPC credentials before the receive
+     * test writes a nova_ipc_message over this same user-stack result area.
+     * x22/x23 are preserved by the EL0 exception frame across every SVC.
+     */
+    ldr     x22, [sp, #48]            /* delegated owner port */
+    ldr     x23, [sp, #56]            /* broker-issued capability ID */
     str     x0, [sp, #0]             /* result[0]: current task id */
 
     adr     x0, 2f
@@ -401,8 +408,7 @@ nova_user_test_payload_start:
      * Access a separate task-owned endpoint using only a broker capability.
      * The harness supplies [sp+48]=port and [sp+56]=capability ID.
      */
-    ldr     x22, [sp, #48]
-    ldr     x23, [sp, #56]
+    /* Credentials were snapshotted before the receive buffer reused this area. */
 
     /* Missing and forged credentials must be rejected. */
     mov     x0, x22
