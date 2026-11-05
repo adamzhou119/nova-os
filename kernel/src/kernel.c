@@ -574,6 +574,13 @@ static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
                                    uintptr_t user_payload, uint64_t length) {
     uint8_t payload[NOVA_IPC_MAX_PAYLOAD];
     int64_t copied;
+#ifdef NOVA_TEST_EL0_SVC
+    nova_console_write("EL0 IPC send validation sender/port/cap/len: ");
+    nova_console_write_hex64(sender);
+    nova_console_write_hex64(port);
+    nova_console_write_hex64(capability_id);
+    nova_console_write_hex64(length);
+#endif
     if (sender == 0U || port == 0U || port > UINT32_MAX ||
         capability_id > UINT32_MAX || length > NOVA_IPC_MAX_PAYLOAD)
         return -22;
