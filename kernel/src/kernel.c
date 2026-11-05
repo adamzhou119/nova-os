@@ -291,6 +291,12 @@ static int test_el0_svc_round_trip(void) {
         delegated_capability = (uint32_t)capability;
         result[6] = delegated_port;
         result[7] = delegated_capability;
+        nova_console_write("EL0 harness delegated port/capability: ");
+        nova_console_write_hex64(result[6]);
+        nova_console_write_hex64(result[7]);
+        nova_console_write("EL0 harness stack/result offset: ");
+        nova_console_write_hex64(NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE);
+        nova_console_write_hex64((uintptr_t)result - stack_page);
     }
 
     nova_console_write("EL0 test task prepared; task id: ");
