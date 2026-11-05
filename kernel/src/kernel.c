@@ -757,6 +757,15 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
     } else {
         frame->x[0] = (uint64_t)(int64_t)-38;
     }
+#ifdef NOVA_TEST_EL0_SVC
+    if (frame->x[8] >= NOVA_SYS_IPC_PORT_CREATE &&
+        frame->x[8] <= NOVA_SYS_IPC_RECEIVE) {
+        nova_console_write("EL0 SVC syscall number: ");
+        nova_console_write_hex64(frame->x[8]);
+        nova_console_write("EL0 SVC syscall result: ");
+        nova_console_write_hex64(frame->x[0]);
+    }
+#endif
     /* AArch64 SVC records the address of the following instruction in ELR_EL1. */
     return frame_address;
 }
