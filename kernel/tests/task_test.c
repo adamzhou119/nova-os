@@ -421,6 +421,8 @@ int main(void) {
                                       NOVA_CAP_RESOURCE_IPC_PORT,
                                       (uint32_t)port, NOVA_CAP_RIGHT_SEND));
         assert(nova_ipc_send(recipient_task, (uint32_t)port, "x", 1U) == -9);
+        /* Model recipient exit through the legal RUNNING -> ZOMBIE edge. */
+        assert(nova_task_transition(recipient_task, NOVA_TASK_RUNNING));
         assert(nova_task_transition(recipient_task, NOVA_TASK_ZOMBIE));
         assert(nova_task_destroy(recipient_task));
     }
