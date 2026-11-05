@@ -27,8 +27,8 @@ use these definitions rather than private numeric literals.
 | 11 | `NOVA_SYS_IPC_PORT_CLOSE` | Close owned IPC port | x0=port ID |
 | 12 | `NOVA_SYS_IPC_PORT_GRANT` | Grant port rights through Capability Broker | x0=port, x1=recipient task, x2=rights; returns capability ID |
 | 13 | `NOVA_SYS_IPC_PORT_REVOKE` | Revoke broker-issued capability | x0=capability ID; issuer is the current task |
-| 14 | `NOVA_SYS_IPC_SEND` | Send bounded message | x0=port, x1=user payload, x2=length |
-| 15 | `NOVA_SYS_IPC_RECEIVE` | Receive bounded message | x0=port, x1=user message, x2=capacity |
+| 14 | `NOVA_SYS_IPC_SEND` | Send bounded message | x0=port, x1=user payload, x2=length, x3=broker capability ID (0 only for owner) |
+| 15 | `NOVA_SYS_IPC_RECEIVE` | Receive bounded message | x0=port, x1=user message, x2=capacity, x3=broker capability ID (0 only for owner) |
 
 ## Compatibility and implementation status
 
