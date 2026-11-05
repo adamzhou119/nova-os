@@ -440,7 +440,8 @@ int main(void) {
         assert(nova_task_transition(replacement_id, NOVA_TASK_ZOMBIE));
         assert(nova_task_destroy(replacement_id));
     }
-    assert(freed_stacks == 6);
+    /* Ten successfully created tasks each release exactly one guarded stack. */
+    assert(freed_stacks == 10);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
