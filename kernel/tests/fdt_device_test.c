@@ -6,7 +6,7 @@
 #include "fdt.h"
 #include "device.h"
 
-static uint8_t blob[1024];
+static uint8_t blob[2048];
 static uint32_t structure_cursor;
 static uint32_t memory_reg_data_offset;
 
