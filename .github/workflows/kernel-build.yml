@@ -105,6 +105,7 @@ jobs:
             kernel/build/virt.dtb
             kernel/build/virt.dts
             qemu.log
+            kernel/build/nova.elf
 
       - name: QEMU EL0 SVC round-trip test
         shell: bash
