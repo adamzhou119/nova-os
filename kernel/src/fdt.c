@@ -772,8 +772,7 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
             while (cursor < struct_size && structure[cursor] != 0U) ++cursor;
             if (cursor >= struct_size) return -5;
             ++cursor;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -6;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -6;
             ++depth;
             current_parent[depth] = depth == 0 ? 0U : current_parent[depth - 1];
             node_phandle[depth] = 0U;
@@ -825,7 +824,8 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
         } else if (token == FDT_PROP) {
             uint32_t length, name_offset;
             const uint8_t *data;
-            if (depth < 0 || cursor + 8U > struct_size) return -8;
+            if (depth < 0 || cursor > struct_size ||
+                struct_size - cursor < 8U) return -8;
             length = read_be32(structure + cursor);
             name_offset = read_be32(structure + cursor + 4U);
             cursor += 8U;
@@ -861,8 +861,7 @@ static int fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
                 node_is_interrupt_controller[depth] = 1;
             }
             cursor += length;
-            cursor = (cursor + 3U) & ~3U;
-            if (cursor > struct_size) return -10;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -10;
         } else if (token == FDT_NOP) {
             continue;
         } else if (token == FDT_END) {
