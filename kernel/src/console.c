@@ -1,5 +1,6 @@
 #include "console.h"
 #include "device.h"
+#include "fdt.h"
 
 #include <stdint.h>
 
@@ -26,6 +27,15 @@ static int pl011_remove(const struct nova_device_desc *device) {
 }
 
 int nova_console_init(uintptr_t dtb_address) {
+    uint32_t pl011_irq = NOVA_DEVICE_NO_IRQ;
+    int irq_result = nova_fdt_find_gicv2_irq(dtb_address, "arm,pl011",
+                                             &pl011_irq);
+    nova_console_write("FDT PL011 GICv2 IRQ lookup result: ");
+    nova_console_write_hex64((uint64_t)(int64_t)irq_result);
+    if (irq_result == 1) {
+        nova_console_write("FDT PL011 GICv2 IRQ: ");
+        nova_console_write_hex64((uint64_t)pl011_irq);
+    }
     if (!nova_device_discover_fdt(dtb_address, NOVA_PL011_DEVICE_ID,
                                   "arm,pl011")) {
         nova_console_write("ERROR: PL011 FDT device discovery/IRQ resolution failed.\n");
