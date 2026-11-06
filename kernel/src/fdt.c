@@ -634,14 +634,17 @@ static int fdt_find_device_reg(uintptr_t dtb_address, const char *compatible,
                 status_length[depth] = length;
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "#address-cells") && length == 4U) {
-                uint32_t cells = read_be32(data);
-                if (cells > 2U) return -13;
-                child_address_cells[depth] = cells;
+                /* Preserve valid wider buses while walking unrelated nodes.
+                 * A matched device reg tuple is still rejected below when its
+                 * parent address width exceeds the parser's 64-bit support.
+                 */
+                child_address_cells[depth] = read_be32(data);
             } else if (fdt_string_equals(strings, strings_size, name_offset,
                                          "#size-cells") && length == 4U) {
-                uint32_t cells = read_be32(data);
-                if (cells > 2U) return -14;
-                child_size_cells[depth] = cells;
+                /* As above, defer width validation until a matching
+                 * device's reg tuple actually needs these cell widths.
+                 */
+                child_size_cells[depth] = read_be32(data);
             }
             cursor += length;
             if (cursor > UINT32_MAX - 3U) return -15;
