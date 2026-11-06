@@ -27,11 +27,22 @@ static int pl011_remove(const struct nova_device_desc *device) {
 
 int nova_console_init(uintptr_t dtb_address) {
     if (!nova_device_discover_fdt(dtb_address, NOVA_PL011_DEVICE_ID,
-                                  "arm,pl011"))
+                                  "arm,pl011")) {
+        nova_console_write("ERROR: PL011 FDT device discovery/IRQ resolution failed.\n");
         return 0;
-    if (!nova_driver_register("arm,pl011", pl011_probe, pl011_remove))
+    }
+    nova_console_write("PL011 FDT device descriptor created.\n");
+    if (!nova_driver_register("arm,pl011", pl011_probe, pl011_remove)) {
+        nova_console_write("ERROR: PL011 driver registration failed.\n");
         return 0;
-    return nova_device_probe(NOVA_PL011_DEVICE_ID);
+    }
+    nova_console_write("PL011 driver registered.\n");
+    if (!nova_device_probe(NOVA_PL011_DEVICE_ID)) {
+        nova_console_write("ERROR: PL011 driver Probe failed.\n");
+        return 0;
+    }
+    nova_console_write("PL011 driver Probe succeeded.\n");
+    return 1;
 }
 
 void nova_console_putc(char value) {
