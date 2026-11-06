@@ -4,19 +4,42 @@
 
 #include <stdint.h>
 
-#define PL011_UART0_BASE 0x09000000UL
+#define PL011_UART0_BASE NOVA_CONSOLE_UART_PHYS_BASE
 #define NOVA_PL011_DEVICE_ID 1U
 
 static uintptr_t pl011_base = PL011_UART0_BASE;
 #define PL011_UARTDR (*(volatile uint32_t *)(pl011_base + 0x00U))
 #define PL011_UARTFR (*(volatile uint32_t *)(pl011_base + 0x18U))
+#define PL011_UARTIBRD (*(volatile uint32_t *)(pl011_base + 0x24U))
+#define PL011_UARTFBRD (*(volatile uint32_t *)(pl011_base + 0x28U))
+#define PL011_UARTLCR_H (*(volatile uint32_t *)(pl011_base + 0x2CU))
+#define PL011_UARTCR (*(volatile uint32_t *)(pl011_base + 0x30U))
 #define PL011_UARTFR_TXFF (1U << 5)
+#define PL011_UARTCR_UARTEN (1U << 0)
+#define PL011_UARTCR_TXE (1U << 8)
+#define PL011_UARTCR_RXE (1U << 9)
+
+static void pl011_configure(void) {
+    /* QEMU virt PL011 clock is 24 MHz; divisors select approximately 115200 baud. */
+    PL011_UARTCR = 0U;
+    PL011_UARTIBRD = 13U;
+    PL011_UARTFBRD = 1U;
+    PL011_UARTLCR_H = (3U << 5) | (1U << 4); /* 8-bit, FIFO enabled. */
+    PL011_UARTCR = PL011_UARTCR_UARTEN | PL011_UARTCR_TXE |
+                   PL011_UARTCR_RXE;
+}
+
+void nova_console_early_init(void) {
+    pl011_base = PL011_UART0_BASE;
+    pl011_configure();
+}
 
 
 static int pl011_probe(const struct nova_device_desc *device) {
-    if (device == 0 || device->mmio_base == 0U || device->mmio_size < 0x20U)
+    if (device == 0 || device->mmio_base == 0U || device->mmio_size < 0x34U)
         return 0;
     pl011_base = device->mmio_base;
+    pl011_configure();
     return 1;
 }
 
