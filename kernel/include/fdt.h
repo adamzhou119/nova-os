@@ -66,4 +66,8 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
                               struct nova_memory_region *regions,
                               size_t capacity);
 
+/* Enumerate enabled direct children of /cpus. Returns count or negative error. */
+int nova_fdt_cpu_mpidrs(uintptr_t dtb_address, uint64_t *mpidrs,
+                        size_t capacity);
+
 #endif
