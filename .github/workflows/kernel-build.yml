@@ -20,7 +20,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang=1:21.1.6-71 lld=1:21.1.6-71 make qemu-system-arm=1:10.2.1+ds-1ubuntu3.3
+          sudo apt-get install -y clang=1:21.1.6-71 lld=1:21.1.6-71 make qemu-system-arm=1:10.2.1+ds-1ubuntu3.3 device-tree-compiler
           clang --version
           ld.lld --version
           qemu-system-aarch64 --version
@@ -52,6 +52,9 @@ jobs:
         run: |
           qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
           test -s kernel/build/virt.dtb
+          dtc -I dtb -O dts kernel/build/virt.dtb -o kernel/build/virt.dts
+          echo "===== QEMU generated device tree ====="
+          cat kernel/build/virt.dts
 
       - name: QEMU serial boot smoke test
         shell: bash
@@ -70,6 +73,17 @@ jobs:
           grep -q "BSS zero initialization verified." qemu.log
           grep -q "Heap allocator tests passed." qemu.log
           grep -q "FDT memory map parsed." qemu.log
+          grep -q "FDT PL011 lookup result: 0x0000000000000001" qemu.log || { echo "FDT PL011 lookup failed"; exit 1; }
+          grep -q "FDT PL011 MMIO base: 0x0000000009000000" qemu.log || { echo "Unexpected PL011 MMIO base"; exit 1; }
+          grep -q "FDT PL011 MMIO size: 0x0000000000001000" qemu.log || { echo "Unexpected PL011 MMIO size"; exit 1; }
+          grep -q "FDT PL011 compatible/reg discovery passed." qemu.log || { echo "FDT PL011 discovery did not pass"; exit 1; }
+          grep -q "FDT PL011 GICv2 IRQ lookup result: 0x0000000000000001" qemu.log || { echo "FDT PL011 IRQ lookup failed"; exit 1; }
+          grep -q "FDT PL011 GICv2 IRQ: 0x0000000000000021" qemu.log || { echo "Unexpected PL011 GICv2 IRQ"; exit 1; }
+          grep -q "PL011 FDT device descriptor created." qemu.log || { echo "PL011 descriptor creation failed"; exit 1; }
+          grep -q "PL011 driver registered." qemu.log || { echo "PL011 driver registration failed"; exit 1; }
+          grep -q "PL011 driver Probe succeeded." qemu.log || { echo "PL011 driver probe failed"; exit 1; }
+          grep -q "PL011 registered and probed through device registry." qemu.log || { echo "PL011 device registration/probe did not pass"; exit 1; }
+          if grep -Eq "ERROR: (FDT PL011|PL011 device registry)|PL011 data written to disabled UART" qemu.log; then echo "FDT/PL011 error or disabled-UART warning found"; exit 1; fi
           grep -q "FDT reserved ranges parsed:" qemu.log
           grep -q "Physical page allocator tests passed." qemu.log
           grep -q "Firmware RAM page allocator tests passed." qemu.log
@@ -89,6 +103,18 @@ jobs:
           grep -q "GICv2 physical timer IRQ tests passed." qemu.log
           echo "Nova OS boot, heap, and page allocator checks passed."
 
+      - name: Upload FDT and PL011 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fdt-pl011-diagnostics
+          if-no-files-found: warn
+          path: |
+            kernel/build/virt.dtb
+            kernel/build/virt.dts
+            qemu.log
+            kernel/build/nova.elf
+
       - name: QEMU EL0 SVC round-trip test
         shell: bash
         run: |
@@ -107,6 +133,7 @@ jobs:
           grep -q "EL0 write syscall rejected excessive length." user-svc.log
           grep -q "EL0 copyout valid marker passed." user-svc.log
           grep -q "EL0 copyout cross-page range rejected." user-svc.log
+          grep -q "EL0 delegated IPC capability checks passed." user-svc.log
           grep -q "QEMU EL0 SVC round-trip test passed." user-svc.log
           echo "Nova OS EL0 SVC round-trip passed."
 
@@ -194,6 +221,7 @@ jobs:
           grep -q "Welcome to Nova OS" el2-boot.log
           grep -q "CurrentEL: EL1" el2-boot.log
           grep -q "EL2-to-EL1 transition passed." el2-boot.log
+          if grep -Eq "PL011 data written to disabled UART" el2-boot.log el2-qemu-trace.log; then echo "EL2 boot firmware wrote to a disabled PL011"; exit 1; fi
           echo "Nova OS EL2-to-EL1 boot transition passed."
 
       - name: QEMU EL2 exception vector test

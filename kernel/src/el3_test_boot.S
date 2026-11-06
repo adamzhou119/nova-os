@@ -12,7 +12,24 @@ _el3_test_start:
     ldr     x1, =el3_exception_vectors
     msr     VBAR_EL3, x1
     isb
+
+    /*
+     * Initialize QEMU virt PL011 before emitting the firmware entry marker.
+     * The secure boot fixture runs before the non-secure kernel can configure
+     * the UART, so it must establish its own 24 MHz / 115200 8N1 settings.
+     */
     ldr     x3, =0x09000000
+    str     wzr, [x3, #0x30]       /* UARTCR: disable before reconfiguration. */
+    mov     w5, #13
+    str     w5, [x3, #0x24]       /* UARTIBRD. */
+    mov     w5, #1
+    str     w5, [x3, #0x28]       /* UARTFBRD. */
+    mov     w5, #0x70
+    str     w5, [x3, #0x2c]       /* UARTLCR_H: 8-bit, FIFO enabled. */
+    mov     w5, #0x301
+    str     w5, [x3, #0x30]       /* UARTCR: UARTEN | TXE | RXE. */
+    dsb     sy
+
     mov     w4, #'E'
     str     w4, [x3]
     mrs     x2, CurrentEL

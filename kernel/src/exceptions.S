@@ -269,6 +269,13 @@ nova_user_test_payload_start:
     mov     x8, #0
     svc     #0
     sub     sp, sp, #128
+    /*
+     * Snapshot harness-provided delegated IPC credentials before the receive
+     * test writes a nova_ipc_message over this same user-stack result area.
+     * x22/x23 are preserved by the EL0 exception frame across every SVC.
+     */
+    ldr     x22, [sp, #48]            /* delegated owner port */
+    ldr     x23, [sp, #56]            /* broker-issued capability ID */
     str     x0, [sp, #0]             /* result[0]: current task id */
 
     adr     x0, 2f
@@ -298,15 +305,16 @@ nova_user_test_payload_start:
     b.ne    1f
 
     /* Invalid user pointers must be rejected by service lookup. */
+    /* ABI v1: service lookup is syscall 9. */
     movz    x0, #0x8000, lsl #16
     add     x0, x0, #0x4000
-    mov     x8, #5
+    mov     x8, #9
     svc     #0
     cmn     x0, #14
     b.ne    1f
 
     /* Create a task-owned IPC endpoint and publish a service name. */
-    mov     x8, #3
+    mov     x8, #7
     svc     #0
     cmp     x0, #0
     b.le    1f
@@ -314,13 +322,13 @@ nova_user_test_payload_start:
     str     x19, [sp, #8]            /* result[1]: discovered port */
     adr     x0, 3f
     mov     x1, x19
-    mov     x8, #4
+    mov     x8, #8
     svc     #0
     cbnz    x0, 1f
 
     /* Discovery must return the exact endpoint. */
     adr     x0, 3f
-    mov     x8, #5
+    mov     x8, #9
     svc     #0
     cmp     x0, x19
     b.ne    1f
@@ -329,7 +337,8 @@ nova_user_test_payload_start:
     mov     x0, x19
     adr     x1, 4f
     mov     x2, #4
-    mov     x8, #10
+    mov     x3, #0
+    mov     x8, #14
     svc     #0
     cbnz    x0, 1f
 
@@ -338,7 +347,8 @@ nova_user_test_payload_start:
     movz    x1, #0x8000, lsl #16
     add     x1, x1, #0x4000
     mov     x2, #64
-    mov     x8, #11
+    mov     x3, #0
+    mov     x8, #15
     svc     #0
     cmn     x0, #14
     b.ne    1f
@@ -347,7 +357,8 @@ nova_user_test_payload_start:
     mov     x0, x19
     add     x1, sp, #32
     mov     x2, #64
-    mov     x8, #11
+    mov     x3, #0
+    mov     x8, #15
     svc     #0
     cmp     x0, #4
     b.ne    1f
@@ -363,12 +374,13 @@ nova_user_test_payload_start:
     mov     x0, x19
     mov     x1, x20
     mov     x2, #1
-    mov     x8, #8
+    mov     x8, #12
     svc     #0
-    cbnz    x0, 1f
-    mov     x0, x19
-    mov     x1, x20
-    mov     x8, #9
+    cmp     x0, #0
+    b.le    1f
+    mov     x21, x0                  /* broker-issued capability ID */
+    mov     x0, x21
+    mov     x8, #13
     svc     #0
     cbnz    x0, 1f
     mov     x0, #1
@@ -378,19 +390,151 @@ nova_user_test_payload_start:
     mov     x0, x19
     mov     x1, x20
     mov     x2, #4
-    mov     x8, #8
+    mov     x8, #12
     svc     #0
     cmn     x0, #22
     b.ne    1f
 
     adr     x0, 3f
-    mov     x8, #6
+    mov     x8, #10
     svc     #0
     cbnz    x0, 1f
     mov     x0, x19
-    mov     x8, #7
+    mov     x8, #11
     svc     #0
     cbnz    x0, 1f
+
+    /*
+     * Access a separate task-owned endpoint using only a broker capability.
+     * The harness supplies [sp+48]=port and [sp+56]=capability ID.
+     */
+    /* Credentials were snapshotted before the receive buffer reused this area. */
+
+    /* Missing and forged credentials must be rejected. */
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    mov     x3, #0
+    mov     x8, #14
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    add     x3, x23, #1
+    mov     x8, #14
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    /* A valid holder capability authorizes send. */
+    mov     x0, x22
+    adr     x1, 4f
+    mov     x2, #4
+    mov     x3, x23
+    mov     x8, #14
+    svc     #0
+    cbnz    x0, 1f
+
+    /* Missing/forged receive credentials must not consume the queued message. */
+    mov     x0, x22
+    add     x1, sp, #32
+    mov     x2, #64
+    mov     x3, #0
+    mov     x8, #15
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    mov     x0, x22
+    add     x1, sp, #32
+    mov     x2, #64
+    add     x3, x23, #1
+    mov     x8, #15
+    svc     #0
+    cmn     x0, #13
+    b.ne    1f
+
+    /* The broker capability authorizes receive of the owner's queued message. */
+    mov     x0, x22
+    add     x1, sp, #32
+    mov     x2, #64
+    mov     x3, x23
+    mov     x8, #15
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    ldr     w1, [sp, #40]
+    movz    w2, #0x776f
+    movk    w2, #0x726e, lsl #16
+    cmp     w1, w2
+    b.ne    1f
+    mov     x0, #1
+    str     x0, [sp, #48]           /* result[6]: delegated IPC passed */
+
+    /* Exercise EL0 file open/write/close/reopen/read via ABI v1 IDs 3-6. */
+    adr     x0, 5f
+    mov     x1, #1                  /* NOVA_FILE_OPEN_CREATE */
+    mov     x8, #3                  /* NOVA_SYS_FILE_OPEN */
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x21, x0
+    mov     x0, x21
+    adr     x1, 6f
+    mov     x2, #4
+    mov     x8, #6                  /* NOVA_SYS_FILE_WRITE */
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    mov     x0, x21
+    mov     x8, #4                  /* NOVA_SYS_FILE_CLOSE */
+    svc     #0
+    cbnz    x0, 1f
+    adr     x0, 5f
+    mov     x1, #0
+    mov     x8, #3
+    svc     #0
+    cmp     x0, #3
+    b.lt    1f
+    mov     x21, x0
+    mov     x0, x21
+    add     x1, sp, #64
+    mov     x2, #4
+    mov     x8, #5                  /* NOVA_SYS_FILE_READ */
+    svc     #0
+    cmp     x0, #4
+    b.ne    1f
+    ldr     w1, [sp, #64]
+    movz    w2, #0x6966             /* "fi" */
+    movk    w2, #0x656c, lsl #16    /* "lefi" */
+    cmp     w1, w2
+    b.ne    1f
+    mov     x0, x21
+    mov     x8, #4
+    svc     #0
+    cbnz    x0, 1f
+    mov     x0, #1
+    str     x0, [sp, #32]           /* result[4]: EL0 file I/O passed */
+
+    /* Reject 64-bit values that would truncate into valid 32-bit arguments. */
+    movz    x0, #1, lsl #32
+    movk    x0, #3
+    mov     x8, #4
+    svc     #0
+    cmn     x0, #9
+    b.ne    1f
+    adr     x0, 5f
+    movz    x1, #1, lsl #32
+    movk    x1, #1
+    mov     x8, #3
+    svc     #0
+    cmn     x0, #22
+    b.ne    1f
+    mov     x0, #1
+    str     x0, [sp, #40]           /* result[5]: wide args rejected */
 
     mov     x0, #0
     mov     x8, #1
@@ -403,6 +547,10 @@ nova_user_test_payload_start:
     .asciz  "test.service"
 4:
     .ascii  "ping"
+5:
+    .asciz  "/ramfs/el0.txt"
+6:
+    .ascii  "file"
 nova_user_test_payload_end:
 .size nova_user_test_payload_start, nova_user_test_payload_end - nova_user_test_payload_start
 /* Deliberately read an unmapped EL0 address to exercise task fault containment. */

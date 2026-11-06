@@ -18,7 +18,10 @@
 #include "user_context.h"
 #include "user_memory.h"
 #include "ipc.h"
+#include "capability.h"
 #include "service.h"
+#include "file.h"
+#include "vfs.h"
 #include "syscall.h"
 
 #include "console.h"
@@ -206,6 +209,7 @@ static int test_el0_svc_round_trip(void) {
     uintptr_t root = 0U;
     uintptr_t code_page = 0U, stack_page = 0U;
     uint32_t space_id = 0U, task_id = 0U, recipient_id = 0U;
+    uint32_t delegated_port = 0U, delegated_capability = 0U;
     uintptr_t code_size = (uintptr_t)(nova_user_test_payload_end -
                                       nova_user_test_payload_start);
     volatile uint64_t *result;
@@ -264,6 +268,37 @@ static int test_el0_svc_round_trip(void) {
 
     result = (volatile uint64_t *)(stack_page + NOVA_PAGE_SIZE -
                                       16U * sizeof(uint64_t));
+
+    /*
+     * Set up a distinct owner endpoint before EL0 starts. The EL0 task receives
+     * only broker-issued rights; it is not the port owner.
+     */
+    {
+        int64_t port = nova_ipc_port_create(recipient_id);
+        int64_t capability;
+        const char owner_message[] = "ownr";
+        if (port <= 0) goto cleanup;
+        capability = nova_capability_grant(
+            recipient_id, task_id, NOVA_CAP_RESOURCE_IPC_PORT,
+            (uint32_t)port, NOVA_CAP_RIGHT_SEND | NOVA_CAP_RIGHT_RECEIVE);
+        if (capability <= 0 ||
+            nova_ipc_send(recipient_id, (uint32_t)port, owner_message,
+                          sizeof(owner_message) - 1U) != 0) {
+            (void)nova_ipc_port_close(recipient_id, (uint32_t)port);
+            goto cleanup;
+        }
+        delegated_port = (uint32_t)port;
+        delegated_capability = (uint32_t)capability;
+        result[6] = delegated_port;
+        result[7] = delegated_capability;
+        nova_console_write("EL0 harness delegated port/capability: ");
+        nova_console_write_hex64(result[6]);
+        nova_console_write_hex64(result[7]);
+        nova_console_write("EL0 harness stack/result offset: ");
+        nova_console_write_hex64(NOVA_USER_VA_BASE + 3U * NOVA_PAGE_SIZE);
+        nova_console_write_hex64((uintptr_t)result - stack_page);
+    }
+
     nova_console_write("EL0 test task prepared; task id: ");
     nova_console_write_hex64(task_id);
     if (!nova_sched_start()) {
@@ -275,7 +310,22 @@ static int test_el0_svc_round_trip(void) {
     nova_console_write("EL0 test expected task id: ");
     nova_console_write_hex64(task_id);
     ok = result[0] == task_id && result[1] != 0U &&
-         result[2] == 1U && result[3] == 1U;
+         result[2] == 1U && result[3] == 1U &&
+         result[4] == 1U && result[5] == 1U &&
+         result[6] == 1U;
+    if (result[6] == 1U)
+        nova_console_write("EL0 delegated IPC capability checks passed.\n");
+    if (delegated_port != 0U) {
+        struct nova_task_info exited_info;
+        ok = ok && !nova_task_get(task_id, &exited_info) &&
+             !nova_capability_check(task_id, delegated_capability,
+                                    NOVA_CAP_RESOURCE_IPC_PORT, delegated_port,
+                                    NOVA_CAP_RIGHT_SEND) &&
+             !nova_ipc_port_has_rights(task_id, delegated_port,
+                                       NOVA_IPC_RIGHT_SEND) &&
+             nova_ipc_send(task_id, delegated_port, "x", 1U) == -13;
+        (void)nova_ipc_port_close(recipient_id, delegated_port);
+    }
 
 cleanup:
     (void)nova_mmu_switch_address_space(nova_mmu_kernel_root(), 0U);
@@ -419,6 +469,48 @@ static int64_t nova_user_write(uintptr_t user_buffer, uint64_t length) {
     return copied;
 }
 
+
+static int64_t nova_user_copy_path(char path[NOVA_FILE_PATH_MAX + 1U],
+                                   uintptr_t user_path) {
+    size_t i;
+    if (user_path == 0U) return -14;
+    for (i = 0U; i <= NOVA_FILE_PATH_MAX; ++i) {
+        if (user_path > UINTPTR_MAX - i) return -14;
+        if (nova_user_copy_from(&path[i], user_path + i, 1U) != 1)
+            return -14;
+        if (path[i] == '\0') return (int64_t)i;
+    }
+    return -22;
+}
+static int64_t nova_user_file_open(uint32_t task_id, uintptr_t user_path,
+                                   uint32_t flags) {
+    char path[NOVA_FILE_PATH_MAX + 1U];
+    int64_t copied = nova_user_copy_path(path, user_path);
+    if (copied < 0) return copied;
+    return nova_file_open(task_id, path, flags);
+}
+static int64_t nova_user_file_read(uint32_t task_id, int fd,
+                                   uintptr_t user_buffer, uint64_t length) {
+    uint8_t copy[256];
+    int64_t count;
+    if (length > sizeof(copy)) return -22;
+    if (!nova_user_check_range(user_buffer, length, 1)) return -14;
+    count = nova_file_read(task_id, fd, copy, (size_t)length);
+    if (count <= 0) return count;
+    if (nova_user_copy_to(user_buffer, copy, (uint64_t)count) != count)
+        return -14;
+    return count;
+}
+static int64_t nova_user_file_write(uint32_t task_id, int fd,
+                                    uintptr_t user_buffer, uint64_t length) {
+    uint8_t copy[256];
+    int64_t copied;
+    if (length > sizeof(copy)) return -22;
+    copied = nova_user_copy_from(copy, user_buffer, length);
+    if (copied < 0) return copied;
+    return nova_file_write(task_id, fd, copy, (size_t)copied);
+}
+
 /* Stop at NUL: do not read beyond the user's actual string. */
 static int64_t nova_user_service_name(uintptr_t user_name, char name[32]) {
     size_t i;
@@ -471,30 +563,39 @@ static int64_t nova_user_ipc_grant(uint32_t owner, uint64_t port,
     if (!nova_task_get((uint32_t)recipient, &info) ||
         info.state == NOVA_TASK_ZOMBIE)
         return -3;
-    return nova_ipc_port_grant(owner, (uint32_t)port,
-                               (uint32_t)recipient, (uint32_t)rights);
+    /* All EL0 rights changes must pass through the audited capability broker. */
+    return nova_capability_grant(owner, (uint32_t)recipient,
+                                 NOVA_CAP_RESOURCE_IPC_PORT,
+                                 (uint32_t)port, (uint32_t)rights);
 }
 
-static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t port,
-                                     uint64_t recipient) {
-    struct nova_task_info info;
-    if (owner == 0U || port == 0U || port > UINT32_MAX ||
-        recipient == 0U || recipient > UINT32_MAX)
+static int64_t nova_user_ipc_revoke(uint32_t owner, uint64_t capability_id) {
+    if (owner == 0U || capability_id == 0U || capability_id > UINT32_MAX)
         return -22;
-    if (!nova_task_get((uint32_t)recipient, &info) ||
-        info.state == NOVA_TASK_ZOMBIE)
-        return -3;
-    return nova_ipc_port_revoke(owner, (uint32_t)port,
-                                (uint32_t)recipient);
+    /* The broker verifies that this task issued the capability. */
+    return nova_capability_revoke(owner, (uint32_t)capability_id);
 }
-
 static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
+                                   uint64_t capability_id,
                                    uintptr_t user_payload, uint64_t length) {
     uint8_t payload[NOVA_IPC_MAX_PAYLOAD];
     int64_t copied;
+#ifdef NOVA_TEST_EL0_SVC
+    nova_console_write("EL0 IPC send validation sender/port/cap/len: ");
+    nova_console_write_hex64(sender);
+    nova_console_write_hex64(port);
+    nova_console_write_hex64(capability_id);
+    nova_console_write_hex64(length);
+#endif
     if (sender == 0U || port == 0U || port > UINT32_MAX ||
-        length > NOVA_IPC_MAX_PAYLOAD)
+        capability_id > UINT32_MAX || length > NOVA_IPC_MAX_PAYLOAD)
         return -22;
+    if (!nova_ipc_port_is_owner(sender, (uint32_t)port) &&
+        (capability_id == 0U ||
+         !nova_capability_check(sender, (uint32_t)capability_id,
+                                NOVA_CAP_RESOURCE_IPC_PORT,
+                                (uint32_t)port, NOVA_CAP_RIGHT_SEND)))
+        return -13;
     if (length != 0U) {
         copied = nova_user_copy_from(payload, user_payload, length);
         if (copied < 0) return copied;
@@ -504,13 +605,21 @@ static int64_t nova_user_ipc_send(uint32_t sender, uint64_t port,
 }
 
 static int64_t nova_user_ipc_receive(uint32_t receiver, uint64_t port,
+                                      uint64_t capability_id,
                                       uintptr_t user_message,
                                       uint64_t capacity) {
     struct nova_ipc_message message;
     int64_t received;
     if (receiver == 0U || port == 0U || port > UINT32_MAX ||
-        capacity > NOVA_IPC_MAX_PAYLOAD || user_message == 0U)
+        capability_id > UINT32_MAX || capacity > NOVA_IPC_MAX_PAYLOAD ||
+        user_message == 0U)
         return -22;
+    if (!nova_ipc_port_is_owner(receiver, (uint32_t)port) &&
+        (capability_id == 0U ||
+         !nova_capability_check(receiver, (uint32_t)capability_id,
+                                NOVA_CAP_RESOURCE_IPC_PORT,
+                                (uint32_t)port, NOVA_CAP_RIGHT_RECEIVE)))
+        return -13;
 
     /*
      * Validate the complete writable result before dequeuing. On this
@@ -574,6 +683,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         nova_console_write_hex64(frame->far_el1);
         nova_console_write("EL0 fault ELR: ");
         nova_console_write_hex64(frame->elr_el1);
+        nova_file_close_all(task_id);
         nova_sched_task_exit();
         for (;;) __asm__ volatile("wfe");
     }
@@ -585,7 +695,7 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
         nova_console_write_hex64(nova_sched_current());
 #endif
         frame->x[0] = (uint64_t)nova_sched_current();
-    } else if (frame->x[8] == NOVA_SYS_WRITE) {
+    } else if (frame->x[8] == NOVA_SYS_CONSOLE_WRITE) {
         int64_t written = nova_user_write((uintptr_t)frame->x[0],
                                           frame->x[1]);
 #ifdef NOVA_TEST_EL0_SVC
@@ -595,6 +705,24 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_console_write("EL0 write syscall rejected excessive length.\n");
 #endif
         frame->x[0] = (uint64_t)written;
+    } else if (frame->x[8] == NOVA_SYS_FILE_OPEN) {
+        frame->x[0] = frame->x[1] > UINT32_MAX ? (uint64_t)(int64_t)-22 :
+            (uint64_t)nova_user_file_open(
+                nova_sched_current(), (uintptr_t)frame->x[0],
+                (uint32_t)frame->x[1]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_CLOSE) {
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_file_close(nova_sched_current(), (int)frame->x[0]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_READ) {
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_user_file_read(
+                nova_sched_current(), (int)frame->x[0],
+                (uintptr_t)frame->x[1], frame->x[2]);
+    } else if (frame->x[8] == NOVA_SYS_FILE_WRITE) {
+        frame->x[0] = frame->x[0] > INT32_MAX ? (uint64_t)(int64_t)-9 :
+            (uint64_t)nova_user_file_write(
+                nova_sched_current(), (int)frame->x[0],
+                (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_PORT_CREATE) {
         uint32_t task_id = nova_sched_current();
         frame->x[0] = (uint64_t)(int64_t)(task_id == 0U ? -22 :
@@ -619,15 +747,15 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
             nova_sched_current(), frame->x[0], frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_PORT_REVOKE) {
         frame->x[0] = (uint64_t)nova_user_ipc_revoke(
-            nova_sched_current(), frame->x[0], frame->x[1]);
+            nova_sched_current(), frame->x[0]);
     } else if (frame->x[8] == NOVA_SYS_IPC_SEND) {
         frame->x[0] = (uint64_t)nova_user_ipc_send(
-            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
-            frame->x[2]);
+            nova_sched_current(), frame->x[0], frame->x[3],
+            (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_IPC_RECEIVE) {
         frame->x[0] = (uint64_t)nova_user_ipc_receive(
-            nova_sched_current(), frame->x[0], (uintptr_t)frame->x[1],
-            frame->x[2]);
+            nova_sched_current(), frame->x[0], frame->x[3],
+            (uintptr_t)frame->x[1], frame->x[2]);
     } else if (frame->x[8] == NOVA_SYS_EXIT) {
 #ifdef NOVA_TEST_EL0_SVC
         nova_console_write("EL0 SVC exit; current task: ");
@@ -637,10 +765,20 @@ uintptr_t nova_user_sync_dispatch(uintptr_t frame_address) {
 #endif
         uint32_t task_id = nova_sched_current();
         (void)nova_task_set_exit_code(task_id, (int)(int64_t)frame->x[0]);
+        nova_file_close_all(task_id);
         nova_sched_task_exit();
     } else {
         frame->x[0] = (uint64_t)(int64_t)-38;
     }
+#ifdef NOVA_TEST_EL0_SVC
+    if (frame->x[8] >= NOVA_SYS_IPC_PORT_CREATE &&
+        frame->x[8] <= NOVA_SYS_IPC_RECEIVE) {
+        nova_console_write("EL0 SVC syscall number: ");
+        nova_console_write_hex64(frame->x[8]);
+        nova_console_write("EL0 SVC syscall result: ");
+        nova_console_write_hex64(frame->x[0]);
+    }
+#endif
     /* AArch64 SVC records the address of the following instruction in ELR_EL1. */
     return frame_address;
 }
@@ -1283,9 +1421,14 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int fdt_uart_found;
     uint64_t total_ram = 0;
     size_t region_index;
+    nova_console_early_init();
     nova_console_write("Welcome to Nova OS\n");
     nova_console_write("AArch64 kernel prototype is running.\n");
     nova_console_write_current_el(current_el);
+    nova_console_write("FDT DTB address: ");
+    nova_console_write_hex64((uint64_t)dtb_address);
+    nova_console_write("FDT DTB total size: ");
+    nova_console_write_hex64((uint64_t)nova_fdt_total_size(dtb_address));
 
 #ifdef NOVA_TEST_EL2_BOOT
     if (current_el == 1U) {
@@ -1297,6 +1440,14 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 #endif
 
     fdt_uart_found = nova_fdt_find_device(dtb_address, "arm,pl011", &fdt_uart);
+    nova_console_write("FDT PL011 lookup result: ");
+    nova_console_write_hex64((uint64_t)(int64_t)fdt_uart_found);
+    if (fdt_uart_found == 1) {
+        nova_console_write("FDT PL011 MMIO base: ");
+        nova_console_write_hex64((uint64_t)fdt_uart.mmio_base);
+        nova_console_write("FDT PL011 MMIO size: ");
+        nova_console_write_hex64((uint64_t)fdt_uart.mmio_size);
+    }
     if (fdt_uart_found == 1 && fdt_uart.mmio_size >= 0x1000U) {
         nova_console_write("FDT PL011 compatible/reg discovery passed.\n");
         if (nova_console_init(dtb_address))
@@ -1348,6 +1499,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     nova_console_write_hex64(nova_page_available());
 
     if (nova_mmu_enable()) {
+        if (nova_vfs_init())
+            nova_console_write("VFS /ramfs mounted for EL0 file descriptors.\n");
+        else
+            nova_console_write("ERROR: VFS /ramfs initialization failed.\n");
         if (!nova_address_space_set_destroy_hook(nova_mmu_address_space_destroy))
             nova_console_write("ERROR: address-space destroy hook registration failed.\n");
         nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
@@ -1437,7 +1592,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
                nova_mmu_user_map_page(root_c,1U,user_va,frame_shared,0U)&&
                nova_mmu_switch_address_space(root_c,1U)&&
                nova_mmu_translate(user_va,&translated)&&translated==frame_shared&&
-               !nova_mmu_verify_user_access(user_va,0)&&
+               nova_mmu_verify_user_access(user_va,0)&&
                !nova_mmu_switch_address_space((uintptr_t)frame_a,3U)&&
                !nova_mmu_user_map_page((uintptr_t)frame_a,3U,user_va,frame_a,0U)&&
                !nova_mmu_address_space_destroy(root_c,1U)&&

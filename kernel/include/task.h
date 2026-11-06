@@ -11,6 +11,8 @@ typedef void (*nova_task_entry_t)(void *argument);
 
 enum nova_task_state {
     NOVA_TASK_UNUSED = 0,
+    /* Reserved privately while a creator initializes the TCB and stack. */
+    NOVA_TASK_CREATING,
     NOVA_TASK_READY,
     NOVA_TASK_RUNNING,
     NOVA_TASK_BLOCKED,
@@ -62,6 +64,8 @@ struct nova_task_info {
     struct nova_irq_frame *irq_frame;
     uintptr_t user_entry;
     uintptr_t user_stack_top;
+    /* Serializes retryable teardown while IRQs are enabled for stack release. */
+    uint8_t teardown_in_progress;
 };
 
 /* Creates a task control block and one mapped kernel stack page. */
@@ -89,6 +93,7 @@ int nova_task_take_irq_context(uint32_t task_id, struct nova_irq_frame **frame);
 int nova_task_irq_handoff(uint32_t current_id, struct nova_irq_frame *frame,
                            uint32_t *next_id, struct nova_irq_frame **next_frame);
 int nova_task_set_resume_kind(uint32_t task_id, enum nova_task_resume_kind kind);
+/* Borrowed TCB pointer: caller must exclude local IRQ/task teardown for the entire use. */
 struct nova_cpu_context *nova_task_context(uint32_t task_id);
 int nova_task_next_ready(uint32_t after_id, uint32_t *task_id);
 /* Selects only tasks that can be resumed through nova_cpu_context. */
@@ -100,7 +105,7 @@ int nova_task_set_exit_code(uint32_t task_id, int exit_code);
 /* Records a contained EL0 fault on the currently RUNNING task. */
 int nova_task_set_fault(uint32_t task_id, enum nova_task_fault_kind kind,
                         uint64_t esr, uint64_t far, uint64_t elr);
-/* Only READY (never dispatched) and ZOMBIE tasks may be destroyed. */
+/* Retryable teardown; only never-dispatched READY/BLOCKED first-run and ZOMBIE tasks may be destroyed. */
 int nova_task_destroy(uint32_t task_id);
 /* Reap ZOMBIE tasks from the scheduler stack; failed teardown remains retryable. */
 int nova_task_reap_zombies(void);

@@ -6,11 +6,24 @@
 
 static uintptr_t destroyed_root;
 static int destroy_calls;
+static int allow_dead_root_destroy;
+static uint32_t destroying_id;
+static int destroy_pin_checks;
 static int destroy_root(uintptr_t root, uint16_t asid) {
+    struct nova_address_space_info during_destroy;
     (void)asid;
     ++destroy_calls;
     destroyed_root = root;
-    return root != 0xDEAD000U;
+    if (root == 0xDEAD000U) {
+        /* The final slot is pinned, but the hook must not run under IRQ lock. */
+        destroy_pin_checks =
+            !nova_address_space_get(destroying_id, &during_destroy) &&
+            !nova_address_space_retain(destroying_id) &&
+            !nova_address_space_activate(destroying_id) &&
+            !nova_address_space_release(destroying_id);
+        return allow_dead_root_destroy;
+    }
+    return 1;
 }
 
 int main(void) {
@@ -58,11 +71,16 @@ int main(void) {
     assert(destroy_calls == 2 && destroyed_root == 0x40002000U);
 
     assert(nova_address_space_create(0xDEAD000U, 2U, &second));
+    destroying_id = second;
     assert(!nova_address_space_release(second)); /* Failed teardown is retryable. */
+    assert(destroy_pin_checks);
     assert(nova_address_space_get(second, &info));
     assert(info.references == 1U && info.active_cpus == 0U);
     assert(destroy_calls == 3);
-    /* Swap in a successful hook only after all live spaces are gone is forbidden. */
+    allow_dead_root_destroy = 1;
+    assert(nova_address_space_release(second)); /* A later retry completes. */
+    assert(destroy_calls == 4);
+    assert(!nova_address_space_get(second, &info));
 
     puts("Address-space metadata host tests passed.");
     return 0;

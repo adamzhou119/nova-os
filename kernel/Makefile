@@ -29,6 +29,9 @@ INTERRUPT_OBJECT := $(BUILD)/interrupt.o
 EXCEPTION_CLASS_OBJECT := $(BUILD)/exception.o
 ADDRESS_SPACE_OBJECT := $(BUILD)/address_space.o
 USER_MEMORY_OBJECT := $(BUILD)/user_memory.o
+FILE_OBJECT := $(BUILD)/file.o
+VFS_OBJECT := $(BUILD)/vfs.o
+FS_OBJECT := $(BUILD)/fs.o
 IPC_OBJECT := $(BUILD)/ipc.o
 SERVICE_OBJECT := $(BUILD)/service.o
 CAPABILITY_OBJECT := $(BUILD)/capability.o
@@ -69,6 +72,10 @@ host-test: | $(BUILD)
 	$(BUILD)/user-memory-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/fs_test.c src/fs.c -o $(BUILD)/fs-test
 	$(BUILD)/fs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/vfs_test.c src/vfs.c src/fs.c -o $(BUILD)/vfs-test
+	$(BUILD)/vfs-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/file_test.c src/file.c src/vfs.c src/fs.c -o $(BUILD)/file-test
+	$(BUILD)/file-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/ipc_test.c src/ipc.c -o $(BUILD)/ipc-test
 	$(BUILD)/ipc-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -Iinclude tests/capability_test.c src/capability.c src/ipc.c -o $(BUILD)/capability-test
@@ -79,6 +86,8 @@ host-test: | $(BUILD)
 	$(BUILD)/ai-plan-test
 	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/ai ../services/ai/executor_test.c ../services/ai/executor.c -o $(BUILD)/ai-executor-test
 	$(BUILD)/ai-executor-test
+	$(CC) -std=c11 -Wall -Wextra -Werror -I../services/manager ../services/manager/manager_test.c ../services/manager/manager.c -o $(BUILD)/service-manager-test
+	$(BUILD)/service-manager-test
 
 test: $(BUILD)/nova-test.elf $(BUILD)/nova-fault-test.elf $(BUILD)/nova-stack-fault-test.elf $(BUILD)/nova-el2-test.elf $(BUILD)/nova-el2-vector-test.elf $(BUILD)/nova-user-test.elf $(BUILD)/nova-user-fault-test.elf $(BUILD)/el3-test-boot.elf
 
@@ -106,7 +115,7 @@ $(CONSOLE_OBJECT): src/console.c include/console.h include/device.h | $(BUILD)
 $(DEVICE_OBJECT): src/device.c include/device.h include/fdt.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
 $(MEMORY_OBJECT): src/memory.c include/memory.h | $(BUILD)
@@ -148,6 +157,15 @@ $(ADDRESS_SPACE_OBJECT): src/address_space.c include/address_space.h | $(BUILD)
 $(USER_MEMORY_OBJECT): src/user_memory.c include/user_memory.h include/mmu.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
+$(FILE_OBJECT): src/file.c include/file.h include/vfs.h include/fs.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
+$(VFS_OBJECT): src/vfs.c include/vfs.h include/fs.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
+$(FS_OBJECT): src/fs.c include/fs.h | $(BUILD)
+	$(CLANG) $(CFLAGS) -c $< -o $@
+
 $(IPC_OBJECT): src/ipc.c include/ipc.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
@@ -157,22 +175,22 @@ $(SERVICE_OBJECT): src/service.c include/service.h include/ipc.h | $(BUILD)
 $(CAPABILITY_OBJECT): src/capability.c include/capability.h include/ipc.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -c $< -o $@
 
-$(TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EXCEPTION -c $< -o $@
 
-$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_MMU_FAULT -c $< -o $@
 
-$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(STACK_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_STACK_GUARD_FAULT -c $< -o $@
 
-$(USER_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(USER_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_SVC -c $< -o $@
 
-$(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(USER_FAULT_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/address_space.h include/user_context.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL0_FAULT -c $< -o $@
 
-$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
+$(EL2_TEST_KERNEL_OBJECT): src/kernel.c include/file.h include/vfs.h include/fs.h include/memory.h include/fdt.h include/mmu.h include/vm.h include/task.h include/context.h include/scheduler.h include/timer.h include/gic.h include/interrupt.h include/exception.h include/user_memory.h include/ipc.h include/service.h include/syscall.h include/console.h | $(BUILD)
 	$(CLANG) $(CFLAGS) -DNOVA_TEST_EL2_BOOT -c $< -o $@
 
 $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
@@ -181,29 +199,29 @@ $(EL3_TEST_BOOT_OBJECT): src/el3_test_boot.S | $(BUILD)
 $(BUILD)/el3-test-boot.elf: $(EL3_TEST_BOOT_OBJECT) el3_test_boot.ld
 	$(LD_LLD) -m aarch64elf -T el3_test_boot.ld -nostdlib $< -o $@
 
-$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
-$(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
-$(BUILD)/nova-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
-$(BUILD)/nova-stack-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(STACK_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(STACK_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-stack-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(STACK_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(STACK_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
-$(BUILD)/nova-el2-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker-el2-test.ld
-	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
-$(BUILD)/nova-user-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-el2-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker-el2-test.ld
+	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-user-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
-$(BUILD)/nova-user-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
-	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-user-fault-test.elf: $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker.ld
+	$(LD_LLD) $(LDFLAGS) $(BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(USER_FAULT_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
 
-$(BUILD)/nova-el2-vector-test.elf: $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker-el2-test.ld
-	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
+$(BUILD)/nova-el2-vector-test.elf: $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) linker-el2-test.ld
+	$(LD_LLD) -m aarch64elf -T linker-el2-test.ld -nostdlib $(EL2_VECTOR_BOOT_OBJECT) $(EXCEPTION_OBJECT) $(CONSOLE_OBJECT) $(DEVICE_OBJECT) $(EL2_TEST_KERNEL_OBJECT) $(MEMORY_OBJECT) $(PAGE_OBJECT) $(FDT_OBJECT) $(MMU_OBJECT) $(VM_OBJECT) $(TASK_OBJECT) $(CONTEXT_OBJECT) $(CONTEXT_ASM_OBJECT) $(SCHEDULER_OBJECT) $(TIMER_OBJECT) $(GIC_OBJECT) $(INTERRUPT_OBJECT) $(EXCEPTION_CLASS_OBJECT) $(ADDRESS_SPACE_OBJECT) $(USER_MEMORY_OBJECT) $(FILE_OBJECT) $(VFS_OBJECT) $(FS_OBJECT) $(IPC_OBJECT) $(SERVICE_OBJECT) $(CAPABILITY_OBJECT) -o $@
 
 
 clean:

@@ -6,9 +6,11 @@
 #include "fdt.h"
 #include "device.h"
 
-static uint8_t blob[1024];
+static uint8_t blob[2048];
 static uint32_t structure_cursor;
 static uint32_t memory_reg_data_offset;
+static uint32_t soc_ranges_data_offset;
+static uint32_t soc_status_data_offset;
 
 static void put_be32(uint32_t offset, uint32_t value) {
     blob[offset] = (uint8_t)(value >> 24);
@@ -165,10 +167,14 @@ static void build_test_dtb(void) {
             0x01U, 0U, 0U, 0U
         };
         uint8_t parent[4] = {0U, 0U, 0U, 1U};
+        static const char parent_status[] = "ok";
         append_property(11U, one, sizeof(one));
         append_property(26U, one, sizeof(one));
+        soc_ranges_data_offset = structure_cursor + 12U;
         append_property(42U, ranges, sizeof(ranges));
         append_property(49U, parent, sizeof(parent));
+        soc_status_data_offset = structure_cursor + 12U;
+        append_property(123U, parent_status, sizeof(parent_status));
     }
     append_node("device@900000");
     {
@@ -215,6 +221,19 @@ static void build_test_dtb(void) {
         append_property(38U, memory_reg, sizeof(memory_reg));
     }
     append_be32(2U); /* Close the memory node. */
+    /* An unrelated PCI host bridge legitimately uses three address cells.
+     * Its width must not abort discovery of the root-bus PL011 device.
+     */
+    append_node("pcie@10000000");
+    {
+        uint8_t three[4] = {0U, 0U, 0U, 3U};
+        uint8_t two[4] = {0U, 0U, 0U, 2U};
+        static const char pci_compatible[] = "pci-host-ecam-generic";
+        append_property(0U, pci_compatible, sizeof(pci_compatible));
+        append_property(11U, three, sizeof(three));
+        append_property(26U, two, sizeof(two));
+    }
+    append_be32(2U); /* Close the PCI host bridge. */
     append_be32(2U); /* Close the root node. */
     append_be32(9U);
 
@@ -339,6 +358,63 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
+    {
+        uint32_t irq = UINT32_MAX;
+        /* A disabled parent bus makes its otherwise-enabled child unavailable. */
+        blob[soc_status_data_offset] = (uint8_t)'n';
+        blob[soc_status_data_offset + 1U] = (uint8_t)'o';
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 0);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested", &irq) == 0);
+        blob[soc_status_data_offset] = (uint8_t)'o';
+        blob[soc_status_data_offset + 1U] = (uint8_t)'k';
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested", &irq) == 1);
+    }
+    {
+        uint8_t saved_blob[sizeof(blob)];
+        uint32_t total_size, structure_size, strings_offset;
+        memcpy(saved_blob, blob, sizeof(blob));
+
+        /* A missing ranges property must not silently become identity mapping. */
+        put_be32(soc_ranges_data_offset - 4U, 0U);
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) < 0);
+        memcpy(blob, saved_blob, sizeof(blob));
+
+        /* A present but empty ranges property explicitly means identity mapping. */
+        total_size = ((uint32_t)blob[4U] << 24) | ((uint32_t)blob[5U] << 16) |
+                     ((uint32_t)blob[6U] << 8) | blob[7U];
+        structure_size = ((uint32_t)blob[36U] << 24) | ((uint32_t)blob[37U] << 16) |
+                         ((uint32_t)blob[38U] << 8) | blob[39U];
+        strings_offset = ((uint32_t)blob[12U] << 24) | ((uint32_t)blob[13U] << 16) |
+                         ((uint32_t)blob[14U] << 8) | blob[15U];
+        put_be32(soc_ranges_data_offset - 8U, 0U);
+        memmove(blob + soc_ranges_data_offset,
+                blob + soc_ranges_data_offset + 16U,
+                total_size - soc_ranges_data_offset - 16U);
+        put_be32(4U, total_size - 16U);
+        put_be32(12U, strings_offset - 16U);
+        put_be32(36U, structure_size - 16U);
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
+        assert(device.mmio_base == (uintptr_t)0x00900000U);
+        assert(device.mmio_size == 0x1000U);
+        memcpy(blob, saved_blob, sizeof(blob));
+
+        /* Reject a ranges tuple whose span does not cover the complete device. */
+        put_be32(soc_ranges_data_offset + 12U, 1U);
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) < 0);
+        memcpy(blob, saved_blob, sizeof(blob));
+
+        /* Reject malformed tuple lengths rather than reading partial tuples. */
+        put_be32(soc_ranges_data_offset - 8U, 15U);
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) < 0);
+        memcpy(blob, saved_blob, sizeof(blob));
+
+        /* Reject parent-window arithmetic that wraps the 64-bit address space. */
+        put_be32(soc_ranges_data_offset + 4U, UINT32_MAX);
+        put_be32(soc_ranges_data_offset + 8U, UINT32_MAX);
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) < 0);
+        memcpy(blob, saved_blob, sizeof(blob));
+    }
     assert(nova_fdt_find_device_reg((uintptr_t)blob, "arm,gic-400", 0U,
                                     &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x08000000U);

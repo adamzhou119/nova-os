@@ -4,6 +4,7 @@
 #include <string.h>
 #include "task.h"
 #include "ipc.h"
+#include "capability.h"
 #include "context.h"
 #include "vm.h"
 #include "address_space.h"
@@ -12,6 +13,7 @@
 static _Alignas(16) unsigned char stack_pool[16][4096];
 static size_t next_stack;
 static int freed_stacks;
+static uint32_t expect_zombie_during_free;
 static int reject_user_mapping;
 int nova_mmu_user_verify_page(uintptr_t root, uint16_t asid,
                               uintptr_t va, unsigned int flags) {
@@ -40,7 +42,15 @@ void *nova_vmap_alloc_page(unsigned int flags) {
     return result;
 }
 int nova_vmap_free_page(void *address) {
+    struct nova_task_info info;
     (void)address;
+    if (expect_zombie_during_free != 0U) {
+        assert(nova_task_get(expect_zombie_during_free, &info));
+        assert(info.state == NOVA_TASK_ZOMBIE);
+        assert(info.teardown_in_progress == 1U);
+        /* A re-entrant reaper must not release this stack a second time. */
+        assert(!nova_task_destroy(expect_zombie_during_free));
+    }
     ++freed_stacks;
     return 1;
 }
@@ -53,7 +63,7 @@ int nova_vmap_free_guarded_page(void *address) {
 static void dummy_entry(void *argument) { (void)argument; }
 
 int main(void) {
-    uint32_t first, second, address_space_id, user_space_id, user_first;
+    uint32_t first, second, third, cancelled, address_space_id, user_space_id, user_first;
     struct nova_address_space_info address_space_info;
     struct nova_task_info info;
     struct nova_cpu_context context;
@@ -71,6 +81,39 @@ int main(void) {
     assert(nova_task_create(dummy_entry, &argument, &first));
     assert(nova_task_create(dummy_entry, 0, &second));
     assert(first != second);
+
+    /* Exercise the complete legal task-state graph and reject illegal edges. */
+    assert(nova_task_create(dummy_entry, 0, &third));
+    assert(third != first && third != second);
+    assert(!nova_task_transition(third, NOVA_TASK_BLOCKED));
+    assert(!nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(!nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_BLOCKED));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(!nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_READY));
+    assert(nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_transition(third, NOVA_TASK_ZOMBIE));
+    assert(!nova_task_transition(third, NOVA_TASK_READY));
+    assert(!nova_task_transition(third, NOVA_TASK_RUNNING));
+    assert(nova_task_destroy(third));
+
+    /* A parked first-run task has never executed and must be cancellable. */
+    assert(nova_task_create(dummy_entry, 0, &cancelled));
+    assert(nova_task_block_ready(cancelled));
+    assert(!nova_task_block_ready(cancelled));
+    assert(nova_task_get(cancelled, &info));
+    assert(info.state == NOVA_TASK_BLOCKED &&
+           info.resume_kind == NOVA_TASK_RESUME_FIRST_RUN);
+    /* Teardown must hide the task from scheduling before freeing its stack. */
+    expect_zombie_during_free = cancelled;
+    assert(nova_task_destroy(cancelled));
+    expect_zombie_during_free = 0U;
+    assert(!nova_task_get(cancelled, &info));
     assert(nova_address_space_create(0x40008000U, 1U, &address_space_id));
     assert(nova_task_set_address_space(first, address_space_id));
     assert(!nova_task_set_address_space(first, 999U));
@@ -250,7 +293,10 @@ int main(void) {
     /* The injected root-release failure was consumed by the IPC cleanup check above. */
     assert(nova_task_get(first, &info));
     assert(info.state == NOVA_TASK_ZOMBIE && info.kernel_stack_base == 0U &&
-           info.kernel_stack_top == 0U);
+           info.kernel_stack_top == 0U && info.teardown_in_progress == 0U);
+    /* A retryable zombie with a freed stack must not accept a stale IRQ frame. */
+    assert(!nova_task_set_irq_frame(first,
+        (struct nova_irq_frame *)(uintptr_t)0x1000U));
     assert(nova_address_space_get(address_space_id, &address_space_info));
     assert(address_space_info.references == 1U);
     assert(nova_task_destroy(first));
@@ -268,6 +314,9 @@ int main(void) {
     assert(!nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                   0x1234U, &user_first));
     reject_user_mapping = 0;
+    /* Failed mapping validation must drop the reference acquired before get(). */
+    assert(nova_address_space_get(user_space_id, &address_space_info));
+    assert(address_space_info.references == 1U);
     assert(nova_task_create_user(user_space_id, 0x80004000U, 0x80010000U,
                                  0x1234U, &user_first));
     assert(nova_task_get(user_first, &info));
@@ -317,7 +366,82 @@ int main(void) {
 
     assert(nova_task_transition(second, NOVA_TASK_ZOMBIE));
     assert(nova_task_destroy(second));
-    assert(freed_stacks == 3);
+
+    /*
+     * Task destruction must revoke Broker capabilities and the matching IPC
+     * grant before the task identity can disappear or its TCB slot be reused.
+     */
+    {
+        uint32_t owner_task = 0U, holder_task = 0U;
+        int64_t port;
+        int64_t capability;
+        assert(nova_task_create(dummy_entry, 0, &owner_task));
+        assert(nova_task_create(dummy_entry, 0, &holder_task));
+        assert(nova_task_transition(owner_task, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(holder_task, NOVA_TASK_RUNNING));
+        port = nova_ipc_port_create(owner_task);
+        assert(port > 0);
+        capability = nova_capability_grant(owner_task, holder_task,
+                                           NOVA_CAP_RESOURCE_IPC_PORT,
+                                           (uint32_t)port,
+                                           NOVA_CAP_RIGHT_SEND);
+        assert(capability > 0);
+        assert(nova_ipc_port_has_rights(holder_task, (uint32_t)port,
+                                        NOVA_IPC_RIGHT_SEND));
+        assert(nova_task_transition(holder_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(holder_task));
+        assert(!nova_capability_check(holder_task, (uint32_t)capability,
+                                      NOVA_CAP_RESOURCE_IPC_PORT,
+                                      (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+        assert(!nova_ipc_port_has_rights(holder_task, (uint32_t)port,
+                                         NOVA_IPC_RIGHT_SEND));
+        assert(nova_task_transition(owner_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(owner_task));
+        assert(nova_ipc_send(holder_task, (uint32_t)port, "x", 1U) == -9);
+    }
+
+    /* Issuer destruction invalidates its capabilities and closes its ports. */
+    {
+        uint32_t issuer_task = 0U, recipient_task = 0U;
+        int64_t port;
+        int64_t capability;
+        assert(nova_task_create(dummy_entry, 0, &issuer_task));
+        assert(nova_task_create(dummy_entry, 0, &recipient_task));
+        assert(nova_task_transition(issuer_task, NOVA_TASK_RUNNING));
+        port = nova_ipc_port_create(issuer_task);
+        assert(port > 0);
+        capability = nova_capability_grant(issuer_task, recipient_task,
+                                           NOVA_CAP_RESOURCE_IPC_PORT,
+                                           (uint32_t)port,
+                                           NOVA_CAP_RIGHT_SEND);
+        assert(capability > 0);
+        assert(nova_task_transition(issuer_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(issuer_task));
+        assert(!nova_capability_check(recipient_task, (uint32_t)capability,
+                                      NOVA_CAP_RESOURCE_IPC_PORT,
+                                      (uint32_t)port, NOVA_CAP_RIGHT_SEND));
+        assert(nova_ipc_send(recipient_task, (uint32_t)port, "x", 1U) == -9);
+        /* Model recipient exit through the legal RUNNING -> ZOMBIE edge. */
+        assert(nova_task_transition(recipient_task, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(recipient_task, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(recipient_task));
+    }
+
+    /*
+     * TCB slots may be reused, but task identities must not be. This prevents
+     * stale service/capability references from attaching to a later task.
+     */
+    {
+        uint32_t replacement_id = 0U;
+        assert(nova_task_create(dummy_entry, 0, &replacement_id));
+        assert(replacement_id > second);
+        assert(replacement_id != first && replacement_id != second);
+        assert(nova_task_transition(replacement_id, NOVA_TASK_RUNNING));
+        assert(nova_task_transition(replacement_id, NOVA_TASK_ZOMBIE));
+        assert(nova_task_destroy(replacement_id));
+    }
+    /* Ten successfully created tasks each release exactly one guarded stack. */
+    assert(freed_stacks == 10);
     puts("Task lifecycle host tests passed.");
     return 0;
 }
