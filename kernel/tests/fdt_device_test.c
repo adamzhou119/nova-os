@@ -215,6 +215,19 @@ static void build_test_dtb(void) {
         append_property(38U, memory_reg, sizeof(memory_reg));
     }
     append_be32(2U); /* Close the memory node. */
+    /* An unrelated PCI host bridge legitimately uses three address cells.
+     * Its width must not abort discovery of the root-bus PL011 device.
+     */
+    append_node("pcie@10000000");
+    {
+        uint8_t three[4] = {0U, 0U, 0U, 3U};
+        uint8_t two[4] = {0U, 0U, 0U, 2U};
+        static const char pci_compatible[] = "pci-host-ecam-generic";
+        append_property(0U, pci_compatible, sizeof(pci_compatible));
+        append_property(11U, three, sizeof(three));
+        append_property(26U, two, sizeof(two));
+    }
+    append_be32(2U); /* Close the PCI host bridge. */
     append_be32(2U); /* Close the root node. */
     append_be32(9U);
 
