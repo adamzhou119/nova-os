@@ -73,9 +73,17 @@ jobs:
           grep -q "BSS zero initialization verified." qemu.log
           grep -q "Heap allocator tests passed." qemu.log
           grep -q "FDT memory map parsed." qemu.log
+          grep -q "FDT PL011 lookup result: 0x0000000000000001" qemu.log || { echo "FDT PL011 lookup failed"; exit 1; }
+          grep -q "FDT PL011 MMIO base: 0x0000000009000000" qemu.log || { echo "Unexpected PL011 MMIO base"; exit 1; }
+          grep -q "FDT PL011 MMIO size: 0x0000000000001000" qemu.log || { echo "Unexpected PL011 MMIO size"; exit 1; }
           grep -q "FDT PL011 compatible/reg discovery passed." qemu.log || { echo "FDT PL011 discovery did not pass"; exit 1; }
+          grep -q "FDT PL011 GICv2 IRQ lookup result: 0x0000000000000001" qemu.log || { echo "FDT PL011 IRQ lookup failed"; exit 1; }
+          grep -q "FDT PL011 GICv2 IRQ: 0x0000000000000021" qemu.log || { echo "Unexpected PL011 GICv2 IRQ"; exit 1; }
+          grep -q "PL011 FDT device descriptor created." qemu.log || { echo "PL011 descriptor creation failed"; exit 1; }
+          grep -q "PL011 driver registered." qemu.log || { echo "PL011 driver registration failed"; exit 1; }
+          grep -q "PL011 driver Probe succeeded." qemu.log || { echo "PL011 driver probe failed"; exit 1; }
           grep -q "PL011 registered and probed through device registry." qemu.log || { echo "PL011 device registration/probe did not pass"; exit 1; }
-          if grep -Eq "ERROR: (FDT PL011|PL011 device registry)" qemu.log; then echo "FDT/PL011 error marker found"; exit 1; fi
+          if grep -Eq "ERROR: (FDT PL011|PL011 device registry)|PL011 data written to disabled UART" qemu.log; then echo "FDT/PL011 error or disabled-UART warning found"; exit 1; fi
           grep -q "FDT reserved ranges parsed:" qemu.log
           grep -q "Physical page allocator tests passed." qemu.log
           grep -q "Firmware RAM page allocator tests passed." qemu.log
