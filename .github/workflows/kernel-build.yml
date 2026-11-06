@@ -221,6 +221,7 @@ jobs:
           grep -q "Welcome to Nova OS" el2-boot.log
           grep -q "CurrentEL: EL1" el2-boot.log
           grep -q "EL2-to-EL1 transition passed." el2-boot.log
+          if grep -Eq "PL011 data written to disabled UART" el2-boot.log el2-qemu-trace.log; then echo "EL2 boot firmware wrote to a disabled PL011"; exit 1; fi
           echo "Nova OS EL2-to-EL1 boot transition passed."
 
       - name: QEMU EL2 exception vector test
