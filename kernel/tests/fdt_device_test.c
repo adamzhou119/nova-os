@@ -10,6 +10,7 @@ static uint8_t blob[2048];
 static uint32_t structure_cursor;
 static uint32_t memory_reg_data_offset;
 static uint32_t soc_ranges_data_offset;
+static uint32_t soc_status_data_offset;
 
 static void put_be32(uint32_t offset, uint32_t value) {
     blob[offset] = (uint8_t)(value >> 24);
@@ -166,11 +167,14 @@ static void build_test_dtb(void) {
             0x01U, 0U, 0U, 0U
         };
         uint8_t parent[4] = {0U, 0U, 0U, 1U};
+        static const char parent_status[] = "ok";
         append_property(11U, one, sizeof(one));
         append_property(26U, one, sizeof(one));
         soc_ranges_data_offset = structure_cursor + 12U;
         append_property(42U, ranges, sizeof(ranges));
         append_property(49U, parent, sizeof(parent));
+        soc_status_data_offset = structure_cursor + 12U;
+        append_property(123U, parent_status, sizeof(parent_status));
     }
     append_node("device@900000");
     {
@@ -354,6 +358,18 @@ int main(void) {
     assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
     assert(device.mmio_base == (uintptr_t)0x10900000U);
     assert(device.mmio_size == 0x1000U);
+    {
+        uint32_t irq = UINT32_MAX;
+        /* A disabled parent bus makes its otherwise-enabled child unavailable. */
+        blob[soc_status_data_offset] = (uint8_t)'n';
+        blob[soc_status_data_offset + 1U] = (uint8_t)'o';
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 0);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested", &irq) == 0);
+        blob[soc_status_data_offset] = (uint8_t)'o';
+        blob[soc_status_data_offset + 1U] = (uint8_t)'k';
+        assert(nova_fdt_find_device((uintptr_t)blob, "vendor,nested", &device) == 1);
+        assert(nova_fdt_find_gicv2_irq((uintptr_t)blob, "vendor,nested", &irq) == 1);
+    }
     {
         uint8_t saved_blob[sizeof(blob)];
         uint32_t total_size, structure_size, strings_offset;
