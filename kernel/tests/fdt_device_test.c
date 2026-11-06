@@ -72,7 +72,7 @@ static uint8_t *find_first_status_value(uint32_t *length_out) {
                                   (uint32_t)blob[cursor + 7U];
             uint32_t data_offset = cursor + 8U;
             if (length > end - data_offset) return NULL;
-            if (name_offset == 123U) {
+            if (name_offset == 123U && length == 5U) {
                 *length_out = length;
                 return blob + data_offset;
             }
