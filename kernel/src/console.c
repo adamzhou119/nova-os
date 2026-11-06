@@ -14,24 +14,42 @@ static uintptr_t pl011_base = PL011_UART0_BASE;
 #define PL011_UARTFBRD (*(volatile uint32_t *)(pl011_base + 0x28U))
 #define PL011_UARTLCR_H (*(volatile uint32_t *)(pl011_base + 0x2CU))
 #define PL011_UARTCR (*(volatile uint32_t *)(pl011_base + 0x30U))
+#define PL011_UARTFR_BUSY (1U << 3)
 #define PL011_UARTFR_TXFF (1U << 5)
 #define PL011_UARTCR_UARTEN (1U << 0)
 #define PL011_UARTCR_TXE (1U << 8)
 #define PL011_UARTCR_RXE (1U << 9)
 
-static void pl011_configure(void) {
+static int pl011_configure(void) {
+    uint32_t wait;
+
+    /*
+     * Do not change divisors or framing while the transmitter is active.
+     * A bounded wait prevents a broken clock/device from hanging boot.
+     */
+    for (wait = 0U; wait < 1000000U; ++wait) {
+        if ((PL011_UARTFR & PL011_UARTFR_BUSY) == 0U) break;
+        __asm__ volatile("nop");
+    }
+    if (wait == 1000000U) return 0;
+
     /* QEMU virt PL011 clock is 24 MHz; divisors select approximately 115200 baud. */
     PL011_UARTCR = 0U;
+    __asm__ volatile("dsb sy" ::: "memory");
     PL011_UARTIBRD = 13U;
     PL011_UARTFBRD = 1U;
+    __asm__ volatile("dsb sy" ::: "memory");
     PL011_UARTLCR_H = (3U << 5) | (1U << 4); /* 8-bit, FIFO enabled. */
+    __asm__ volatile("dsb sy" ::: "memory");
     PL011_UARTCR = PL011_UARTCR_UARTEN | PL011_UARTCR_TXE |
                    PL011_UARTCR_RXE;
+    __asm__ volatile("dsb sy" ::: "memory");
+    return 1;
 }
 
 void nova_console_early_init(void) {
     pl011_base = PL011_UART0_BASE;
-    pl011_configure();
+    (void)pl011_configure();
 }
 
 
@@ -39,8 +57,7 @@ static int pl011_probe(const struct nova_device_desc *device) {
     if (device == 0 || device->mmio_base == 0U || device->mmio_size < 0x34U)
         return 0;
     pl011_base = device->mmio_base;
-    pl011_configure();
-    return 1;
+    return pl011_configure();
 }
 
 static int pl011_remove(const struct nova_device_desc *device) {
