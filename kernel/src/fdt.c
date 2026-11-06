@@ -900,3 +900,126 @@ int nova_fdt_find_gicv2_irq_instance(uintptr_t dtb_address,
                                        instance_index, interrupt_id);
 }
 
+
+/* Enumerate enabled direct children of /cpus. */
+int nova_fdt_cpu_mpidrs(uintptr_t dtb_address, uint64_t *mpidrs,
+                        size_t capacity) {
+    const uint8_t *base = (const uint8_t *)dtb_address;
+    const uint8_t *structure, *strings;
+    uint32_t total_size, struct_offset, strings_offset, struct_size, strings_size;
+    uint32_t cursor = 0U, cpus_address_cells = 0U;
+    int depth = -1, cpus_depth = -1, root_seen = 0, root_closed = 0;
+    int cpus_seen = 0;
+    int enabled[FDT_MAX_DEPTH], is_cpus[FDT_MAX_DEPTH], is_cpu[FDT_MAX_DEPTH];
+    int device_type_cpu[FDT_MAX_DEPTH];
+    const uint8_t *reg[FDT_MAX_DEPTH], *status[FDT_MAX_DEPTH];
+    uint32_t reg_length[FDT_MAX_DEPTH], status_length[FDT_MAX_DEPTH];
+    size_t found = 0U, i;
+
+    if (dtb_address == 0U || mpidrs == NULL || capacity == 0U) return -1;
+    if (read_be32(base) != FDT_MAGIC) return -2;
+    if (!fdt_header_version_supported(base)) return -3;
+    total_size = read_be32(base + 4U);
+    struct_offset = read_be32(base + 8U);
+    strings_offset = read_be32(base + 12U);
+    strings_size = read_be32(base + 32U);
+    struct_size = read_be32(base + 36U);
+    if (total_size < FDT_HEADER_SIZE || struct_offset < FDT_HEADER_SIZE ||
+        strings_offset < FDT_HEADER_SIZE || struct_offset > total_size ||
+        struct_size > total_size - struct_offset || strings_offset > total_size ||
+        strings_size > total_size - strings_offset ||
+        (struct_offset < strings_offset && struct_size > strings_offset - struct_offset) ||
+        (strings_offset < struct_offset && strings_size > struct_offset - strings_offset) ||
+        (struct_offset & 3U) != 0U) return -3;
+
+    structure = base + struct_offset;
+    strings = base + strings_offset;
+    while (cursor <= struct_size && struct_size - cursor >= 4U) {
+        uint32_t token = read_be32(structure + cursor);
+        cursor += 4U;
+        if (token == FDT_BEGIN_NODE) {
+            uint32_t name_start = cursor, name_length;
+            if (depth + 1 >= (int)FDT_MAX_DEPTH) return -4;
+            if (depth == -1) {
+                if (root_seen) return -20;
+                root_seen = 1;
+            }
+            while (cursor < struct_size && structure[cursor] != 0U) ++cursor;
+            if (cursor >= struct_size) return -5;
+            name_length = cursor - name_start;
+            ++cursor;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -6;
+            ++depth;
+            enabled[depth] = depth == 0 ? 1 : enabled[depth - 1];
+            is_cpus[depth] = name_length == 4U && structure[name_start] == 'c' &&
+                structure[name_start + 1U] == 'p' && structure[name_start + 2U] == 'u' &&
+                structure[name_start + 3U] == 's';
+            is_cpu[depth] = cpus_depth >= 0 && depth == cpus_depth + 1;
+            device_type_cpu[depth] = 0;
+            reg[depth] = NULL; reg_length[depth] = 0U;
+            status[depth] = NULL; status_length[depth] = 0U;
+            if (is_cpus[depth]) {
+                if (cpus_seen) return -7;
+                cpus_seen = 1;
+                cpus_depth = depth;
+            }
+        } else if (token == FDT_END_NODE) {
+            if (depth < 0) return -8;
+            if (is_cpu[depth] && device_type_cpu[depth] && enabled[depth]) {
+                uint64_t mpidr;
+                int state = fdt_node_status_enabled(status[depth], status_length[depth]);
+                if (state < 0) return -9;
+                if (state == 1) {
+                    if (cpus_address_cells != 1U && cpus_address_cells != 2U) return -10;
+                    if (reg[depth] == NULL || reg_length[depth] != cpus_address_cells * 4U)
+                        return -11;
+                    if (!read_cells(reg[depth], cpus_address_cells, &mpidr)) return -12;
+                    for (i = 0U; i < found; ++i) if (mpidrs[i] == mpidr) return -13;
+                    if (found >= capacity) return -14;
+                    mpidrs[found++] = mpidr;
+                }
+            }
+            if (is_cpus[depth]) cpus_depth = -1;
+            if (depth == 0) root_closed = 1;
+            --depth;
+        } else if (token == FDT_PROP) {
+            uint32_t length, name_offset;
+            const uint8_t *data;
+            if (depth < 0 || cursor > struct_size || struct_size - cursor < 8U)
+                return -15;
+            length = read_be32(structure + cursor);
+            name_offset = read_be32(structure + cursor + 4U);
+            cursor += 8U;
+            if (length > struct_size - cursor || name_offset >= strings_size) return -16;
+            data = structure + cursor;
+            if (is_cpus[depth] && fdt_string_equals(strings, strings_size,
+                                                   name_offset, "#address-cells")) {
+                if (length != 4U) return -17;
+                cpus_address_cells = read_be32(data);
+            } else if (is_cpu[depth] && fdt_string_equals(strings, strings_size,
+                                                          name_offset, "device_type")) {
+                if (length != 4U || data[0] != 'c' || data[1] != 'p' ||
+                    data[2] != 'u' || data[3] != 0U) return -18;
+                device_type_cpu[depth] = 1;
+            } else if (is_cpu[depth] && fdt_string_equals(strings, strings_size,
+                                                          name_offset, "reg")) {
+                reg[depth] = data; reg_length[depth] = length;
+            } else if (fdt_string_equals(strings, strings_size, name_offset, "status")) {
+                int state;
+                status[depth] = data; status_length[depth] = length;
+                state = fdt_node_status_enabled(data, length);
+                if (state < 0) return -9;
+                enabled[depth] = enabled[depth] && state;
+            }
+            cursor += length;
+            if (!fdt_align_cursor(&cursor, struct_size)) return -19;
+        } else if (token == FDT_NOP) {
+            continue;
+        } else if (token == FDT_END) {
+            if (!root_seen || !root_closed || depth != -1 || cpus_depth >= 0)
+                return -20;
+            return (int)found;
+        } else return -21;
+    }
+    return -22;
+}
