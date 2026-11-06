@@ -19,10 +19,14 @@ static struct device_slot devices[NOVA_DEVICE_MAX];
 static struct driver_slot drivers[NOVA_DRIVER_MAX];
 
 static size_t bounded_length(const char *text, size_t limit) {
+    const volatile char *bytes = (const volatile char *)text;
     size_t i;
     if (text == 0) return limit;
+    /* Compatible strings may begin at any byte address in firmware data.
+     * Volatile byte loads prevent the compiler from widening this scan into
+     * an unaligned word load when SCTLR_EL1.A is enabled. */
     for (i = 0; i < limit; ++i)
-        if (text[i] == '\0') return i;
+        if (bytes[i] == '\0') return i;
     return limit;
 }
 
@@ -31,18 +35,23 @@ static int copy_compatible(char destination[NOVA_DEVICE_COMPATIBLE_MAX],
     size_t length = bounded_length(source, NOVA_DEVICE_COMPATIBLE_MAX);
     size_t i;
     if (length == 0U || length >= NOVA_DEVICE_COMPATIBLE_MAX) return 0;
-    for (i = 0; i <= length; ++i) destination[i] = source[i];
+    {
+        const volatile char *bytes = (const volatile char *)source;
+        for (i = 0; i <= length; ++i) destination[i] = bytes[i];
+    }
     return 1;
 }
 
 static int strings_equal(const char *left, const char *right) {
+    const volatile char *a = (const volatile char *)left;
+    const volatile char *b = (const volatile char *)right;
     size_t i = 0U;
     if (left == 0 || right == 0) return 0;
-    while (left[i] != '\0' && right[i] != '\0') {
-        if (left[i] != right[i]) return 0;
+    while (a[i] != '\0' && b[i] != '\0') {
+        if (a[i] != b[i]) return 0;
         ++i;
     }
-    return left[i] == right[i];
+    return a[i] == b[i];
 }
 
 static struct device_slot *find_device(uint32_t id) {
