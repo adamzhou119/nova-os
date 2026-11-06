@@ -1424,6 +1424,10 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     nova_console_write("Welcome to Nova OS\n");
     nova_console_write("AArch64 kernel prototype is running.\n");
     nova_console_write_current_el(current_el);
+    nova_console_write("FDT DTB address: ");
+    nova_console_write_hex64((uint64_t)dtb_address);
+    nova_console_write("FDT DTB total size: ");
+    nova_console_write_hex64((uint64_t)nova_fdt_total_size(dtb_address));
 
 #ifdef NOVA_TEST_EL2_BOOT
     if (current_el == 1U) {
@@ -1435,6 +1439,14 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
 #endif
 
     fdt_uart_found = nova_fdt_find_device(dtb_address, "arm,pl011", &fdt_uart);
+    nova_console_write("FDT PL011 lookup result: ");
+    nova_console_write_hex64((uint64_t)(int64_t)fdt_uart_found);
+    if (fdt_uart_found == 1) {
+        nova_console_write("FDT PL011 MMIO base: ");
+        nova_console_write_hex64((uint64_t)fdt_uart.mmio_base);
+        nova_console_write("FDT PL011 MMIO size: ");
+        nova_console_write_hex64((uint64_t)fdt_uart.mmio_size);
+    }
     if (fdt_uart_found == 1 && fdt_uart.mmio_size >= 0x1000U) {
         nova_console_write("FDT PL011 compatible/reg discovery passed.\n");
         if (nova_console_init(dtb_address))
