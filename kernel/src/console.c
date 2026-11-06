@@ -15,6 +15,7 @@ static uintptr_t pl011_base = PL011_UART0_BASE;
 #define PL011_UARTLCR_H (*(volatile uint32_t *)(pl011_base + 0x2CU))
 #define PL011_UARTCR (*(volatile uint32_t *)(pl011_base + 0x30U))
 #define PL011_UARTFR_BUSY (1U << 3)
+#define PL011_TX_WAIT_LIMIT 1000000U
 #define PL011_UARTFR_TXFF (1U << 5)
 #define PL011_UARTCR_UARTEN (1U << 0)
 #define PL011_UARTCR_TXE (1U << 8)
@@ -54,10 +55,16 @@ void nova_console_early_init(void) {
 
 
 static int pl011_probe(const struct nova_device_desc *device) {
+    uintptr_t previous_base = pl011_base;
     if (device == 0 || device->mmio_base == 0U || device->mmio_size < 0x34U)
         return 0;
     pl011_base = device->mmio_base;
-    return pl011_configure();
+    if (!pl011_configure()) {
+        /* Keep the early console mapping if the discovered device is unusable. */
+        pl011_base = previous_base;
+        return 0;
+    }
+    return 1;
 }
 
 static int pl011_remove(const struct nova_device_desc *device) {
@@ -96,8 +103,13 @@ int nova_console_init(uintptr_t dtb_address) {
 }
 
 void nova_console_putc(char value) {
-    while (PL011_UARTFR & PL011_UARTFR_TXFF)
+    uint32_t wait;
+    for (wait = 0U; wait < PL011_TX_WAIT_LIMIT; ++wait) {
+        if ((PL011_UARTFR & PL011_UARTFR_TXFF) == 0U) break;
         __asm__ volatile("nop");
+    }
+    /* A wedged UART must not deadlock the kernel's console path. */
+    if (wait == PL011_TX_WAIT_LIMIT) return;
     PL011_UARTDR = (uint32_t)(unsigned char)value;
 }
 
