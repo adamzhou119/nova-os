@@ -89,7 +89,7 @@ static uint8_t *find_first_status_value(uint32_t *length_out) {
 
 static void build_test_dtb(void) {
     static const char strings[] =
-        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0status\0";
+        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0status\0device_type\0";
     static const char compatibles[] = "vendor,uart\0arm,pl011\0";
     static const char gic_compatible[] = "arm,gic-400";
     uint8_t cells[32];
@@ -104,6 +104,40 @@ static void build_test_dtb(void) {
         append_property(11U, value, sizeof(value));
         append_property(26U, value, sizeof(value));
     }
+    append_node("cpus");
+    {
+        uint8_t one[4] = {0U, 0U, 0U, 1U};
+        uint8_t zero[4] = {0U, 0U, 0U, 0U};
+        append_property(11U, one, sizeof(one));
+        append_property(26U, zero, sizeof(zero));
+    }
+    append_node("cpu@0");
+    {
+        static const char type[] = "cpu";
+        uint8_t id[4] = {0U, 0U, 0U, 0U};
+        append_property(130U, type, sizeof(type));
+        append_property(38U, id, sizeof(id));
+    }
+    append_be32(2U);
+    append_node("cpu@1");
+    {
+        static const char type[] = "cpu";
+        uint8_t id[4] = {0U, 0U, 0U, 1U};
+        append_property(130U, type, sizeof(type));
+        append_property(38U, id, sizeof(id));
+    }
+    append_be32(2U);
+    append_node("cpu@2");
+    {
+        static const char type[] = "cpu";
+        static const char disabled[] = "disabled";
+        uint8_t id[4] = {0U, 0U, 0U, 2U};
+        append_property(130U, type, sizeof(type));
+        append_property(38U, id, sizeof(id));
+        append_property(123U, disabled, sizeof(disabled));
+    }
+    append_be32(2U);
+    append_be32(2U);
     append_node("uart@9000000");
     append_property(0U, compatibles, sizeof(compatibles));
     memset(cells, 0, sizeof(cells));
@@ -256,6 +290,13 @@ int main(void) {
     struct nova_fdt_device device = {0U, 0U};
     struct nova_memory_region memory[8];
     build_test_dtb();
+    {
+        uint64_t cpus[4] = {UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX};
+        assert(nova_fdt_cpu_mpidrs((uintptr_t)blob, cpus, 4U) == 2);
+        assert(cpus[0] == 0U && cpus[1] == 1U);
+        assert(nova_fdt_cpu_mpidrs((uintptr_t)blob, cpus, 1U) < 0);
+        assert(nova_fdt_cpu_mpidrs(0U, cpus, 4U) < 0);
+    }
     assert(nova_fdt_memory_regions((uintptr_t)blob, memory, 8U) == 1);
     assert(memory[0].start == 0x40000000ULL);
     assert(memory[0].size == 0x40000000ULL);
