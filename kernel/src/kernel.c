@@ -1421,6 +1421,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int fdt_uart_found;
     uint64_t total_ram = 0;
     size_t region_index;
+    nova_console_early_init();
     nova_console_write("Welcome to Nova OS\n");
     nova_console_write("AArch64 kernel prototype is running.\n");
     nova_console_write_current_el(current_el);
