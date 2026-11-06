@@ -80,7 +80,7 @@ _el3_test_start:
 .global el3_exception_vectors
 .type el3_exception_vectors, %object
 .macro EL3_VECTOR slot
-    mov     x16, #\\slot
+    mov     x16, #\slot
     b       el3_exception_halt
     .space  120
 .endm
