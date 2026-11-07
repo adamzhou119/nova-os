@@ -11,6 +11,7 @@ static uint32_t structure_cursor;
 static uint32_t memory_reg_data_offset;
 static uint32_t soc_ranges_data_offset;
 static uint32_t soc_status_data_offset;
+static uint32_t psci_method_data_offset;
 
 static void put_be32(uint32_t offset, uint32_t value) {
     blob[offset] = (uint8_t)(value >> 24);
@@ -89,7 +90,7 @@ static uint8_t *find_first_status_value(uint32_t *length_out) {
 
 static void build_test_dtb(void) {
     static const char strings[] =
-        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0status\0device_type\0";
+        "compatible\0#address-cells\0#size-cells\0reg\0ranges\0interrupt-parent\0interrupts\0phandle\0#interrupt-cells\0interrupt-controller\0status\0device_type\0method\0";
     static const char compatibles[] = "vendor,uart\0arm,pl011\0";
     static const char gic_compatible[] = "arm,gic-400";
     uint8_t cells[32];
@@ -137,6 +138,15 @@ static void build_test_dtb(void) {
         append_property(123U, disabled, sizeof(disabled));
     }
     append_be32(2U);
+    append_be32(2U);
+    append_node("psci");
+    {
+        static const char psci_compatible[] = "arm,psci-1.0";
+        static const char hvc_method[] = "hvc";
+        append_property(0U, psci_compatible, sizeof(psci_compatible));
+        psci_method_data_offset = structure_cursor + 12U;
+        append_property(142U, hvc_method, sizeof(hvc_method));
+    }
     append_be32(2U);
     append_node("uart@9000000");
     append_property(0U, compatibles, sizeof(compatibles));
@@ -290,6 +300,17 @@ int main(void) {
     struct nova_fdt_device device = {0U, 0U};
     struct nova_memory_region memory[8];
     build_test_dtb();
+    assert(nova_fdt_psci_method((uintptr_t)blob) == 1);
+    blob[psci_method_data_offset] = (uint8_t)'s';
+    blob[psci_method_data_offset + 1U] = (uint8_t)'m';
+    blob[psci_method_data_offset + 2U] = (uint8_t)'c';
+    assert(nova_fdt_psci_method((uintptr_t)blob) == 2);
+    blob[psci_method_data_offset] = (uint8_t)'x';
+    assert(nova_fdt_psci_method((uintptr_t)blob) < 0);
+    blob[psci_method_data_offset] = (uint8_t)'h';
+    blob[psci_method_data_offset + 1U] = (uint8_t)'v';
+    blob[psci_method_data_offset + 2U] = (uint8_t)'c';
+    assert(nova_fdt_psci_method((uintptr_t)blob) == 1);
     {
         uint64_t cpus[4] = {UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX};
         assert(nova_fdt_cpu_mpidrs((uintptr_t)blob, cpus, 4U) == 2);
