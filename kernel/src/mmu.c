@@ -181,6 +181,38 @@ int nova_mmu_enable(void) {
     return 1;
 }
 
+
+/* Install the primary CPU's immutable kernel translation tables on a secondary. */
+int nova_mmu_enable_secondary(void) {
+    uint64_t current_el, mair = 0x000000000000FF00ULL;
+    uint64_t tcr = 25ULL | (1ULL << 8) | (1ULL << 10) | (3ULL << 12) |
+                   (25ULL << 16) | (1ULL << 23);
+    uint64_t sctlr;
+    uintptr_t root = (uintptr_t)level1_table;
+    __asm__ volatile("mrs %0, CurrentEL" : "=r"(current_el));
+    if (((current_el >> 2) & 0x3U) != 1U ||
+        (root & (NOVA_MMU_PAGE_SIZE - 1U)) != 0U) return 0;
+    __asm__ volatile(
+        "dsb sy\n"
+        "msr mair_el1, %0\n"
+        "msr tcr_el1, %1\n"
+        "msr ttbr0_el1, %2\n"
+        "dsb sy\n"
+        "tlbi vmalle1\n"
+        "dsb sy\n"
+        "isb\n"
+        : : "r"(mair), "r"(tcr), "r"((uint64_t)root) : "memory");
+    __asm__ volatile(
+        "mrs %0, sctlr_el1\n"
+        "orr %0, %0, #1\n"
+        "orr %0, %0, #4\n"
+        "orr %0, %0, #(1 << 12)\n"
+        "msr sctlr_el1, %0\n"
+        "isb\n"
+        : "=&r"(sctlr) : : "memory");
+    return 1;
+}
+
 int nova_mmu_verify_identity(uintptr_t address) {
     uint64_t par;
     __asm__ volatile(
