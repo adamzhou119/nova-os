@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include "vm.h"
+#include "spinlock.h"
 
 extern void nova_task_start_trampoline(void);
 extern void nova_user_task_start_trampoline(void);
@@ -20,24 +21,14 @@ extern void nova_user_task_start_trampoline(void);
 
 static struct nova_task_info tasks[NOVA_TASK_MAX];
 static uint32_t next_task_id = 1U;
+static nova_spinlock_t task_lock = NOVA_SPINLOCK_INITIALIZER;
 
 static uintptr_t task_irq_save_disable(void) {
-#if defined(__aarch64__)
-    uintptr_t daif;
-    __asm__ volatile("mrs %0, daif\n\tmsr daifset, #2"
-                     : "=r"(daif) :: "memory");
-    return daif;
-#else
-    return 0U;
-#endif
+    return nova_spin_lock_irqsave(&task_lock);
 }
 
-static void task_irq_restore(uintptr_t daif) {
-#if defined(__aarch64__)
-    __asm__ volatile("msr daif, %0" :: "r"(daif) : "memory");
-#else
-    (void)daif;
-#endif
+static void task_irq_restore(uintptr_t saved_daif) {
+    nova_spin_unlock_irqrestore(&task_lock, saved_daif);
 }
 
 static int task_frame_in_stack(const struct nova_task_info *task,
