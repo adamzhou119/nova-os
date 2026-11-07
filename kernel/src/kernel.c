@@ -1455,6 +1455,10 @@ static void nova_start_secondary_cpus(uintptr_t dtb_address) {
     uint32_t conduit, online = 1U;
     int count, i, primary_index = -1;
     count = nova_fdt_cpu_mpidrs(dtb_address, mpidrs, NOVA_SMP_MAX_CPUS);
+    if (count < 0) {
+        nova_console_write("SMP: invalid CPU topology in FDT.\n");
+        return;
+    }
     if (count <= 1) {
         nova_console_write("SMP: no secondary CPU advertised by FDT.\n");
         return;
