@@ -1,7 +1,7 @@
 #include "address_space.h"
 
 #include <stddef.h>
-#include "interrupt.h"
+#include "spinlock.h"
 
 struct address_space_slot {
     struct nova_address_space_info info;
@@ -12,25 +12,15 @@ struct address_space_slot {
 static struct address_space_slot spaces[NOVA_ADDRESS_SPACE_MAX];
 static uint32_t next_address_space_id = 1U;
 static nova_address_space_destroy_fn destroy_hook;
+static nova_spinlock_t address_space_registry_lock = NOVA_SPINLOCK_INITIALIZER;
 
-/* This prototype is single-core: local IRQ masking serializes registry access. */
+/* Serialize address-space registry metadata across all online CPUs. */
 static uintptr_t address_space_lock(void) {
-#if defined(__aarch64__)
-    uintptr_t daif;
-    __asm__ volatile("mrs %0, daif\n\tmsr daifset, #2"
-                     : "=r"(daif) :: "memory");
-    return daif;
-#else
-    return 0U;
-#endif
+    return nova_spin_lock_irqsave(&address_space_registry_lock);
 }
 
-static void address_space_unlock(uintptr_t daif) {
-#if defined(__aarch64__)
-    __asm__ volatile("msr daif, %0" :: "r"(daif) : "memory");
-#else
-    (void)daif;
-#endif
+static void address_space_unlock(uintptr_t saved_daif) {
+    nova_spin_unlock_irqrestore(&address_space_registry_lock, saved_daif);
 }
 
 static struct address_space_slot *find_space_locked(uint32_t id) {
