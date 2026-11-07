@@ -101,7 +101,7 @@ _start:
     wfe
     b       5b
 
- .size _start, . - _start
+.size _start, . - _start
 
 /*
  * PSCI CPU_ON entry. x0 is the logical CPU index supplied as context_id.
@@ -168,7 +168,7 @@ _stack_bottom:
     .skip 16384
 _stack_top:
 
-/* Four independent secondary stacks; index 0 is intentionally unused. */
+/* Four independent secondary stacks, indexed by FDT logical CPU number. */
 .align 12
 _secondary_stacks:
     .skip 65536
