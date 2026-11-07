@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -211,7 +211,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
