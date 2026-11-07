@@ -123,6 +123,7 @@ nova_secondary_entry:
     b.eq    11f
     cmp     x2, #1
     b.ne    10f
+    msr     SPSel, #1
     mov     sp, x1
     ldr     x2, =exception_vectors_el1
     msr     VBAR_EL1, x2
