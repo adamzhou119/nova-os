@@ -70,4 +70,7 @@ int nova_fdt_reserved_regions(uintptr_t dtb_address,
 int nova_fdt_cpu_mpidrs(uintptr_t dtb_address, uint64_t *mpidrs,
                         size_t capacity);
 
+/* PSCI conduit: 1 = HVC, 2 = SMC, 0 = absent, negative = malformed. */
+int nova_fdt_psci_method(uintptr_t dtb_address);
+
 #endif
