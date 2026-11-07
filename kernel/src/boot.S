@@ -103,8 +103,72 @@ _start:
 
 .size _start, . - _start
 
+/*
+ * PSCI CPU_ON entry. x0 is the logical CPU index supplied as context_id.
+ * Each secondary receives a private 16 KiB stack before touching C state.
+ */
+.global nova_secondary_entry
+.type nova_secondary_entry, %function
+nova_secondary_entry:
+    mov     x19, x0
+    cmp     x19, #4
+    b.hs    10f
+    ldr     x1, =_secondary_stacks
+    add     x1, x1, x19, lsl #14
+    add     x1, x1, #16384
+
+    mrs     x2, CurrentEL
+    lsr     x2, x2, #2
+    cmp     x2, #2
+    b.eq    11f
+    cmp     x2, #1
+    b.ne    10f
+    msr     SPSel, #1
+    mov     sp, x1
+    ldr     x2, =exception_vectors_el1
+    msr     VBAR_EL1, x2
+    isb
+    mov     x0, x19
+    bl      nova_secondary_main
+    b       10f
+
+11:
+    mov     x2, #1
+    lsl     x2, x2, #31
+    msr     HCR_EL2, x2
+    mov     x2, #3
+    msr     CNTHCTL_EL2, x2
+    msr     CNTVOFF_EL2, xzr
+    ldr     x2, =exception_vectors_el2
+    msr     VBAR_EL2, x2
+    ldr     x2, =exception_vectors_el1
+    msr     VBAR_EL1, x2
+    msr     SP_EL1, x1
+    movz    x2, #0x0800
+    movk    x2, #0x30d0, lsl #16
+    msr     SCTLR_EL1, x2
+    mov     x2, #0x3c5
+    msr     SPSR_EL2, x2
+    adr     x2, 12f
+    msr     ELR_EL2, x2
+    isb
+    eret
+12:
+    mov     x0, x19
+    bl      nova_secondary_main
+
+10:
+    wfe
+    b       10b
+.size nova_secondary_entry, . - nova_secondary_entry
+
 .section .bss.stack, "aw", %nobits
 .align 12
 _stack_bottom:
     .skip 16384
 _stack_top:
+
+/* Four independent secondary stacks, indexed by FDT logical CPU number. */
+.align 12
+_secondary_stacks:
+    .skip 65536

@@ -50,7 +50,7 @@ jobs:
 
       - name: Generate QEMU virt device tree
         run: |
-          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
+          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -smp 2 -cpu cortex-a57 -display none
           test -s kernel/build/virt.dtb
           dtc -I dtb -O dts kernel/build/virt.dtb -o kernel/build/virt.dts
           echo "===== QEMU generated device tree ====="
@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova.elf > qemu.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova.elf > qemu.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -89,6 +89,8 @@ jobs:
           grep -q "Firmware RAM page allocator tests passed." qemu.log
           grep -q "Current page map available:" qemu.log
           grep -q "EL1 MMU enabled with identity-mapped RAM and PL011." qemu.log
+          grep -q "SMP: CPU online, logical index 0x0000000000000001" qemu.log
+          grep -q "SMP: online CPU count 0x0000000000000002" qemu.log
           grep -q "MMU identity translation tests passed." qemu.log
           grep -q "MMU 4 KiB RAM page boundary tests passed." qemu.log
           grep -q "MMU unmapped guard test passed." qemu.log
@@ -119,7 +121,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-test.elf > user-svc.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -141,7 +143,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-fault-test.elf > user-fault.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-user-fault-test.elf > user-fault.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -163,7 +165,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-test.elf > exception.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-test.elf > exception.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -188,7 +190,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-fault-test.elf > mmu-fault.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-fault-test.elf > mmu-fault.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -209,7 +211,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,secure=on,virtualization=on,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -d in_asm,guest_errors -D el2-qemu-trace.log -device loader,file=kernel/build/el3-test-boot.elf,cpu-num=0 -device loader,file=kernel/build/nova-el2-test.elf > el2-boot.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then
@@ -248,7 +250,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-stack-fault-test.elf > stack-guard-fault.log 2>&1
+          timeout 8s qemu-system-aarch64 -machine virt,gic-version=2 -smp 2 -cpu cortex-a57 -nographic -device loader,file=kernel/build/virt.dtb,addr=0x41000000 -kernel kernel/build/nova-stack-fault-test.elf > stack-guard-fault.log 2>&1
           status=$?
           set -e
           if [[ "$status" -ne 124 ]]; then

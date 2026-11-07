@@ -1414,6 +1414,114 @@ static int test_task_lifecycle(void) {
     return 1;
 }
 
+
+#define NOVA_SMP_MAX_CPUS 4U
+#define NOVA_CPU_OFFLINE 0U
+#define NOVA_CPU_STARTING 1U
+#define NOVA_CPU_ONLINE 2U
+#define NOVA_CPU_FAILED 3U
+static volatile uint32_t nova_cpu_states[NOVA_SMP_MAX_CPUS];
+extern void nova_secondary_entry(void);
+
+static int64_t nova_psci_cpu_on(uint32_t conduit, uint64_t target_mpidr,
+                                uintptr_t entry, uint64_t context_id) {
+    register uint64_t x0 __asm__("x0") = 0xC4000003ULL;
+    register uint64_t x1 __asm__("x1") = target_mpidr;
+    register uint64_t x2 __asm__("x2") = (uint64_t)entry;
+    register uint64_t x3 __asm__("x3") = context_id;
+    if (conduit == 1U)
+        __asm__ volatile("hvc #0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x3) : "memory");
+    else if (conduit == 2U)
+        __asm__ volatile("smc #0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x3) : "memory");
+    else return -1;
+    return (int64_t)x0;
+}
+
+void nova_secondary_main(uint64_t logical_cpu) {
+    if (logical_cpu >= NOVA_SMP_MAX_CPUS)
+        for (;;) __asm__ volatile("wfe");
+    if (!nova_mmu_enable_secondary()) {
+        __atomic_store_n(&nova_cpu_states[logical_cpu], NOVA_CPU_FAILED, __ATOMIC_RELEASE);
+        __asm__ volatile("sev" ::: "memory");
+        for (;;) __asm__ volatile("wfe");
+    }
+    __atomic_store_n(&nova_cpu_states[logical_cpu], NOVA_CPU_ONLINE, __ATOMIC_RELEASE);
+    __asm__ volatile("sev" ::: "memory");
+    for (;;) __asm__ volatile("wfe");
+}
+
+static void nova_start_secondary_cpus(uintptr_t dtb_address) {
+    uint64_t mpidrs[NOVA_SMP_MAX_CPUS], current_mpidr;
+    uint32_t conduit, online = 1U;
+    int count, i, primary_index = -1;
+    count = nova_fdt_cpu_mpidrs(dtb_address, mpidrs, NOVA_SMP_MAX_CPUS);
+    if (count < 0) {
+        nova_console_write("SMP: invalid CPU topology in FDT.\n");
+        return;
+    }
+    if (count <= 1) {
+        nova_console_write("SMP: no secondary CPU advertised by FDT.\n");
+        return;
+    }
+    if (count > (int)NOVA_SMP_MAX_CPUS) {
+        nova_console_write("SMP: CPU topology exceeds configured maximum.\n");
+        return;
+    }
+    {
+        int method = nova_fdt_psci_method(dtb_address);
+        if (method != 1 && method != 2) {
+            nova_console_write("SMP: PSCI conduit unavailable or unsupported.\n");
+            return;
+        }
+        conduit = (uint32_t)method;
+    }
+    __asm__ volatile("mrs %0, mpidr_el1" : "=r"(current_mpidr));
+    current_mpidr &= 0x000000FF00FFFFFFULL;
+    for (i = 0; i < count; ++i)
+        if ((mpidrs[i] & 0x000000FF00FFFFFFULL) == current_mpidr) {
+            primary_index = i;
+            break;
+        }
+    if (primary_index < 0) {
+        nova_console_write("SMP: boot CPU MPIDR absent from FDT topology.\n");
+        return;
+    }
+    __atomic_store_n(&nova_cpu_states[primary_index], NOVA_CPU_ONLINE, __ATOMIC_RELEASE);
+    for (i = 0; i < count; ++i) {
+        int64_t result;
+        uint32_t spins;
+        if (i == primary_index) continue;
+        __atomic_store_n(&nova_cpu_states[i], NOVA_CPU_STARTING, __ATOMIC_RELEASE);
+        __asm__ volatile("dsb sy" ::: "memory");
+        result = nova_psci_cpu_on(conduit, mpidrs[i],
+                                  (uintptr_t)nova_secondary_entry, (uint64_t)i);
+        if (result != 0) {
+            __atomic_store_n(&nova_cpu_states[i], NOVA_CPU_FAILED, __ATOMIC_RELEASE);
+            nova_console_write("SMP: PSCI CPU_ON failed for logical CPU ");
+            nova_console_write_hex64((uint64_t)i);
+            nova_console_write(" status: ");
+            nova_console_write_hex64((uint64_t)result);
+            continue;
+        }
+        for (spins = 0U; spins < 10000000U; ++spins) {
+            uint32_t state = __atomic_load_n(&nova_cpu_states[i], __ATOMIC_ACQUIRE);
+            if (state == NOVA_CPU_ONLINE || state == NOVA_CPU_FAILED) break;
+            __asm__ volatile("yield" ::: "memory");
+        }
+        if (__atomic_load_n(&nova_cpu_states[i], __ATOMIC_ACQUIRE) == NOVA_CPU_ONLINE) {
+            ++online;
+            nova_console_write("SMP: CPU online, logical index ");
+            nova_console_write_hex64((uint64_t)i);
+        } else {
+            __atomic_store_n(&nova_cpu_states[i], NOVA_CPU_FAILED, __ATOMIC_RELEASE);
+            nova_console_write("SMP: CPU startup timed out, logical index ");
+            nova_console_write_hex64((uint64_t)i);
+        }
+    }
+    nova_console_write("SMP: online CPU count ");
+    nova_console_write_hex64(online);
+}
+
 void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
     int memory_regions;
     int reserved_regions;
@@ -1506,6 +1614,7 @@ void kernel_main(uint64_t current_el, uintptr_t dtb_address) {
         if (!nova_address_space_set_destroy_hook(nova_mmu_address_space_destroy))
             nova_console_write("ERROR: address-space destroy hook registration failed.\n");
         nova_console_write("EL1 MMU enabled with identity-mapped RAM and PL011.\n");
+        nova_start_secondary_cpus(dtb_address);
         if (nova_mmu_verify_identity((uintptr_t)&kernel_main) &&
             nova_mmu_verify_identity((uintptr_t)NOVA_CONSOLE_UART_PHYS_BASE) &&
             nova_mmu_verify_identity(0x08000000U) &&

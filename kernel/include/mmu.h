@@ -9,6 +9,7 @@
 
 /* Enable the QEMU EL1 RAM/PL011 map and reserve a dynamic virtual window. */
 int nova_mmu_enable(void);
+int nova_mmu_enable_secondary(void);
 
 /* Create/destroy a root with shared privileged mappings and a private user L2. */
 int nova_mmu_address_space_create(uintptr_t *root_physical);
