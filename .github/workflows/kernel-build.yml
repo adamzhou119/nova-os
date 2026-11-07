@@ -50,11 +50,15 @@ jobs:
 
       - name: Generate QEMU virt device tree
         run: |
-          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -display none
+          qemu-system-aarch64 -machine virt,gic-version=2,dumpdtb=kernel/build/virt.dtb -cpu cortex-a57 -smp 4 -display none
           test -s kernel/build/virt.dtb
           dtc -I dtb -O dts kernel/build/virt.dtb -o kernel/build/virt.dts
-          echo "===== QEMU generated device tree ====="
+          echo "===== QEMU generated 4-vCPU device tree ====="
           cat kernel/build/virt.dts
+          grep -q 'psci {' kernel/build/virt.dts
+          grep -q 'method = "hvc";' kernel/build/virt.dts
+          for cpu in 0 1 2 3; do grep -q "cpu@${cpu} {" kernel/build/virt.dts; done
+          test "$(grep -c 'cpu@[0-3] {' kernel/build/virt.dts)" -eq 4
 
       - name: QEMU serial boot smoke test
         shell: bash
