@@ -1438,7 +1438,7 @@ static int64_t nova_psci_cpu_on(uint32_t conduit, uint64_t target_mpidr,
 }
 
 void nova_secondary_main(uint64_t logical_cpu) {
-    if (logical_cpu == 0U || logical_cpu >= NOVA_SMP_MAX_CPUS)
+    if (logical_cpu >= NOVA_SMP_MAX_CPUS)
         for (;;) __asm__ volatile("wfe");
     if (!nova_mmu_enable_secondary()) {
         __atomic_store_n(&nova_cpu_states[logical_cpu], NOVA_CPU_FAILED, __ATOMIC_RELEASE);
@@ -1453,8 +1453,7 @@ void nova_secondary_main(uint64_t logical_cpu) {
 static void nova_start_secondary_cpus(uintptr_t dtb_address) {
     uint64_t mpidrs[NOVA_SMP_MAX_CPUS], current_mpidr;
     uint32_t conduit, online = 1U;
-    int count, i;
-    __atomic_store_n(&nova_cpu_states[0], NOVA_CPU_ONLINE, __ATOMIC_RELEASE);
+    int count, i, primary_index = -1;
     count = nova_fdt_cpu_mpidrs(dtb_address, mpidrs, NOVA_SMP_MAX_CPUS);
     if (count <= 1) {
         nova_console_write("SMP: no secondary CPU advertised by FDT.\n");
@@ -1474,11 +1473,20 @@ static void nova_start_secondary_cpus(uintptr_t dtb_address) {
     }
     __asm__ volatile("mrs %0, mpidr_el1" : "=r"(current_mpidr));
     current_mpidr &= 0x000000FF00FFFFFFULL;
+    for (i = 0; i < count; ++i)
+        if ((mpidrs[i] & 0x000000FF00FFFFFFULL) == current_mpidr) {
+            primary_index = i;
+            break;
+        }
+    if (primary_index < 0) {
+        nova_console_write("SMP: boot CPU MPIDR absent from FDT topology.\n");
+        return;
+    }
+    __atomic_store_n(&nova_cpu_states[primary_index], NOVA_CPU_ONLINE, __ATOMIC_RELEASE);
     for (i = 0; i < count; ++i) {
         int64_t result;
         uint32_t spins;
-        if ((mpidrs[i] & 0x000000FF00FFFFFFULL) == current_mpidr) continue;
-        if (i == 0) continue;
+        if (i == primary_index) continue;
         __atomic_store_n(&nova_cpu_states[i], NOVA_CPU_STARTING, __ATOMIC_RELEASE);
         __asm__ volatile("dsb sy" ::: "memory");
         result = nova_psci_cpu_on(conduit, mpidrs[i],
